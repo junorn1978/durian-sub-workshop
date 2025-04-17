@@ -1,4 +1,4 @@
-# github.io
+# 簡單的說明
 這一些code是我為了Vtuber 乙夏れい製作的，功能在於讀取語音之後翻譯和顯示字幕.
 由於是給乙夏れい用的，所以就只有四種語言可以選擇，如果想要複製使用的話可以自己增加，位置在styleController.js的const LANGUAGE_OPTIONS那邊
  
