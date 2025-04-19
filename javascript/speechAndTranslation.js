@@ -7,8 +7,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const CONFIG = {
         MAX_RESTART_ATTEMPTS: 5,
         MAX_TIME_LIMIT: 300 * 1000,
-        TRANSLATION_TIME_WINDOW: 1000,
-        SHORT_TEXT_LIMIT: 10,
         TRANSLATION_TIMEOUT: 3000,
         MAX_PENDING_RESPONSES: 10,
         RESTART_DELAY: 500,
@@ -61,20 +59,18 @@ document.addEventListener("DOMContentLoaded", () => {
         finalText: "",
         interimText: "",
         totalCharCount: 0,
-        recentCharCount: 0,
         shouldClearNext: false,
         isRecognitionRunning: false,
         restartAttempts: 0,
         startTime: null,
-        lastTranslationTime: null,
-        skipNextTranslation: false,
         lastNonEmptyText: "",
-        translationTimeout: null,
         currentSequenceNumber: 1,
         expectedSequenceNumber: 1,
         pendingResponses: {},
         pendingTranslationText: "",
-        translationTimer: null
+        translationTimer: null,
+        isManuallyStopped: false,
+        lastStopWasManual: false
     };
 
     const texts = {
@@ -82,13 +78,6 @@ document.addEventListener("DOMContentLoaded", () => {
         target1: "",
         target2: "",
         target3: ""
-    };
-
-    const stylesCache = {
-        "source-language": { fontSize: "24", textColor: "#FFC0CB", strokeSize: "2", strokeColor: "#000000" },
-        "target-language1": { fontSize: "24", textColor: "#FFC0CB", strokeSize: "2", strokeColor: "#000000" },
-        "target-language2": { fontSize: "24", textColor: "#FFC0CB", strokeSize: "2", strokeColor: "#000000" },
-        "target-language3": { fontSize: "24", textColor: "#FFC0CB", strokeSize: "2", strokeColor: "#000000" }
     };
 
     // ==========================================================================
@@ -105,20 +94,18 @@ document.addEventListener("DOMContentLoaded", () => {
             finalText: "",
             interimText: "",
             totalCharCount: 0,
-            recentCharCount: 0,
             shouldClearNext: false,
             isRecognitionRunning: false,
             restartAttempts: 0,
             startTime: null,
-            lastTranslationTime: null,
-            skipNextTranslation: false,
             lastNonEmptyText: "",
-            translationTimeout: null,
             currentSequenceNumber: 1,
             expectedSequenceNumber: 1,
             pendingResponses: {},
             pendingTranslationText: "",
-            translationTimer: null
+            translationTimer: null,
+            isManuallyStopped: false,
+            lastStopWasManual: false
         });
         console.info("[SpeechAndTranslation] State reset.");
     }
@@ -132,13 +119,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function initializeElements() {
-        const elements = {};
+        const forwardRef = {};
         const missingIds = [];
 
         Object.entries(ELEMENT_IDS).forEach(([key, id]) => {
-            elements[key] = document.getElementById(id);
-            console.log("[SpeechAndTranslation] Looking for element:", id, "Found:", !!elements[key]);
-            if (!elements[key]) missingIds.push(id);
+            forwardRef[key] = document.getElementById(id);
+            console.log("[SpeechAndTranslation] Looking for element:", id, "Found:", !!forwardRef[key]);
+            if (!forwardRef[key]) missingIds.push(id);
         });
 
         if (missingIds.length) {
@@ -147,17 +134,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         console.info("[SpeechAndTranslation] All elements initialized.");
-        return elements;
-    }
-
-    function initializeStyles() {
-        Object.keys(stylesCache).forEach(lang => {
-            stylesCache[lang].fontSize = localStorage.getItem(`${lang}-font-size`) || "24";
-            stylesCache[lang].textColor = localStorage.getItem(`${lang}-text-color`) || "#FFC0CB";
-            stylesCache[lang].strokeSize = localStorage.getItem(`${lang}-text-stroke-size`) || "2";
-            stylesCache[lang].strokeColor = localStorage.getItem(`${lang}-text-stroke-color`) || "000000";
-        });
-        console.info("[SpeechAndTranslation] Styles initialized.");
+        return forwardRef;
     }
 
     function initializeSpeechRecognition(sourceLanguageSelect) {
@@ -182,7 +159,6 @@ document.addEventListener("DOMContentLoaded", () => {
             length: text.length
         });
         translateText(text, sourceLang, sequenceNumber);
-        state.lastTranslationTime = Date.now();
         state.pendingTranslationText = "";
     }
 
@@ -212,7 +188,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // 初始化
     // ==========================================================================
     const elements = initializeElements();
-    initializeStyles();
     if (!elements) return;
 
     const recognition = initializeSpeechRecognition(elements.sourceLanguageSelect);
@@ -230,6 +205,9 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             resetState();
+            state.isManuallyStopped = false;
+            state.lastStopWasManual = false;
+            console.info("[SpeechAndTranslation] isManuallyStopped reset to:", state.isManuallyStopped);
             recognition.lang = elements.sourceLanguageSelect.value;
 
             try {
@@ -252,11 +230,8 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             state.isManuallyStopped = true;
+            state.lastStopWasManual = true;
             recognition.stop();
-            if (state.translationTimeout) {
-                clearTimeout(state.translationTimeout);
-                state.translationTimeout = null;
-            }
             if (state.translationTimer) {
                 clearTimeout(state.translationTimer);
                 state.translationTimer = null;
@@ -308,7 +283,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    // [修正] 確保 onerror 僅記錄日誌，不影響錄音
     recognition.onerror = (event) => {
         const errorType = event.error;
         if (errorType === "aborted") {
@@ -317,26 +291,25 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         console.warn("[SpeechAndTranslation] Speech recognition error:", errorType);
         handleError(errorType, errorType, { event });
-        // 不設置 state.isRecognitionRunning，保持錄音繼續
     };
 
-    // [修正] 恢復 onend 的自動重啟邏輯
     recognition.onend = () => {
-        console.info("[SpeechAndTranslation] Speech recognition ended.");
-        state.isRecognitionRunning = false; // 更新狀態，允許重啟
-        if (state.isManuallyStopped) {
+        console.info("[SpeechAndTranslation] Speech recognition ended, isManuallyStopped:", state.isManuallyStopped, "lastStopWasManual:", state.lastStopWasManual, "restartAttempts:", state.restartAttempts, "elapsedTime:", state.startTime ? (Date.now() - state.startTime) / 1000 : "N/A");
+        state.isRecognitionRunning = false;
+        if (state.lastStopWasManual) {
             state.restartAttempts = 0;
+            state.isManuallyStopped = false;
+            state.lastStopWasManual = false;
             elements.startSpeechButton.disabled = false;
             elements.stopSpeechButton.disabled = true;
             console.info("[SpeechAndTranslation] Manually stopped, updating UI.");
         } else {
-            // 非手動停止（如 no-speech 錯誤），嘗試重啟
             if (state.restartAttempts < CONFIG.MAX_RESTART_ATTEMPTS) {
                 console.info(`[SpeechAndTranslation] Restart attempt ${state.restartAttempts + 1}/${CONFIG.MAX_RESTART_ATTEMPTS}`);
                 setTimeout(() => restartRecognition(), CONFIG.RESTART_DELAY);
             } else {
-                console.info("[SpeechAndTranslation] Max restart attempts exceeded.");
-                texts.source = "音声認識の再起動に失敗しました。ネットワークを確認してください。";
+                console.error("[SpeechAndTranslation] Max restart attempts exceeded.");
+                texts.source = "音声認識の再起動に失敗しました。時間制限またはネットワークエラーが原因の可能性があります。";
                 texts.target1 = "";
                 texts.target2 = "";
                 texts.target3 = "";
@@ -347,27 +320,32 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    // [修正] 改進 restartRecognition，增加重試計數
     function restartRecognition() {
-        if (!ensureRecognition() || state.isRecognitionRunning || state.isManuallyStopped) return;
+        if (!ensureRecognition() || state.isRecognitionRunning) {
+            console.warn("[SpeechAndTranslation] Cannot restart: recognition running or not supported.");
+            return;
+        }
 
         try {
             recognition.start();
             state.isRecognitionRunning = true;
             state.startTime = Date.now();
             console.info("[SpeechAndTranslation] Speech recognition restarted.");
-            state.restartAttempts = 0; // 成功重啟後重置計數
+            state.restartAttempts = 0;
         } catch (error) {
             state.restartAttempts++;
+            console.warn(`[SpeechAndTranslation] Restart attempt ${state.restartAttempts}/${CONFIG.MAX_RESTART_ATTEMPTS} failed: ${error.message}`);
             if (state.restartAttempts >= CONFIG.MAX_RESTART_ATTEMPTS) {
-                console.info("[SpeechAndTranslation] Max restart attempts reached.");
-                texts.source = "音声認識の再起動に失敗しました。ネットワークを確認してください。";
+                console.error("[SpeechAndTranslation] Max restart attempts reached.");
+                texts.source = "音声認識の再起動に失敗しました。時間制限またはネットワークエラーが原因の可能性があります。";
                 texts.target1 = "";
                 texts.target2 = "";
                 texts.target3 = "";
                 updateSectionDisplay();
                 elements.startSpeechButton.disabled = false;
                 elements.stopSpeechButton.disabled = true;
+            } else {
+                setTimeout(() => restartRecognition(), CONFIG.RESTART_DELAY);
             }
             handleError("restart", error.message);
         }
@@ -381,7 +359,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         state.finalText += (state.finalText ? " " : "") + newText;
         state.totalCharCount += newText.length;
-        state.recentCharCount += newText.length;
         if (state.totalCharCount > 20) state.shouldClearNext = true;
         texts.source = state.finalText;
         state.lastNonEmptyText = newText;
@@ -390,6 +367,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (state.startTime && Date.now() - state.startTime >= CONFIG.MAX_TIME_LIMIT) {
             shouldRestart = true;
+            state.restartAttempts = 0;
+            console.info("[SpeechAndTranslation] Time limit reached, preparing to restart.");
         }
 
         return shouldRestart;
@@ -404,7 +383,6 @@ document.addEventListener("DOMContentLoaded", () => {
         if (state.shouldClearNext && newInterimText) {
             state.finalText = "";
             state.totalCharCount = 0;
-            state.recentCharCount = 0;
             state.shouldClearNext = false;
             texts.source = "";
             state.lastNonEmptyText = "";
@@ -584,31 +562,26 @@ document.addEventListener("DOMContentLoaded", () => {
             { span: spans.target3, key: "target3", lang: "target-language3" }
         ];
 
-        entries.forEach(({ span, key, lang }) => {
+        entries.forEach(({ span, key }) => {
             if (span.textContent !== texts[key]) {
                 span.textContent = texts[key];
-                span.setAttribute("data-storke", texts[key]);
-                span.offsetHeight;
+                span.setAttribute("data-stroke", texts[key]);
+                // 強制重繪以確保偽元素更新
+                span.style.display = 'inline-block';
+                span.offsetHeight; // 觸發重排
+                span.style.display = '';
             }
         });
 
         if (DEBUG) {
             console.info("[SpeechAndTranslation] Updated UI spans:", {
-                source: { text: spans.source.textContent, storke: spans.source.getAttribute("data-storke") },
-                target1: { text: spans.target1.textContent, storke: spans.target1.getAttribute("data-storke") },
-                target2: { text: spans.target2.textContent, storke: spans.target2.getAttribute("data-storke") },
-                target3: { text: spans.target3.textContent, storke: spans.target3.getAttribute("data-storke") }
+                source: { text: spans.source.textContent, stroke: spans.source.getAttribute("data-stroke") },
+                target1: { text: spans.target1.textContent, stroke: spans.target1.getAttribute("data-stroke") },
+                target2: { text: spans.target2.textContent, stroke: spans.target2.getAttribute("data-stroke") },
+                target3: { text: spans.target3.textContent, stroke: spans.target3.getAttribute("data-stroke") }
             });
         }
         console.info("[SpeechAndTranslation] UI updated.");
-    }
-
-    function applyStyle(element, language) {
-        const { fontSize, textColor, strokeSize, strokeColor } = stylesCache[language];
-        element.style.fontSize = `${fontSize}px`;
-        element.style.color = textColor;
-        element.style.setProperty("--stroke-width", `${strokeSize}px`);
-        element.style.setProperty("--stroke-color", strokeColor);
     }
 
     // ==========================================================================
