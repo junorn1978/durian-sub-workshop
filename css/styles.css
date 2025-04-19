@@ -219,7 +219,7 @@ body.no-scroll {
 }
 
 .text-overlay::before {
-    content: attr(data-storke);
+    content: attr(data-stroke);
     position: absolute;
     z-index: -1;
     -webkit-text-stroke: var(--stroke-width) var(--stroke-color);
