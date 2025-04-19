@@ -244,84 +244,69 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-	// ==========================================================================
-	// 恢復預設值按鈕
-	// ==========================================================================
-	const resetButton = document.getElementById("reset-settings");
-	if (resetButton) {
-		resetButton.addEventListener("click", () => {
-			// 移除：重置語言選擇器
-			// languageSelectIds.forEach(id => {
-			//     const selectElement = document.getElementById(id);
-			//     if (selectElement) {
-			//         selectElement.value = DEFAULT_LANGUAGES[id];
-			//         localStorage.setItem(id, DEFAULT_LANGUAGES[id]);
-			//     }
-			// });
-	
-			// 重置語言相關樣式設置
-			languageSelectIds.forEach(language => {
-				const defaults = DEFAULT_SETTINGS[language];
-				localStorage.setItem(`${language}-font-size`, defaults.fontSize);
-				localStorage.setItem(`${language}-text-stroke-size`, defaults.textStrokeSize);
-				localStorage.setItem(`${language}-text-color`, defaults.textColor);
-				localStorage.setItem(`${language}-text-stroke-color`, defaults.textStrokeColor);
-			});
-	
-			// 重置背景色
-			localStorage.setItem("background-color", DEFAULT_SETTINGS.backgroundColor);
-	
-			// 移除：重置語言樣式選擇器
-			// if (elements.optionSelector) {
-			//     elements.optionSelector.value = "source-language";
-			//     localStorage.setItem("selected-option-language", "source-language");
-			// }
-	
-			// 更新樣式控制元件的值（基於當前語言樣式選擇器）
-			const currentLanguage = elements.optionSelector.value;
-			const currentDefaults = DEFAULT_SETTINGS[currentLanguage];
-			if (elements.fontSizeSlider) elements.fontSizeSlider.value = currentDefaults.fontSize;
-			if (elements.textStrokeSlider) elements.textStrokeSlider.value = currentDefaults.textStrokeSize;
-			if (elements.textColorPicker) elements.textColorPicker.value = currentDefaults.textColor;
-			if (elements.textStrokeColorPicker) elements.textStrokeColorPicker.value = currentDefaults.textStrokeColor;
-			if (elements.backgroundColorPicker) elements.backgroundColorPicker.value = DEFAULT_SETTINGS.backgroundColor;
-	
-			// 更新所有語言的文字樣式
-			languageSelectIds.forEach(language => {
-				const defaults = DEFAULT_SETTINGS[language];
-				const spanClass = languageToSpanMap[language];
-				const span = elements.section.querySelector(spanClass);
-				if (span) {
-					span.style.fontSize = `${defaults.fontSize}px`;
-					span.style.color = defaults.textColor;
-					span.style.setProperty("--stroke-width", `${defaults.textStrokeSize}px`);
-					span.style.setProperty("--stroke-color", defaults.textStrokeColor);
-					if (span.textContent && span.getAttribute("data-storke") !== span.textContent) {
-						span.setAttribute("data-storke", span.textContent);
-					}
-				}
-			});
-	
-			// 更新面板和區段背景色
-			if (elements.rightPanel) elements.rightPanel.style.backgroundColor = DEFAULT_SETTINGS.backgroundColor;
-			if (elements.section) elements.section.style.backgroundColor = DEFAULT_SETTINGS.backgroundColor;
-	
-			// 重置文字對齊
-			if (elements.textAlignmentSelector) {
-				elements.textAlignmentSelector.value = DEFAULT_SETTINGS.textAlignment;
-				localStorage.setItem("text-alignment", DEFAULT_SETTINGS.textAlignment);
-				applyTextAlignment(DEFAULT_SETTINGS.textAlignment);
-			}
-	
-			// 載入當前語言的設置
-			if (elements.optionSelector) {
-				loadSettings(elements.optionSelector.value);
-			}
-	
-			console.log("Settings reset to defaults (excluding language selectors and option selector) and all styles refreshed.");
-		});
-	}
-	
+    // ==========================================================================
+    // 恢復預設值按鈕
+    // ==========================================================================
+    const resetButton = document.getElementById("reset-settings");
+    if (resetButton) {
+        resetButton.addEventListener("click", () => {
+            // 重置語言相關樣式設置
+            languageSelectIds.forEach(language => {
+                const defaults = DEFAULT_SETTINGS[language];
+                localStorage.setItem(`${language}-font-size`, defaults.fontSize);
+                localStorage.setItem(`${language}-text-stroke-size`, defaults.textStrokeSize);
+                localStorage.setItem(`${language}-text-color`, defaults.textColor);
+                localStorage.setItem(`${language}-text-stroke-color`, defaults.textStrokeColor);
+            });
+
+            // 重置背景色
+            localStorage.setItem("background-color", DEFAULT_SETTINGS.backgroundColor);
+
+            // 更新樣式控制元件的值（基於當前語言樣式選擇器）
+            const currentLanguage = elements.optionSelector.value;
+            const currentDefaults = DEFAULT_SETTINGS[currentLanguage];
+            if (elements.fontSizeSlider) elements.fontSizeSlider.value = currentDefaults.fontSize;
+            if (elements.textStrokeSlider) elements.textStrokeSlider.value = currentDefaults.textStrokeSize;
+            if (elements.textColorPicker) elements.textColorPicker.value = currentDefaults.textColor;
+            if (elements.textStrokeColorPicker) elements.textStrokeColorPicker.value = currentDefaults.textStrokeColor;
+            if (elements.backgroundColorPicker) elements.backgroundColorPicker.value = DEFAULT_SETTINGS.backgroundColor;
+
+            // 更新所有語言的文字樣式
+            languageSelectIds.forEach(language => {
+                const defaults = DEFAULT_SETTINGS[language];
+                const spanClass = languageToSpanMap[language];
+                const span = elements.section.querySelector(spanClass);
+                if (span) {
+                    span.style.fontSize = `${defaults.fontSize}px`;
+                    span.style.color = defaults.textColor;
+                    span.style.setProperty("--stroke-width", `${defaults.textStrokeSize}px`);
+                    span.style.setProperty("--stroke-color", defaults.textStrokeColor);
+                    if (span.textContent && span.getAttribute("data-stroke") !== span.textContent) {
+                        span.setAttribute("data-stroke", span.textContent);
+                    }
+                }
+            });
+
+            // 更新面板和區段背景色
+            if (elements.rightPanel) elements.rightPanel.style.backgroundColor = DEFAULT_SETTINGS.backgroundColor;
+            if (elements.section) elements.section.style.backgroundColor = DEFAULT_SETTINGS.backgroundColor;
+
+            // 重置文字對齊
+            if (elements.textAlignmentSelector) {
+                elements.textAlignmentSelector.value = DEFAULT_SETTINGS.textAlignment;
+                localStorage.setItem("text-alignment", DEFAULT_SETTINGS.textAlignment);
+                applyTextAlignment(DEFAULT_SETTINGS.textAlignment);
+            }
+
+            // 載入當前語言的設置
+            if (elements.optionSelector) {
+                loadSettings(elements.optionSelector.value);
+            }
+
+            console.log("Settings reset to defaults (excluding language selectors and option selector) and all styles refreshed.");
+        });
+    }
+
     // ==========================================================================
     // 輔助函數
     // ==========================================================================
@@ -334,8 +319,8 @@ document.addEventListener("DOMContentLoaded", () => {
             } else {
                 span.style.setProperty(property, value);
             }
-            if (!span.getAttribute("data-storke") || span.getAttribute("data-storke") !== span.textContent) {
-                span.setAttribute("data-storke", span.textContent);
+            if (!span.getAttribute("data-stroke") || span.getAttribute("data-stroke") !== span.textContent) {
+                span.setAttribute("data-stroke", span.textContent);
             }
         } else {
             console.error(`Span not found for class: ${spanClass}`);
@@ -365,8 +350,8 @@ document.addEventListener("DOMContentLoaded", () => {
             span.style.color = settings.textColor;
             span.style.setProperty("--stroke-width", `${settings.textStrokeSize}px`);
             span.style.setProperty("--stroke-color", settings.textStrokeColor);
-            if (!span.getAttribute("data-storke") || span.getAttribute("data-storke") !== span.textContent) {
-                span.setAttribute("data-storke", span.textContent);
+            if (!span.getAttribute("data-stroke") || span.getAttribute("data-stroke") !== span.textContent) {
+                span.setAttribute("data-stroke", span.textContent);
             }
         }
 
@@ -376,59 +361,60 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-// ... 其他代碼保持不變 ...
-
-function saveSettings(settings) {
-    const language = elements.optionSelector.value;
-    if (settings.fontSize !== undefined) {
-        localStorage.setItem(`${language}-font-size`, settings.fontSize);
-        console.log(`Saved ${language}-font-size: ${settings.fontSize}`);
-    }
-    if (settings.textStrokeSize !== undefined) {
-        localStorage.setItem(`${language}-text-stroke-size`, settings.textStrokeSize);
-        console.log(`Saved ${language}-text-stroke-size: ${settings.textStrokeSize}`);
-    }
-    if (settings.textColor !== undefined) {
-        localStorage.setItem(`${language}-text-color`, settings.textColor);
-        console.log(`Saved ${language}-text-color: ${settings.textColor}`);
-    }
-    if (settings.textStrokeColor !== undefined) {
-        localStorage.setItem(`${language}-text-stroke-color`, settings.textStrokeColor);
-        console.log(`Saved ${language}-text-stroke-color: ${settings.textStrokeColor}`);
-    }
-    if (settings.backgroundColor !== undefined) {
-        localStorage.setItem("background-color", settings.backgroundColor);
-        console.log(`Saved background-color: ${settings.backgroundColor}`);
-    }
-    refreshAllStyles(); // 每次保存設置時更新所有樣式
-}
-
-function refreshAllStyles() {
-    const section = document.getElementById("section-1");
-    if (!section) return;
-
-    const spans = {
-        "source-language": section.querySelector(".source-text"),
-        "target-language1": section.querySelector(".target-text-1"),
-        "target-language2": section.querySelector(".target-text-2"),
-        "target-language3": section.querySelector(".target-text-3")
-    };
-
-    Object.entries(spans).forEach(([lang, span]) => {
-        if (span) {
-            const settings = {
-                fontSize: localStorage.getItem(`${lang}-font-size`) || DEFAULT_SETTINGS[lang].fontSize,
-                textColor: localStorage.getItem(`${lang}-text-color`) || DEFAULT_SETTINGS[lang].textColor,
-                textStrokeSize: localStorage.getItem(`${lang}-text-stroke-size`) || DEFAULT_SETTINGS[lang].textStrokeSize,
-                textStrokeColor: localStorage.getItem(`${lang}-text-stroke-color`) || DEFAULT_SETTINGS[lang].textStrokeColor
-            };
-            span.style.fontSize = `${settings.fontSize}px`;
-            span.style.color = settings.textColor;
-            span.style.setProperty("--stroke-width", `${settings.textStrokeSize}px`);
-            span.style.setProperty("--stroke-color", settings.textStrokeColor);
+    function saveSettings(settings) {
+        const language = elements.optionSelector.value;
+        if (settings.fontSize !== undefined) {
+            localStorage.setItem(`${language}-font-size`, settings.fontSize);
+            console.log(`Saved ${language}-font-size: ${settings.fontSize}`);
         }
-    });
-}
+        if (settings.textStrokeSize !== undefined) {
+            localStorage.setItem(`${language}-text-stroke-size`, settings.textStrokeSize);
+            console.log(`Saved ${language}-text-stroke-size: ${settings.textStrokeSize}`);
+        }
+        if (settings.textColor !== undefined) {
+            localStorage.setItem(`${language}-text-color`, settings.textColor);
+            console.log(`Saved ${language}-text-color: ${settings.textColor}`);
+        }
+        if (settings.textStrokeColor !== undefined) {
+            localStorage.setItem(`${language}-text-stroke-color`, settings.textStrokeColor);
+            console.log(`Saved ${language}-text-stroke-color: ${settings.textStrokeColor}`);
+        }
+        if (settings.backgroundColor !== undefined) {
+            localStorage.setItem("background-color", settings.backgroundColor);
+            console.log(`Saved background-color: ${settings.backgroundColor}`);
+        }
+        refreshAllStyles(); // 每次保存設置時更新所有樣式
+    }
+
+    function refreshAllStyles() {
+        const section = document.getElementById("section-1");
+        if (!section) return;
+
+        const spans = {
+            "source-language": section.querySelector(".source-text"),
+            "target-language1": section.querySelector(".target-text-1"),
+            "target-language2": section.querySelector(".target-text-2"),
+            "target-language3": section.querySelector(".target-text-3")
+        };
+
+        Object.entries(spans).forEach(([lang, span]) => {
+            if (span) {
+                const settings = {
+                    fontSize: localStorage.getItem(`${lang}-font-size`) || DEFAULT_SETTINGS[lang].fontSize,
+                    textColor: localStorage.getItem(`${lang}-text-color`) || DEFAULT_SETTINGS[lang].textColor,
+                    textStrokeSize: localStorage.getItem(`${lang}-text-stroke-size`) || DEFAULT_SETTINGS[lang].textStrokeSize,
+                    textStrokeColor: localStorage.getItem(`${lang}-text-stroke-color`) || DEFAULT_SETTINGS[lang].textStrokeColor
+                };
+                span.style.fontSize = `${settings.fontSize}px`;
+                span.style.color = settings.textColor;
+                span.style.setProperty("--stroke-width", `${settings.textStrokeSize}px`);
+                span.style.setProperty("--stroke-color", settings.textStrokeColor);
+                if (span.textContent && span.getAttribute("data-stroke") !== span.textContent) {
+                    span.setAttribute("data-stroke", span.textContent);
+                }
+            }
+        });
+    }
 
     function applyTextAlignment(alignment) {
         const scrollContainer = elements.section.querySelector(".scroll-container");
