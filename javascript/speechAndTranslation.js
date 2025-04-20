@@ -55,23 +55,28 @@ document.addEventListener("DOMContentLoaded", () => {
     // ==========================================================================
     // 狀態與文字
     // ==========================================================================
-    const state = {
-        finalText: "",
-        interimText: "",
-        totalCharCount: 0,
-        shouldClearNext: false,
-        isRecognitionRunning: false,
-        restartAttempts: 0,
-        startTime: null,
-        lastNonEmptyText: "",
-        currentSequenceNumber: 1,
-        expectedSequenceNumber: 1,
-        pendingResponses: {},
-        pendingTranslationText: "",
-        translationTimer: null,
-        isManuallyStopped: false,
-        lastStopWasManual: false
-    };
+	const state = {
+		finalText: "",
+		interimText: "",
+		totalCharCount: 0,
+		shouldClearNext: false,
+		isRecognitionRunning: false,
+		restartAttempts: 0,
+		startTime: null,
+		lastNonEmptyText: "",
+		currentSequenceNumber: 1,
+		expectedSequenceNumber: 1,
+		pendingResponses: {},
+		pendingTranslationText: "",
+		translationTimer: null,
+		isManuallyStopped: false,
+		lastStopWasManual: false,
+		displayBuffer: {
+			target1: { text: "", timestamp: 0, minDisplayTime: 5000 },
+			target2: { text: "", timestamp: 0, minDisplayTime: 5000 },
+			target3: { text: "", timestamp: 0, minDisplayTime: 5000 }
+		}
+	};
 
     const texts = {
         source: "",
@@ -491,32 +496,42 @@ document.addEventListener("DOMContentLoaded", () => {
         state.pendingResponses[sequenceNumber] = { text, translations, errorMessage };
     }
 
-    function applyTranslationResponse(text, translations, errorMessage) {
-        const lang1 = elements.targetLanguage1Select.value;
-        const lang2 = elements.targetLanguage2Select.value;
-        const lang3 = elements.targetLanguage3Select.value;
-
-        if (errorMessage) {
-            texts.target1 = lang1 && lang1 !== "none" ? `翻訳エラー: ${errorMessage}` : "";
-            texts.target2 = lang2 && lang2 !== "none" ? `翻訳エラー: ${errorMessage}` : "";
-            texts.target3 = lang3 && lang3 !== "none" ? `翻訳エラー: ${errorMessage}` : "";
-            updateSectionDisplay();
-            return;
-        }
-
-        const targetLangs = [];
-        if (lang1 && lang1 !== "none") targetLangs.push(lang1);
-        if (lang2 && lang2 !== "none") targetLangs.push(lang2);
-        if (lang3 && lang3 !== "none") targetLangs.push(lang3);
-
-        console.info("[SpeechAndTranslation] Applying translations:", { targetLangs, translations });
-
-        texts.target1 = lang1 && lang1 !== "none" && translations && translations.length > 0 ? translations[0] || "" : "";
-        texts.target2 = lang2 && lang2 !== "none" && translations && translations.length > 1 ? translations[1] || "" : "";
-        texts.target3 = lang3 && lang3 !== "none" && translations && translations.length > 2 ? translations[2] || "" : "";
-
-        updateSectionDisplay();
-    }
+	function applyTranslationResponse(text, translations, errorMessage) {
+		const lang1 = elements.targetLanguage1Select.value;
+		const lang2 = elements.targetLanguage2Select.value;
+		const lang3 = elements.targetLanguage3Select.value;
+	
+		if (errorMessage) {
+			texts.target1 = lang1 && lang1 !== "none" ? `翻訳エラー: ${errorMessage}` : "";
+			texts.target2 = lang2 && lang2 !== "none" ? `翻訳エラー: ${errorMessage}` : "";
+			texts.target3 = lang3 && lang3 !== "none" ? `翻訳エラー: ${errorMessage}` : "";
+			updateSectionDisplay();
+			return;
+		}
+	
+		const now = Date.now();
+		const isLongText = text.length > 45;
+		const newTranslations = [
+			lang1 && lang1 !== "none" && translations && translations.length > 0 ? translations[0] || "" : "",
+			lang2 && lang2 !== "none" && translations && translations.length > 1 ? translations[1] || "" : "",
+			lang3 && lang3 !== "none" && translations && translations.length > 2 ? translations[2] || "" : ""
+		];
+	
+		['target1', 'target2', 'target3'].forEach((key, index) => {
+			const buffer = state.displayBuffer[key];
+			if (isLongText) {
+				buffer.text = newTranslations[index];
+				buffer.timestamp = now;
+				texts[key] = newTranslations[index];
+			} else if (buffer.text && now - buffer.timestamp < buffer.minDisplayTime) {
+				return; // 長句顯示未結束，跳過短句
+			} else {
+				texts[key] = newTranslations[index];
+			}
+		});
+	
+		updateSectionDisplay();
+	}
 
     function processPendingResponses() {
         while (state.pendingResponses[state.expectedSequenceNumber]) {
