@@ -3,7 +3,7 @@
 ========================================================================== */
 @font-face {
     font-family: "JF OPEN 粉圓 2.1";
-    src: url("fonts/jf-openhuninn-2.1.ttf") format("truetype");
+    src: url("./fonts/jf-openhuninn-2.1.ttf") format("truetype");
     font-weight: normal;
     font-style: normal;
 }
