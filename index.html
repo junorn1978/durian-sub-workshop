@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja"> <!-- 將 lang 從 zh-TW 改為 ja -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>トリアンの字幕アトリエ</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+	<link rel="icon" type="image/x-icon" href="images/favicon.ico">
+</head>
+<body>
+    <div class="left-panel">
+        <header class="left-header">
+            <img class="logo" src="images/logo.png" alt="即時翻訳 Logo">
+            <div class="buttons">
+                <button id="start-recording">録音開始</button>
+                <button id="stop-recording">録音停止</button>
+            </div>
+        </header>
+        <div class="divider"></div>
+        <div class="left-content">
+            <div class="controls-container">
+                <div class="dropdown-group">
+                    <p>言語設定</p>
+                    <select id="source-language" class="dropdown-style">
+                        <!-- 由 JavaScript 動態填充 -->
+                    </select>
+                    <select id="target-language1" class="dropdown-style">
+                        <option value="none">言語1 - 翻訳しない</option>
+                        <!-- 由 JavaScript 動態填充 -->
+                    </select>
+                    <select id="target-language2" class="dropdown-style">
+                        <option value="none">言語2 - 翻訳しない</option>
+                        <!-- 由 JavaScript 動態填充 -->
+                    </select>
+                    <select id="target-language3" class="dropdown-style">
+                        <option value="none">言語3 - 翻訳しない</option>
+                        <!-- 由 JavaScript 動態填充 -->
+                    </select>
+                    <select id="text-alignment-selector" class="dropdown-style">
+                        <option value="left">文字揃え - 左寄せ</option>
+                        <option value="center">文字揃え - 中央揃え</option>
+                    </select>
+                    <button id="reset-settings" class="reset-button">デフォルトに戻す</button>
+                </div>
+                <div class="style-group">
+                    <p>スタイル設定</p>
+                    <label class="color-label">
+                        背景色
+                        <input type="color" id="background-color-picker" value="#ff0000">
+                    </label>
+                    <select id="option-language-selector" class="dropdown-style">
+                        <option value="source-language">ソース言語</option>
+                        <option value="target-language1">目標言語 1</option>
+                        <option value="target-language2">目標言語 2</option>
+                        <option value="target-language3">目標言語 3</option>
+                    </select>
+                    <label class="color-label">
+                        文字色
+                        <input type="color" id="text-color-picker" value="#ff0000">
+                    </label>
+                    <label class="color-label">
+                        文字縁取り色
+                        <input type="color" id="text-stroke-color-picker" value="#000000">
+                    </label>
+                    <label>
+                        <span>フォントサイズ</span>
+                        <input type="range" id="font-size-slider" min="10" max="70" step="1">
+                    </label>
+                    <label>
+                        <span>縁取りサイズ</span>
+                        <input type="range" id="text-stroke-slider" min="0" max="25" step="0.1">
+                    </label>
+                </div>
+            </div>
+            <div class="divider"></div>
+            <div class="input-group">
+                <div class="input-wrapper">
+                    <input type="password" placeholder="翻訳アプリ用のリンク（必須）" id="api-key-input" value="">
+                    <span class="eye-icon" id="toggle-visibility-url"><i class="fas fa-eye"></i></span>
+                </div>
+                <div class="input-wrapper">
+                    <input type="password" placeholder="認証キー（任意）" id="api-key-value" value="">
+                    <span class="eye-icon" id="toggle-visibility-key"><i class="fas fa-eye"></i></span>
+                </div>
+            </div>
+        </div>
+        <footer class="left-footer">
+            <p>著作権 © 2025 | 自由使用、著作者の偽装および商業販売禁止</p>
+        </footer>
+    </div>
+    <div class="right-panel">
+        <div class="section" id="section-1">
+            <div class="scroll-container">
+                <span class="text-overlay source-text" data-stroke="[トリアンの字幕アトリエ] 緊急事態発生！！¶ゞ(；￣∀￣)ノ☆避難せよ～！">[トリアンの字幕アトリエ] 緊急事態発生！！¶ゞ(；￣∀￣)ノ☆避難せよ～！</span>
+                <span class="text-overlay target-text-1" data-stroke="開発者：[ 乙夏れいのファン 夏族ジュノーン & Grok 3 ]">開発者：[ 乙夏れいのファン 夏族ジュノーン & Grok 3 ]</span>
+                <span class="text-overlay target-text-2" data-stroke="----">----</span>
+                <span class="text-overlay target-text-3" data-stroke="著作権 © 2025｜改変・複製・自由使用可、販売および作者の偽称は禁止">著作権 © 2025｜改変・複製・自由使用可、販売および作者の偽称は禁止</span>
+            </div>
+        </div>
+    </div>
+	<script src="javascript/speechAndTranslation.js" defer></script>
+	<script src="javascript/styleController.js" defer></script>
+</body>
+</html>
