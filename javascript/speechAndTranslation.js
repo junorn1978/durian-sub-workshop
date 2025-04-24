@@ -4,15 +4,16 @@ document.addEventListener("DOMContentLoaded", () => {
     // ==========================================================================
     // 常量與配置
     // ==========================================================================
-    const CONFIG = {
-        MAX_RESTART_ATTEMPTS: 5,
-        MAX_TIME_LIMIT: 300 * 1000,
-        TRANSLATION_TIMEOUT: 3000,
-        MAX_PENDING_RESPONSES: 10,
-        RESTART_DELAY: 500,
-        MIN_TEXT_LENGTH: 5,
-        TRANSLATION_PENDING_TIMEOUT: 2000
-    };
+	const CONFIG = {
+		MAX_RESTART_ATTEMPTS: 5, // 語音辨識最大重啟嘗試次數，超過後停止重試
+		TRANSLATION_TIMEOUT: 6000, // 翻譯請求的超時時間（毫秒），超過則視為失敗
+		MAX_PENDING_RESPONSES: 10, // 最大允許的待處理翻譯回應數量，防止記憶體過載
+		RESTART_DELAY: 500, // 語音辨識重啟前的延遲時間（毫秒），避免過快重試
+		MIN_TEXT_LENGTH: 5, // 觸發即時翻譯的最小文字長度（字符數）
+		TRANSLATION_PENDING_TIMEOUT: 2000, // 短文字等待翻譯的延遲時間（毫秒），累積後發送
+		LONG_TEXT_THRESHOLD: 55, // 長句閾值（字符數），用於判斷是否為長句
+		SHORT_TEXT_THRESHOLD: 10 // 短句閾值（無空格字符數），用於過濾緊隨長句的短句
+	};
 
     const ELEMENT_IDS = {
         startSpeechButton: "start-recording",
@@ -50,32 +51,34 @@ document.addEventListener("DOMContentLoaded", () => {
         invalidResults: "無効または空の音声認識結果が検出されました。"
     };
 
+    const TEXT_REPLACEMENTS = {
+        "りかちゃん": "れいかちゃん",
+		"セブン": "[7-11]",
+		"ないスーパー": "ないスパちゃ"
+    };
+
     const DEBUG = false;
 
     // ==========================================================================
     // 狀態與文字
     // ==========================================================================
 	const state = {
-		finalText: "",
-		interimText: "",
-		totalCharCount: 0,
-		shouldClearNext: false,
-		isRecognitionRunning: false,
-		restartAttempts: 0,
-		startTime: null,
-		lastNonEmptyText: "",
-		currentSequenceNumber: 1,
-		expectedSequenceNumber: 1,
-		pendingResponses: {},
-		pendingTranslationText: "",
-		translationTimer: null,
-		isManuallyStopped: false,
-		lastStopWasManual: false,
-		displayBuffer: {
-			target1: { text: "", timestamp: 0, minDisplayTime: 5000 },
-			target2: { text: "", timestamp: 0, minDisplayTime: 5000 },
-			target3: { text: "", timestamp: 0, minDisplayTime: 5000 }
-		}
+		finalText: "", // 儲存語音辨識的確定文字結果（最終轉錄文字）
+		interimText: "", // 儲存語音辨識的臨時文字結果（尚未確定的即時轉錄）
+		totalCharCount: 0, // 累計最終文字的字符數，用於判斷是否需要清空顯示
+		shouldClearNext: false, // 標記下一次是否需要清空最終文字（例如字符數超過閾值時）
+		isRecognitionRunning: false, // 標記語音辨識是否正在運行
+		restartAttempts: 0, // 記錄語音辨識重啟的嘗試次數
+		startTime: null, // 記錄語音辨識開始的時間戳，用於計算運行時間
+		lastNonEmptyText: "", // 儲存上一次非空的語音辨識文字，用於追蹤有效輸入
+		currentSequenceNumber: 1, // 當前翻譯請求的序號，用於排序和追蹤請求
+		expectedSequenceNumber: 1, // 預期處理的下一個翻譯回應序號，確保回應順序正確
+		pendingResponses: {}, // 儲存待處理的翻譯回應（以序號為鍵），用於處理非同步回應
+		pendingTranslationText: "", // 儲存等待翻譯的文字，尚未達到發送條件
+		translationTimer: null, // 翻譯定時器，用於延遲發送短文字以避免頻繁請求
+		isManuallyStopped: false, // 標記語音辨識是否被手動停止
+		lastStopWasManual: false, // 標記上一次停止是否為手動停止，用於控制重啟邏輯
+		lastSentTextLength: 0 // 追蹤上一次發送的翻譯文字長度，用於過濾短句
 	};
 
     const texts = {
@@ -110,7 +113,8 @@ document.addEventListener("DOMContentLoaded", () => {
             pendingTranslationText: "",
             translationTimer: null,
             isManuallyStopped: false,
-            lastStopWasManual: false
+            lastStopWasManual: false,
+            lastSentTextLength: 0
         });
         console.info("[SpeechAndTranslation] State reset.");
     }
@@ -158,6 +162,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function sendTranslation(text, sourceLang) {
         const sequenceNumber = state.currentSequenceNumber++;
+        state.lastSentTextLength = text.length; // 更新發送文字長度
+        console.info(`[SpeechAndTranslation] Translation text length: ${text.length}`);
         console.info("[SpeechAndTranslation] Sending translation:", {
             sequenceNumber,
             text,
@@ -251,7 +257,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 語音與翻譯處理
     // ==========================================================================
     recognition.onresult = function(event) {
-        console.info("[SpeechAndTranslation] Received speech results, count:", event.results.length);
+        // console.info("[SpeechAndTranslation] Received speech results, count:", event.results.length);
         let newInterimText = "";
         let shouldRestart = false;
 
@@ -279,7 +285,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             if (shouldRestart) {
-                console.info(`[SpeechAndTranslation] Time limit (${CONFIG.MAX_TIME_LIMIT / 1000}s) reached, restarting.`);
+                console.info(`[SpeechAndTranslation] Restart triggered.`);
                 recognition.stop();
                 setTimeout(() => restartRecognition(), CONFIG.RESTART_DELAY);
             }
@@ -319,8 +325,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 texts.target2 = "";
                 texts.target3 = "";
                 updateSectionDisplay();
-                elements.startSpeechButton.disabled = false;
-                elements.stopSpeechButton.disabled = true;
             }
         }
     };
@@ -362,19 +366,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (!newText) return shouldRestart;
 
+        // 替換全形符號為空格
+        newText = newText.replace(/[？。、]/g, " ");
+        // 應用自訂替換清單
+        for (const [key, value] of Object.entries(TEXT_REPLACEMENTS)) {
+            newText = newText.replace(new RegExp(key, "g"), value);
+        }
+
         state.finalText += (state.finalText ? " " : "") + newText;
         state.totalCharCount += newText.length;
-        if (state.totalCharCount > 20) state.shouldClearNext = true;
+        if (state.totalCharCount > 15) state.shouldClearNext = true;
         texts.source = state.finalText;
         state.lastNonEmptyText = newText;
 
-        decideAndTranslate(state.finalText, elements.sourceLanguageSelect.value);
-
-        if (state.startTime && Date.now() - state.startTime >= CONFIG.MAX_TIME_LIMIT) {
-            shouldRestart = true;
-            state.restartAttempts = 0;
-            console.info("[SpeechAndTranslation] Time limit reached, preparing to restart.");
-        }
+        decideAndTranslate(state.finalText, elements.sourceLanguageSelect.value, newText);
 
         return shouldRestart;
     }
@@ -396,7 +401,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return newInterimText;
     }
 
-    function decideAndTranslate(text, sourceLang) {
+    function decideAndTranslate(text, sourceLang, newText) {
         if (!sourceLang) {
             handleError("invalid", "Source language is empty");
             return;
@@ -404,6 +409,18 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!text.trim()) {
             console.info("[SpeechAndTranslation] Skipping translation: empty text.");
             return;
+        }
+
+        // 檢查長句後短句（無空格 ≤ 6 字）
+        if (state.lastSentTextLength > CONFIG.LONG_TEXT_THRESHOLD) {
+            const cleanNewText = newText.replace(/\s/g, '');
+            if (cleanNewText.length <= CONFIG.SHORT_TEXT_THRESHOLD) {
+                console.info("[SpeechAndTranslation] Skipping translation: short text after long text", {
+                    newText,
+                    cleanLength: cleanNewText.length
+                });
+                return;
+            }
         }
 
         state.pendingTranslationText = text;
@@ -483,7 +500,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (sequenceNumber < state.expectedSequenceNumber) return;
 
         if (sequenceNumber === state.expectedSequenceNumber) {
-            applyTranslationResponse(text, translations, errorMessage);
+            applyTranslationResponse(text, translations, errorMessage, sequenceNumber);
             state.expectedSequenceNumber++;
             processPendingResponses();
             return;
@@ -496,47 +513,43 @@ document.addEventListener("DOMContentLoaded", () => {
         state.pendingResponses[sequenceNumber] = { text, translations, errorMessage };
     }
 
-	function applyTranslationResponse(text, translations, errorMessage) {
-		const lang1 = elements.targetLanguage1Select.value;
-		const lang2 = elements.targetLanguage2Select.value;
-		const lang3 = elements.targetLanguage3Select.value;
-	
-		if (errorMessage) {
-			texts.target1 = lang1 && lang1 !== "none" ? `翻訳エラー: ${errorMessage}` : "";
-			texts.target2 = lang2 && lang2 !== "none" ? `翻訳エラー: ${errorMessage}` : "";
-			texts.target3 = lang3 && lang3 !== "none" ? `翻訳エラー: ${errorMessage}` : "";
-			updateSectionDisplay();
-			return;
-		}
-	
-		const now = Date.now();
-		const isLongText = text.length > 45;
-		const newTranslations = [
-			lang1 && lang1 !== "none" && translations && translations.length > 0 ? translations[0] || "" : "",
-			lang2 && lang2 !== "none" && translations && translations.length > 1 ? translations[1] || "" : "",
-			lang3 && lang3 !== "none" && translations && translations.length > 2 ? translations[2] || "" : ""
-		];
-	
-		['target1', 'target2', 'target3'].forEach((key, index) => {
-			const buffer = state.displayBuffer[key];
-			if (isLongText) {
-				buffer.text = newTranslations[index];
-				buffer.timestamp = now;
-				texts[key] = newTranslations[index];
-			} else if (buffer.text && now - buffer.timestamp < buffer.minDisplayTime) {
-				return; // 長句顯示未結束，跳過短句
-			} else {
-				texts[key] = newTranslations[index];
-			}
-		});
-	
-		updateSectionDisplay();
-	}
+    function applyTranslationResponse(text, translations, errorMessage, sequenceNumber) {
+        const lang1 = elements.targetLanguage1Select.value;
+        const lang2 = elements.targetLanguage2Select.value;
+        const lang3 = elements.targetLanguage3Select.value;
+
+        if (errorMessage) {
+            texts.target1 = lang1 && lang1 !== "none" ? `翻訳エラー: ${errorMessage}` : "";
+            texts.target2 = lang2 && lang2 !== "none" ? `翻訳エラー: ${errorMessage}` : "";
+            texts.target3 = lang3 && lang3 !== "none" ? `翻訳エラー: ${errorMessage}` : "";
+            updateSectionDisplay();
+            return;
+        }
+
+        const newTranslations = [
+            lang1 && lang1 !== "none" && translations && translations.length > 0 ? translations[0] || "" : "",
+            lang2 && lang2 !== "none" && translations && translations.length > 1 ? translations[1] || "" : "",
+            lang3 && lang3 !== "none" && translations && translations.length > 2 ? translations[2] || "" : ""
+        ];
+
+        texts.target1 = newTranslations[0];
+        texts.target2 = newTranslations[1];
+        texts.target3 = newTranslations[2];
+
+        console.info("[SpeechAndTranslation] Applying translation:", {
+            sequenceNumber,
+            text,
+            translations: newTranslations
+        });
+
+        updateSectionDisplay();
+    }
 
     function processPendingResponses() {
         while (state.pendingResponses[state.expectedSequenceNumber]) {
             const { text, translations, errorMessage } = state.pendingResponses[state.expectedSequenceNumber];
-            applyTranslationResponse(text, translations, errorMessage);
+            console.info("[SpeechAndTranslation] Processing pending response:", { sequenceNumber: state.expectedSequenceNumber, text });
+            applyTranslationResponse(text, translations, errorMessage, state.expectedSequenceNumber);
             delete state.pendingResponses[state.expectedSequenceNumber];
             state.expectedSequenceNumber++;
         }
@@ -581,9 +594,8 @@ document.addEventListener("DOMContentLoaded", () => {
             if (span.textContent !== texts[key]) {
                 span.textContent = texts[key];
                 span.setAttribute("data-stroke", texts[key]);
-                // 強制重繪以確保偽元素更新
                 span.style.display = 'inline-block';
-                span.offsetHeight; // 觸發重排
+                span.offsetHeight;
                 span.style.display = '';
             }
         });
@@ -596,7 +608,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 target3: { text: spans.target3.textContent, stroke: spans.target3.getAttribute("data-stroke") }
             });
         }
-        console.info("[SpeechAndTranslation] UI updated.");
+        // console.info("[SpeechAndTranslation] UI updated.");
     }
 
     // ==========================================================================
