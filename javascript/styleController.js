@@ -34,7 +34,8 @@ const DEFAULT_SETTINGS = {
         textStrokeColor: "#8D5524"
     },
     backgroundColor: "#00FF00",
-    textAlignment: "left"
+    textAlignment: "left",
+    fontSizeMode: "normal"
 };
 
 const LANGUAGE_OPTIONS = [
@@ -44,6 +45,70 @@ const LANGUAGE_OPTIONS = [
     { value: "es", label: "スペイン語" }
 ];
 
+// ==========================================================================
+// 輔助函數 - 提前定義 applyFontSizeMode
+// ==========================================================================
+let elements = {};
+const languageToSpanMap = {
+    "source-language": ".source-text",
+    "target-language1": ".target-text-1",
+    "target-language2": ".target-text-2",
+    "target-language3": ".target-text-3"
+};
+
+function applyFontSizeMode(mode, specificSpan = null, specificLang = null) {
+    const spans = specificSpan ? { [specificLang]: specificSpan } : {
+        "source-language": elements.section?.querySelector(".source-text"),
+        "target-language1": elements.section?.querySelector(".target-text-1"),
+        "target-language2": elements.section?.querySelector(".target-text-2"),
+        "target-language3": elements.section?.querySelector(".target-text-3")
+    };
+
+    Object.entries(spans).forEach(([lang, span]) => {
+        if (span) {
+            const originalFontSize = parseFloat(localStorage.getItem(`${lang}-font-size`) || DEFAULT_SETTINGS[lang].fontSize);
+            span.style.fontSize = `${originalFontSize}px`; // 先恢復原始大小
+            span.style.whiteSpace = "normal"; // 確保文字可以換行
+
+            if (mode === "auto-shrink" && span.textContent) {
+                const containerWidth = elements.section.offsetWidth;
+                const tempSpan = document.createElement("span");
+                tempSpan.style.fontSize = `${originalFontSize}px`;
+                tempSpan.style.position = "absolute";
+                tempSpan.style.visibility = "hidden";
+                tempSpan.style.whiteSpace = "nowrap";
+                tempSpan.style.fontFamily = getComputedStyle(span).fontFamily;
+                tempSpan.textContent = span.textContent;
+                document.body.appendChild(tempSpan);
+
+                const textWidth = tempSpan.offsetWidth;
+                document.body.removeChild(tempSpan);
+
+                if (textWidth > containerWidth) {
+                    const minFontSize = Math.max(originalFontSize - 4, 10); // 最多縮小4px，最小10px
+                    let adjustedFontSize = originalFontSize;
+
+                    while (adjustedFontSize > minFontSize) {
+                        tempSpan.style.fontSize = `${adjustedFontSize}px`;
+                        document.body.appendChild(tempSpan);
+                        const newWidth = tempSpan.offsetWidth;
+                        document.body.removeChild(tempSpan);
+                        if (newWidth <= containerWidth) {
+                            break;
+                        }
+                        adjustedFontSize -= 1;
+                    }
+
+                    span.style.fontSize = `${adjustedFontSize}px`;
+                }
+            }
+        }
+    });
+}
+
+// 暴露給 speechAndTranslation.js 使用
+window.applyFontSizeMode = applyFontSizeMode;
+
 document.addEventListener("DOMContentLoaded", () => {
     console.log("styleController.js loaded successfully");
 
@@ -51,7 +116,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 初始化變數
     // ==========================================================================
     const languageSelectIds = ["source-language", "target-language1", "target-language2", "target-language3"];
-    const elements = {
+    elements = {
         apiKeyInput: document.getElementById("api-key-input"),
         apiKeyValue: document.getElementById("api-key-value"),
         toggleVisibilityUrl: document.getElementById("toggle-visibility-url"),
@@ -66,14 +131,8 @@ document.addEventListener("DOMContentLoaded", () => {
         backgroundColorPicker: document.getElementById("background-color-picker"),
         rightPanel: document.querySelector(".right-panel"),
         section: document.getElementById("section-1"),
-        textAlignmentSelector: document.getElementById("text-alignment-selector")
-    };
-
-    const languageToSpanMap = {
-        "source-language": ".source-text",
-        "target-language1": ".target-text-1",
-        "target-language2": ".target-text-2",
-        "target-language3": ".target-text-3"
+        textAlignmentSelector: document.getElementById("text-alignment-selector"),
+        fontSizeModeSelector: document.getElementById("font-size-mode")
     };
 
     Object.entries(elements).forEach(([key, element]) => {
@@ -144,6 +203,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // 樣式控制功能
     // ==========================================================================
     if (elements.textColorPicker) {
+        const savedTextColor = localStorage.getItem(`${elements.optionSelector.value}-text-color`) || DEFAULT_SETTINGS[elements.optionSelector.value].textColor;
+        elements.textColorPicker.value = savedTextColor;
+
         elements.textColorPicker.addEventListener("input", () => {
             updateSectionStyle("color", elements.textColorPicker.value);
             saveSettings({ textColor: elements.textColorPicker.value });
@@ -151,6 +213,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (elements.textStrokeColorPicker) {
+        const savedStrokeColor = localStorage.getItem(`${elements.optionSelector.value}-text-stroke-color`) || DEFAULT_SETTINGS[elements.optionSelector.value].textStrokeColor;
+        elements.textStrokeColorPicker.value = savedStrokeColor;
+
         elements.textStrokeColorPicker.addEventListener("input", () => {
             updateSectionStyle("--stroke-color", elements.textStrokeColorPicker.value);
             saveSettings({ textStrokeColor: elements.textStrokeColorPicker.value });
@@ -158,6 +223,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (elements.backgroundColorPicker) {
+        const savedBgColor = localStorage.getItem("background-color") || DEFAULT_SETTINGS.backgroundColor;
+        elements.backgroundColorPicker.value = savedBgColor;
+
         elements.backgroundColorPicker.addEventListener("input", () => {
             const color = elements.backgroundColorPicker.value;
             elements.rightPanel.style.backgroundColor = color;
@@ -167,29 +235,51 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (elements.fontSizeSlider) {
+        const savedFontSize = parseFloat(localStorage.getItem(`${elements.optionSelector.value}-font-size`) || DEFAULT_SETTINGS[elements.optionSelector.value].fontSize);
+        elements.fontSizeSlider.value = savedFontSize;
+
         elements.fontSizeSlider.addEventListener("input", () => {
-            updateSectionStyle("fontSize", `${elements.fontSizeSlider.value}px`, true);
-            saveSettings({ fontSize: elements.fontSizeSlider.value });
+            const fontSize = parseFloat(elements.fontSizeSlider.value);
+            updateSectionStyle("fontSize", `${fontSize}px`, true);
+            saveSettings({ fontSize: fontSize });
+            applyFontSizeMode(elements.fontSizeModeSelector.value);
         });
     }
 
     if (elements.textStrokeSlider) {
+        const savedStrokeSize = parseFloat(localStorage.getItem(`${elements.optionSelector.value}-text-stroke-size`) || DEFAULT_SETTINGS[elements.optionSelector.value].textStrokeSize);
+        elements.textStrokeSlider.value = savedStrokeSize;
+
         elements.textStrokeSlider.addEventListener("input", () => {
-            updateSectionStyle("--stroke-width", `${elements.textStrokeSlider.value}px`);
-            saveSettings({ textStrokeSize: elements.textStrokeSlider.value });
+            const strokeSize = parseFloat(elements.textStrokeSlider.value);
+            updateSectionStyle("--stroke-width", `${strokeSize}px`);
+            saveSettings({ textStrokeSize: strokeSize });
         });
+    }
+
+    // ==========================================================================
+    // 字體大小模式選擇器
+    // ==========================================================================
+    if (elements.fontSizeModeSelector) {
+        const savedMode = localStorage.getItem("font-size-mode") || DEFAULT_SETTINGS.fontSizeMode;
+        elements.fontSizeModeSelector.value = savedMode;
+
+        elements.fontSizeModeSelector.addEventListener("change", () => {
+            const mode = elements.fontSizeModeSelector.value;
+            localStorage.setItem("font-size-mode", mode);
+            applyFontSizeMode(mode);
+        });
+
+        applyFontSizeMode(savedMode);
     }
 
     // ==========================================================================
     // 選項選擇器與設定載入
     // ==========================================================================
     if (elements.optionSelector) {
-        const savedOption = localStorage.getItem("selected-option-language");
-        if (savedOption) {
-            elements.optionSelector.value = savedOption;
-        } else {
-            localStorage.setItem("selected-option-language", elements.optionSelector.value);
-        }
+        const savedOption = localStorage.getItem("selected-option-language") || elements.optionSelector.value;
+        elements.optionSelector.value = savedOption;
+        localStorage.setItem("selected-option-language", savedOption);
 
         languageSelectIds.forEach(language => {
             loadSettings(language);
@@ -199,6 +289,16 @@ document.addEventListener("DOMContentLoaded", () => {
             const language = elements.optionSelector.value;
             localStorage.setItem("selected-option-language", language);
             loadSettings(language);
+            const settings = {
+                fontSize: parseFloat(localStorage.getItem(`${language}-font-size`) || DEFAULT_SETTINGS[language].fontSize),
+                textStrokeSize: parseFloat(localStorage.getItem(`${language}-text-stroke-size`) || DEFAULT_SETTINGS[language].textStrokeSize),
+                textColor: localStorage.getItem(`${language}-text-color`) || DEFAULT_SETTINGS[language].textColor,
+                textStrokeColor: localStorage.getItem(`${language}-text-stroke-color`) || DEFAULT_SETTINGS[language].textStrokeColor
+            };
+            if (elements.fontSizeSlider) elements.fontSizeSlider.value = settings.fontSize;
+            if (elements.textStrokeSlider) elements.textStrokeSlider.value = settings.textStrokeSize;
+            if (elements.textColorPicker) elements.textColorPicker.value = settings.textColor;
+            if (elements.textStrokeColorPicker) elements.textStrokeColorPicker.value = settings.textStrokeColor;
         });
     }
 
@@ -206,9 +306,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // 文字對齊選單初始化與功能
     // ==========================================================================
     if (elements.textAlignmentSelector) {
-        const savedAlignment = localStorage.getItem("text-alignment");
-        elements.textAlignmentSelector.value = savedAlignment || DEFAULT_SETTINGS.textAlignment;
-        applyTextAlignment(elements.textAlignmentSelector.value);
+        const savedAlignment = localStorage.getItem("text-alignment") || DEFAULT_SETTINGS.textAlignment;
+        elements.textAlignmentSelector.value = savedAlignment;
+        applyTextAlignment(savedAlignment);
 
         elements.textAlignmentSelector.addEventListener("change", () => {
             const alignment = elements.textAlignmentSelector.value;
@@ -226,19 +326,19 @@ document.addEventListener("DOMContentLoaded", () => {
         elements.rightPanel.addEventListener("click", (event) => {
             if (event.target === elements.rightPanel || event.target.classList.contains("scroll-container")) {
                 if (!isFullscreen) {
-                    // 進入全螢幕
                     document.querySelector(".left-panel").classList.add("hidden");
                     elements.rightPanel.classList.add("fullscreen");
                     document.body.classList.add("no-scroll");
                     isFullscreen = true;
                     console.log("Right panel switched to fullscreen mode.");
+                    applyFontSizeMode(elements.fontSizeModeSelector.value);
                 } else {
-                    // 退出全螢幕
                     document.querySelector(".left-panel").classList.remove("hidden");
                     elements.rightPanel.classList.remove("fullscreen");
                     document.body.classList.remove("no-scroll");
                     isFullscreen = false;
                     console.log("Right panel exited fullscreen mode.");
+                    applyFontSizeMode(elements.fontSizeModeSelector.value);
                 }
             }
         });
@@ -250,7 +350,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const resetButton = document.getElementById("reset-settings");
     if (resetButton) {
         resetButton.addEventListener("click", () => {
-            // 重置語言相關樣式設置
             languageSelectIds.forEach(language => {
                 const defaults = DEFAULT_SETTINGS[language];
                 localStorage.setItem(`${language}-font-size`, defaults.fontSize);
@@ -259,10 +358,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 localStorage.setItem(`${language}-text-stroke-color`, defaults.textStrokeColor);
             });
 
-            // 重置背景色
             localStorage.setItem("background-color", DEFAULT_SETTINGS.backgroundColor);
+            localStorage.setItem("font-size-mode", DEFAULT_SETTINGS.fontSizeMode);
+            localStorage.setItem("text-alignment", DEFAULT_SETTINGS.textAlignment);
 
-            // 更新樣式控制元件的值（基於當前語言樣式選擇器）
             const currentLanguage = elements.optionSelector.value;
             const currentDefaults = DEFAULT_SETTINGS[currentLanguage];
             if (elements.fontSizeSlider) elements.fontSizeSlider.value = currentDefaults.fontSize;
@@ -270,40 +369,17 @@ document.addEventListener("DOMContentLoaded", () => {
             if (elements.textColorPicker) elements.textColorPicker.value = currentDefaults.textColor;
             if (elements.textStrokeColorPicker) elements.textStrokeColorPicker.value = currentDefaults.textStrokeColor;
             if (elements.backgroundColorPicker) elements.backgroundColorPicker.value = DEFAULT_SETTINGS.backgroundColor;
+            if (elements.fontSizeModeSelector) elements.fontSizeModeSelector.value = DEFAULT_SETTINGS.fontSizeMode;
+            if (elements.textAlignmentSelector) elements.textAlignmentSelector.value = DEFAULT_SETTINGS.textAlignment;
 
-            // 更新所有語言的文字樣式
             languageSelectIds.forEach(language => {
-                const defaults = DEFAULT_SETTINGS[language];
-                const spanClass = languageToSpanMap[language];
-                const span = elements.section.querySelector(spanClass);
-                if (span) {
-                    span.style.fontSize = `${defaults.fontSize}px`;
-                    span.style.color = defaults.textColor;
-                    span.style.setProperty("--stroke-width", `${defaults.textStrokeSize}px`);
-                    span.style.setProperty("--stroke-color", defaults.textStrokeColor);
-                    if (span.textContent && span.getAttribute("data-stroke") !== span.textContent) {
-                        span.setAttribute("data-stroke", span.textContent);
-                    }
-                }
+                loadSettings(language);
             });
 
-            // 更新面板和區段背景色
-            if (elements.rightPanel) elements.rightPanel.style.backgroundColor = DEFAULT_SETTINGS.backgroundColor;
-            if (elements.section) elements.section.style.backgroundColor = DEFAULT_SETTINGS.backgroundColor;
+            applyTextAlignment(DEFAULT_SETTINGS.textAlignment);
+            applyFontSizeMode(DEFAULT_SETTINGS.fontSizeMode);
 
-            // 重置文字對齊
-            if (elements.textAlignmentSelector) {
-                elements.textAlignmentSelector.value = DEFAULT_SETTINGS.textAlignment;
-                localStorage.setItem("text-alignment", DEFAULT_SETTINGS.textAlignment);
-                applyTextAlignment(DEFAULT_SETTINGS.textAlignment);
-            }
-
-            // 載入當前語言的設置
-            if (elements.optionSelector) {
-                loadSettings(elements.optionSelector.value);
-            }
-
-            console.log("Settings reset to defaults (excluding language selectors and option selector) and all styles refreshed.");
+            console.log("Settings reset to defaults and all styles refreshed.");
         });
     }
 
@@ -329,19 +405,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function loadSettings(language) {
         const defaults = DEFAULT_SETTINGS[language];
+        const savedFontSize = localStorage.getItem(`${language}-font-size`);
+        const savedStrokeSize = localStorage.getItem(`${language}-text-stroke-size`);
         const settings = {
-            fontSize: Math.min(Math.max(localStorage.getItem(`${language}-font-size`) || defaults.fontSize, 10), 100),
-            textStrokeSize: Math.min(Math.max(localStorage.getItem(`${language}-text-stroke-size`) || defaults.textStrokeSize, 0), 10),
+            fontSize: savedFontSize !== null ? Math.min(Math.max(parseFloat(savedFontSize), 10), 100) : defaults.fontSize,
+            textStrokeSize: savedStrokeSize !== null ? Math.min(Math.max(parseFloat(savedStrokeSize), 0), 25) : defaults.textStrokeSize,
             textColor: localStorage.getItem(`${language}-text-color`) || defaults.textColor,
             textStrokeColor: localStorage.getItem(`${language}-text-stroke-color`) || defaults.textStrokeColor,
             backgroundColor: localStorage.getItem("background-color") || DEFAULT_SETTINGS.backgroundColor
         };
-
-        if (elements.fontSizeSlider) elements.fontSizeSlider.value = settings.fontSize;
-        if (elements.textStrokeSlider) elements.textStrokeSlider.value = settings.textStrokeSize;
-        if (elements.textColorPicker) elements.textColorPicker.value = settings.textColor;
-        if (elements.textStrokeColorPicker) elements.textStrokeColorPicker.value = settings.textStrokeColor;
-        if (elements.backgroundColorPicker) elements.backgroundColorPicker.value = settings.backgroundColor;
 
         const spanClass = languageToSpanMap[language];
         const span = elements.section.querySelector(spanClass);
@@ -359,6 +431,16 @@ document.addEventListener("DOMContentLoaded", () => {
             elements.rightPanel.style.backgroundColor = settings.backgroundColor;
             elements.section.style.backgroundColor = settings.backgroundColor;
         }
+
+        if (elements.optionSelector.value === language) {
+            if (elements.fontSizeSlider) elements.fontSizeSlider.value = settings.fontSize;
+            if (elements.textStrokeSlider) elements.textStrokeSlider.value = settings.textStrokeSize;
+            if (elements.textColorPicker) elements.textColorPicker.value = settings.textColor;
+            if (elements.textStrokeColorPicker) elements.textStrokeColorPicker.value = settings.textStrokeColor;
+            if (elements.backgroundColorPicker) elements.backgroundColorPicker.value = settings.backgroundColor;
+        }
+
+        applyFontSizeMode(elements.fontSizeModeSelector?.value || DEFAULT_SETTINGS.fontSizeMode, span, language);
     }
 
     function saveSettings(settings) {
@@ -383,7 +465,7 @@ document.addEventListener("DOMContentLoaded", () => {
             localStorage.setItem("background-color", settings.backgroundColor);
             console.log(`Saved background-color: ${settings.backgroundColor}`);
         }
-        refreshAllStyles(); // 每次保存設置時更新所有樣式
+        refreshAllStyles();
     }
 
     function refreshAllStyles() {
@@ -399,10 +481,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         Object.entries(spans).forEach(([lang, span]) => {
             if (span) {
+                const savedFontSize = localStorage.getItem(`${lang}-font-size`);
+                const savedStrokeSize = localStorage.getItem(`${lang}-text-stroke-size`);
                 const settings = {
-                    fontSize: localStorage.getItem(`${lang}-font-size`) || DEFAULT_SETTINGS[lang].fontSize,
+                    fontSize: savedFontSize !== null ? parseFloat(savedFontSize) : DEFAULT_SETTINGS[lang].fontSize,
                     textColor: localStorage.getItem(`${lang}-text-color`) || DEFAULT_SETTINGS[lang].textColor,
-                    textStrokeSize: localStorage.getItem(`${lang}-text-stroke-size`) || DEFAULT_SETTINGS[lang].textStrokeSize,
+                    textStrokeSize: savedStrokeSize !== null ? parseFloat(savedStrokeSize) : DEFAULT_SETTINGS[lang].textStrokeSize,
                     textStrokeColor: localStorage.getItem(`${lang}-text-stroke-color`) || DEFAULT_SETTINGS[lang].textStrokeColor
                 };
                 span.style.fontSize = `${settings.fontSize}px`;
@@ -412,6 +496,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (span.textContent && span.getAttribute("data-stroke") !== span.textContent) {
                     span.setAttribute("data-stroke", span.textContent);
                 }
+                applyFontSizeMode(elements.fontSizeModeSelector?.value || DEFAULT_SETTINGS.fontSizeMode, span, lang);
             }
         });
     }
