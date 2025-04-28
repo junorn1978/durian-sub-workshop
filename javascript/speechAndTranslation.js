@@ -148,7 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!SpeechRecognition) return null;
 
         const recognition = new SpeechRecognition();
-        recognition.continuous = false;
+        recognition.continuous = true;
         recognition.interimResults = true;
         recognition.maxAlternatives = 3;
         recognition.lang = sourceLanguageSelect.value;
