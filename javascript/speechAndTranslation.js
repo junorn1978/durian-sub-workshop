@@ -436,10 +436,10 @@ document.addEventListener("DOMContentLoaded", () => {
 	}
 
 	function truncateToLastChunk(text) {
-		if (!text || text.length < 45) return text; // 長度小於 45，直接返回原文字
+		if (!text || text.length < 40) return text; // 長度小於 40，直接返回原文字
 	
-		const chunkSize = 45; // 每次處理的字符數
-		const multiple = Math.floor(text.length / chunkSize); // 計算 45 的倍數
+		const chunkSize = 40; // 每次處理的字符數
+		const multiple = Math.floor(text.length / chunkSize); // 計算 40 的倍數
 		const charsToRemove = multiple * chunkSize; // 要移除的字符數
 	
 		console.info("[SpeechAndTranslation] Removing first characters:", {
