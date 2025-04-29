@@ -384,8 +384,8 @@ document.addEventListener("DOMContentLoaded", () => {
         // Update translation results
         translationResults.finalText += (translationResults.finalText ? " " : "") + newText;
         state.totalCharCount += newText.length;
-        if (state.totalCharCount > 20) state.shouldClearNext = true;
-
+        /* if (state.totalCharCount > 20) state.shouldClearNext = true; */
+		if (state.totalCharCount > 2) state.shouldClearNext = true;
         if (state.startTime && Date.now() - state.startTime >= CONFIG.MAX_TIME_LIMIT) {
             shouldRestart = true;
             state.restartAttempts = 0;
@@ -395,28 +395,61 @@ document.addEventListener("DOMContentLoaded", () => {
         return shouldRestart;
     }
 
-    function handleInterimResult(result, displayResults, translationResults) {
-        const transcript = result[0].transcript.trim();
-        if (!transcript) {
-            console.warn("[SpeechAndTranslation] Empty interim transcript received.");
-            return;
-        }
+	function handleInterimResult(result, displayResults, translationResults) {
+		let transcript = result[0].transcript.trim();
+		if (!transcript) {
+			console.warn("[SpeechAndTranslation] Empty interim transcript received.");
+			return;
+		}
+	
+		// 保留原始文字用於翻譯
+		const originalTranscript = transcript;
+	
+		// 截斷文字用於顯示
+		const displayTranscript = truncateToLastChunk(transcript);
+		if (!displayTranscript) {
+			console.warn("[SpeechAndTranslation] Display transcript is empty after truncation.");
+			return;
+		}
+	
+		console.info("[SpeechAndTranslation] Processing interim result:", {
+			original: originalTranscript,
+			displayed: displayTranscript
+		});
+	
+		// 計算顯示文字的字數
+		const charCount = displayTranscript.length;
+		console.info("[SpeechAndTranslation] Interim text character count:", { charCount });
+	
+		// Update display results (使用截斷後的文字)
+		displayResults.interimText = displayTranscript;
+	
+		// Update translation results (使用原始文字)
+		translationResults.interimText += (translationResults.interimText ? " " : "") + originalTranscript;
+	
+		if (state.shouldClearNext && translationResults.interimText) {
+			translationResults.finalText = "";
+			state.totalCharCount = 0;
+			state.shouldClearNext = false;
+			state.lastNonEmptyText = "";
+		}
+	}
 
-        console.info("[SpeechAndTranslation] Processing interim result:", { text: transcript });
-
-        // Update display results
-        displayResults.interimText = transcript;
-
-        // Update translation results
-        translationResults.interimText += (translationResults.interimText ? " " : "") + transcript;
-
-        if (state.shouldClearNext && translationResults.interimText) {
-            translationResults.finalText = "";
-            state.totalCharCount = 0;
-            state.shouldClearNext = false;
-            state.lastNonEmptyText = "";
-        }
-    }
+	function truncateToLastChunk(text) {
+		if (!text || text.length < 45) return text; // 長度小於 45，直接返回原文字
+	
+		const chunkSize = 45; // 每次處理的字符數
+		const multiple = Math.floor(text.length / chunkSize); // 計算 45 的倍數
+		const charsToRemove = multiple * chunkSize; // 要移除的字符數
+	
+		console.info("[SpeechAndTranslation] Removing first characters:", {
+			originalLength: text.length,
+			multiple,
+			charsToRemove
+		});
+	
+		return text.substring(charsToRemove); // 從 charsToRemove 開始提取到結尾
+	}
 
     function handleDisplayResult(results) {
         console.info("[SpeechAndTranslation] Handling display results:", {
@@ -435,7 +468,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // 顯示最終結果或臨時結果，並替換全形標點
-        if (results.finalText || results.interimText) {
+        if (results.interimText) {
             state.finalText = results.finalText || state.finalText;
             state.interimText = results.interimText || "";
             texts.source = replacePunctuation(results.finalText || results.interimText);
@@ -561,7 +594,7 @@ document.addEventListener("DOMContentLoaded", () => {
             texts.target1 = lang1 && lang1 !== "none" ? `翻訳エラー: ${errorMessage}` : "";
             texts.target2 = lang2 && lang2 !== "none" ? `翻訳エラー: ${errorMessage}` : "";
             texts.target3 = lang3 && lang3 !== "none" ? `翻訳エラー: ${errorMessage}` : "";
-            updateSectionDisplay();
+            updateSectionDisplay({ skipSource: true });
             return;
         }
 
@@ -601,62 +634,65 @@ document.addEventListener("DOMContentLoaded", () => {
     // ==========================================================================
     // UI 更新
     // ==========================================================================
-    function updateSectionDisplay() {
-        const section = document.getElementById("section-1");
-        if (!section) {
-            console.error("[SpeechAndTranslation] Section #section-1 not found.");
-            return;
-        }
-
-        const container = section.querySelector(".scroll-container");
-        if (!container) {
-            console.error("[SpeechAndTranslation] Scroll container not found.");
-            return;
-        }
-
-        const spans = {
-            source: container.querySelector(".source-text"),
-            target1: container.querySelector(".target-text-1"),
-            target2: container.querySelector(".target-text-2"),
-            target3: container.querySelector(".target-text-3")
-        };
-
-        if (!spans.source || !spans.target1 || !spans.target2 || !spans.target3) {
-            console.error("[SpeechAndTranslation] One or more text spans not found:", spans);
-            return;
-        }
-
-        const entries = [
-            { span: spans.source, key: "source", lang: "source-language" },
-            { span: spans.target1, key: "target1", lang: "target-language1" },
-            { span: spans.target2, key: "target2", lang: "target-language2" },
-            { span: spans.target3, key: "target3", lang: "target-language3" }
-        ];
-
-        entries.forEach(({ span, key, lang }) => {
-            if (span.textContent !== texts[key]) {
-                span.textContent = texts[key];
-                span.setAttribute("data-stroke", texts[key]);
-                span.style.display = 'inline-block';
-                span.offsetHeight;
-                span.style.display = '';
-                if (window.applyFontSizeMode) {
-                    window.applyFontSizeMode(elements.fontSizeModeSelector.value, span, lang);
-                }
-            }
-        });
-
-        if (DEBUG) {
-            console.info("[SpeechAndTranslation] Updated UI spans:", {
-                source: { text: spans.source.textContent, stroke: spans.source.getAttribute("data-stroke") },
-                target1: { text: spans.target1.textContent, stroke: spans.target1.getAttribute("data-stroke") },
-                target2: { text: spans.target2.textContent, stroke: spans.target2.getAttribute("data-stroke") },
-                target3: { text: spans.target3.textContent, stroke: spans.target3.getAttribute("data-stroke") }
-            });
-        }
-        console.info("[SpeechAndTranslation] UI updated.");
-    }
-
+	function updateSectionDisplay(options = {}) {
+		const { skipSource = false } = options; // 預設不跳過原文
+		const section = document.getElementById("section-1");
+		if (!section) {
+			console.error("[SpeechAndTranslation] Section #section-1 not found.");
+			return;
+		}
+	
+		const container = section.querySelector(".scroll-container");
+		if (!container) {
+			console.error("[SpeechAndTranslation] Scroll container not found.");
+			return;
+		}
+	
+		const spans = {
+			source: container.querySelector(".source-text"),
+			target1: container.querySelector(".target-text-1"),
+			target2: container.querySelector(".target-text-2"),
+			target3: container.querySelector(".target-text-3")
+		};
+	
+		if (!spans.source || !spans.target1 || !spans.target2 || !spans.target3) {
+			console.error("[SpeechAndTranslation] One or more text spans not found:", spans);
+			return;
+		}
+	
+		const entries = [
+			{ span: spans.source, key: "source", lang: "source-language" },
+			{ span: spans.target1, key: "target1", lang: "target-language1" },
+			{ span: spans.target2, key: "target2", lang: "target-language2" },
+			{ span: spans.target3, key: "target3", lang: "target-language3" }
+		];
+	
+		entries.forEach(({ span, key, lang }) => {
+			// 如果 skipSource 為 true 且 key 是 source，則跳過更新
+			if (skipSource && key === "source") return;
+	
+			if (span.textContent !== texts[key]) {
+				span.textContent = texts[key];
+				span.setAttribute("data-stroke", texts[key]);
+				span.style.display = 'inline-block';
+				span.offsetHeight;
+				span.style.display = '';
+				if (window.applyFontSizeMode) {
+					window.applyFontSizeMode(elements.fontSizeModeSelector.value, span, lang);
+				}
+			}
+		});
+	
+		if (DEBUG) {
+			console.info("[SpeechAndTranslation] Updated UI spans:", {
+				source: { text: spans.source.textContent, stroke: spans.source.getAttribute("data-stroke") },
+				target1: { text: spans.target1.textContent, stroke: spans.target1.getAttribute("data-stroke") },
+				target2: { text: spans.target2.textContent, stroke: spans.target2.getAttribute("data-stroke") },
+				target3: { text: spans.target3.textContent, stroke: spans.target3.getAttribute("data-stroke") }
+			});
+		}
+		console.info("[SpeechAndTranslation] UI updated.");
+	}
     // ==========================================================================
     // 事件綁定
     // ==========================================================================
