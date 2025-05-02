@@ -50,6 +50,13 @@ document.addEventListener("DOMContentLoaded", () => {
         invalidResults: "無効または空の音声認識結果が検出されました。"
     };
 
+	const DEFAULT_TEXTS = {
+		source: "[トリアンの字幕アトリエ] 緊急事態発生！！¶ゞ(；￣∀￣)ノ☆避難せよ～！",
+		target1: "開発者：[ 乙夏れいのファン 夏族ジュノーン & Grok 3 ]",
+		target2: "----",
+		target3: "著作権 © 2025｜改変・複製・自由使用可、販売および作者の偽称は禁止"
+	};
+	
     const DEBUG = true;
 
     // ==========================================================================
@@ -717,6 +724,8 @@ document.addEventListener("DOMContentLoaded", () => {
             elements.stopSpeechButton.disabled = true;
             elements.stopSpeechButton.classList.add("pressed");
             setTimeout(() => elements.stopSpeechButton.classList.remove("pressed"), 200);
+			Object.assign(texts, DEFAULT_TEXTS);
+			updateSectionDisplay();
         }
     }, { capture: true });
 

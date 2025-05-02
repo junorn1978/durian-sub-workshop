@@ -209,16 +209,18 @@ document.addEventListener("DOMContentLoaded", () => {
     // ==========================================================================
     // 文字截斷模式選擇器
     // ==========================================================================
-    if (elements.textTruncateModeSelector) {
-        const savedMode = localStorage.getItem("text-truncate-mode") || DEFAULT_SETTINGS.textTruncateMode;
-        elements.textTruncateModeSelector.value = savedMode;
-
-        elements.textTruncateModeSelector.addEventListener("change", () => {
-            const mode = elements.textTruncateModeSelector.value;
-            localStorage.setItem("text-truncate-mode", mode);
-            console.info("[StyleController] Text truncate mode changed to:", mode);
-        });
-    }
+	if (elements.textTruncateModeSelector) {
+		const savedMode = localStorage.getItem("text-truncate-mode") || DEFAULT_SETTINGS.textTruncateMode;
+		elements.textTruncateModeSelector.value = savedMode;
+		updateTruncateModeClass(savedMode);
+	
+		elements.textTruncateModeSelector.addEventListener("change", () => {
+			const mode = elements.textTruncateModeSelector.value;
+			localStorage.setItem("text-truncate-mode", mode);
+			updateTruncateModeClass(mode);
+			console.info("[StyleController] Text truncate mode changed to:", mode);
+		});
+	}
 
     // ==========================================================================
     // 選項選擇器與設定載入
@@ -267,27 +269,31 @@ document.addEventListener("DOMContentLoaded", () => {
     // ==========================================================================
     // 全螢幕切換功能（無翻頁效果）
     // ==========================================================================
-    if (elements.rightPanel) {
-        let isFullscreen = false;
-
-        elements.rightPanel.addEventListener("click", (event) => {
-            if (event.target === elements.rightPanel || event.target.classList.contains("scroll-container")) {
-                if (!isFullscreen) {
-                    document.querySelector(".left-panel").classList.add("hidden");
-                    elements.rightPanel.classList.add("fullscreen");
-                    document.body.classList.add("no-scroll");
-                    isFullscreen = true;
-                    console.log("Right panel switched to fullscreen mode.");
-                } else {
-                    document.querySelector(".left-panel").classList.remove("hidden");
-                    elements.rightPanel.classList.remove("fullscreen");
-                    document.body.classList.remove("no-scroll");
-                    isFullscreen = false;
-                    console.log("Right panel exited fullscreen mode.");
-                }
-            }
-        });
-    }
+	if (elements.rightPanel) {
+		let isFullscreen = false;
+		elements.rightPanel.addEventListener("click", (event) => {
+			const validTargets = [
+				elements.rightPanel,
+				elements.rightPanel.querySelector(".scroll-container"),
+				...elements.rightPanel.querySelectorAll(".text-overlay")
+			];
+			if (validTargets.includes(event.target)) {
+				if (!isFullscreen) {
+					document.querySelector(".left-panel").classList.add("hidden");
+					elements.rightPanel.classList.add("fullscreen");
+					document.body.classList.add("no-scroll");
+					isFullscreen = true;
+					console.log("Right panel switched to fullscreen mode.");
+				} else {
+					document.querySelector(".left-panel").classList.remove("hidden");
+					elements.rightPanel.classList.remove("fullscreen");
+					document.body.classList.remove("no-scroll");
+					isFullscreen = false;
+					console.log("Right panel exited fullscreen mode.");
+				}
+			}
+		});
+	}
 
     // ==========================================================================
     // 恢復預設值按鈕
@@ -439,6 +445,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     span.setAttribute("data-stroke", span.textContent);
                 }
             }
+			updateTruncateModeClass(localStorage.getItem("text-truncate-mode") || DEFAULT_SETTINGS.textTruncateMode);
         });
     }
 
@@ -450,4 +457,17 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error("Scroll container not found for text alignment.");
         }
     }
+
+	function updateTruncateModeClass(mode) {
+		const scrollContainer = document.querySelector(".scroll-container");
+		if (scrollContainer) {
+			if (mode === "truncate") {
+				scrollContainer.classList.add("truncate-mode");
+			} else {
+				scrollContainer.classList.remove("truncate-mode");
+			}
+		} else {
+			console.error("[StyleController] Scroll container not found for truncate mode.");
+		}
+	}
 });
