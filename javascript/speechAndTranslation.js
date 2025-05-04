@@ -78,6 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
         translationTimer: null,
         isManuallyStopped: false,
         lastStopWasManual: false,
+		ignoreTranslations: false,
         displayBuffer: {
             target1: { text: "", timestamp: 0, minDisplayTime: 5000 },
             target2: { text: "", timestamp: 0, minDisplayTime: 5000 },
@@ -263,12 +264,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
             state.isManuallyStopped = true;
             state.lastStopWasManual = true;
+			state.ignoreTranslations = true;
             recognition.stop();
             if (state.translationTimer) {
                 clearTimeout(state.translationTimer);
                 state.translationTimer = null;
                 state.pendingTranslationText = "";
             }
+			
+			// 清除待處理的響應
+			state.pendingResponses = {};
+			state.expectedSequenceNumber = state.currentSequenceNumber; // 重置序列號
             console.info("[SpeechAndTranslation] Speech recognition stopped.");
             return true;
         }
@@ -364,6 +370,7 @@ document.addEventListener("DOMContentLoaded", () => {
             recognition.start();
             state.isRecognitionRunning = true;
             state.startTime = Date.now();
+			state.ignoreTranslations = false;
             console.info("[SpeechAndTranslation] Speech recognition restarted.");
             state.restartAttempts = 0;
         } catch (error) {
@@ -582,6 +589,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function handleTranslationResponse(sequenceNumber, text, translations, errorMessage) {
+		if (state.ignoreTranslations) {
+        console.info("[SpeechAndTranslation] Ignoring translation response after manual stop:", { sequenceNumber });
+        return;
+		}
+	
         if (sequenceNumber < state.expectedSequenceNumber) return;
 
         if (sequenceNumber === state.expectedSequenceNumber) {

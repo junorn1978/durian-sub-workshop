@@ -42,7 +42,8 @@ const LANGUAGE_OPTIONS = [
     { value: "ja", label: "日本語" },
     { value: "zh-TW", label: "繁体台湾語" },
     { value: "en", label: "英語" },
-    { value: "es", label: "スペイン語" }
+    { value: "es", label: "スペイン語" },
+    { value: "id", label: "インドネシア語" }
 ];
 
 // ==========================================================================

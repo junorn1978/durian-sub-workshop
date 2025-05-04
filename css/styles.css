@@ -55,6 +55,31 @@
     line-height: 1.2;
 }
 
+/* 滾動條 */
+::-webkit-scrollbar {
+    width: 0.425rem; /* 滾動條寬度 */
+}
+
+::-webkit-scrollbar-track {
+    background: #F1C6D2; /* Hello Kitty 淺粉色軌道 */
+    border-radius: 0.3125rem; /* 圓角軌道，呼應膠囊風格 */
+    border: 0.0625rem solid #F7A6B3; /* Hello Kitty 粉紅色邊框 */
+    box-shadow: inset 0 0 0.125rem rgba(0, 0, 0, 0.1); /* 微內凹陰影 */
+}
+
+::-webkit-scrollbar-thumb {
+    background: #F7A6B3; /* Hello Kitty 粉紅色滑塊 */
+    border: 0.0625rem solid var(--primary-color); /* 主題紫色邊框 */
+    border-radius: 0.3125rem; /* 圓潤滑塊 */
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2); /* 滑塊陰影 */
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #8B0000; /* 深紅色，懸停變色 */
+    transform: scale(1.1); /* 懸停放大 */
+    box-shadow: 0 0.25rem 0.375rem rgba(0, 0, 0, 0.3); /* 增強陰影 */
+}
+
 /* ==========================================================================
    佈局樣式
 ========================================================================== */
@@ -296,34 +321,40 @@ body.no-scroll {
 }
 
 .reset-button {
-    background-color: var(--primary-color);
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: var(--border-radius);
-    color: white;
+    background-color: #F1C6D2; /* Hello Kitty 淺粉色背景 */
+    border: 0.1875rem solid #8B0000; /* Hello Kitty 粉紅色邊框 */
+    padding: 0.2rem 0.5rem; /* 增加水平內距，強調膠囊形 */
+    border-radius: 1.5rem; /* 膠囊形狀，與錄音按鈕一致 */
+    color: var(--primary-color); /* 主題紫色文字 */
     cursor: pointer;
     font-weight: bold;
-    width: 100%;
-    max-width: 9.375rem;
+    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
+    width: 9rem;
+	height: 2.3rem;
+    max-width: 9rem; /* 與下拉選單、調色盤一致 */
     text-align: center;
+    box-shadow: var(--shadow); /* 主題陰影 */
     transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
     margin-top: var(--spacing-sm);
 }
 
 .reset-button:hover:not(:disabled) {
-    background-color: var(--hover-color);
-    transform: scale(1.02);
+    background-color: #F7E7BB; /* Hello Kitty 淺黃色，懸停變亮 */
+    transform: scale(1.02); /* 懸停放大 */
+    box-shadow: 0 0.25rem 0.375rem rgba(0, 0, 0, 0.2);
 }
 
 .reset-button:active,
 .reset-button.pressed {
-    transform: scale(0.95);
+    transform: scale(0.95); /* 點擊縮小 */
     box-shadow: inset 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
-    background-color: var(--secondary-color);
+    background-color: #F3E0D3; /* Hello Kitty 米色，點擊變深 */
 }
 
 .reset-button:disabled {
-    background-color: var(--disabled-color);
+    background-color: #F3E0D3; /* Hello Kitty 米色，禁用狀態 */
+    border-color: #F3E0D3;
+    color: #A68FAF; /* 主題禁用色 */
     cursor: not-allowed;
     opacity: 0.7;
 }
@@ -356,29 +387,85 @@ body.no-scroll {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-sm);
+    width: 100%;
+    max-width: none;
+    min-width: 9rem; /* 確保足夠空間 */
 }
 
 .style-group label input[type="range"] {
-    width: 9.5rem;
+    width: 9rem; /* 設置寬度 */
     max-width: 100%;
     margin: 0.3125rem 0;
+    padding: 0;
+    height: 1rem;
+    background: transparent;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.style-group label input[type="range"]::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 0.5rem;
+    background: linear-gradient(
+        to right,
+        #F3CA4F 0%,
+        #F3CA4F var(--range-progress, 0%),
+        #F1C6D2 var(--range-progress, 0%),
+        #F1C6D2 100%
+    );
+    border-radius: 0.25rem;
+    border: 0.125rem solid #F7A6B3;
+    box-shadow: var(--shadow);
+}
+
+.style-group label input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 1.5rem;
+    height: 1.5rem;
+    background: #F7A6B3;
+    border: 0.125rem solid var(--primary-color);
+    border-radius: 50%; /* 或 0.5rem 實現膠囊形 */
+    margin-top: -0.5rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.style-group label input[type="range"]:hover::-webkit-slider-thumb {
+    transform: scale(1.2);
+    box-shadow: 0 0.25rem 0.375rem rgba(0, 0, 0, 0.3);
+}
+
+.style-group label input[type="range"]:focus {
+    outline: none;
+    box-shadow: 0 0 0 0.25rem rgba(247, 166, 179, 0.3);
 }
 
 .color-label {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 9.0625rem;
-    height: 2.125rem;
-    background-color: #FFD1DC;
-    color: black;
+
+    width: 6.6rem; /* 與下拉選單一致 */
+    height: 0.9rem; /* 與下拉選單一致 */
+    padding: 0.5rem 1rem; /* 水平內距增加 */
+    border-radius: 1.5rem; /* 膠囊形狀，與按鈕和選單一致 */
+    border: 0.1875rem solid #F7A6B3; /* 使用主題紫色邊框 */
+    background-color: var(--dropdown-bg); /* 與下拉選單背景一致 */
+    color: var(--primary-color); /* 文字顏色與主題一致 */
     font-size: 0.875rem;
     font-weight: bold;
     cursor: pointer;
-    border-radius: var(--border-radius);
-    border: 0.1875rem solid #C71585;
-    text-align: center;
+    box-shadow: var(--shadow); /* 添加陰影 */
+    text-align: left;
     position: relative;
+    transition: transform 0.1s ease, box-shadow 0.1s ease; /* 與按鈕和選單一致 */
+}
+
+.color-label:hover {
+    transform: scale(1.02); /* 懸停放大 */
+    box-shadow: 0 0.25rem 0.375rem rgba(0, 0, 0, 0.2); /* 增強陰影 */
 }
 
 .color-label input[type="color"] {
@@ -450,15 +537,38 @@ body.no-scroll {
 }
 
 .dropdown-style {
-    width: 9.375rem;
-    height: 2.5rem;
-    padding: 0.5rem;
-    border-radius: 0.5rem;
-    border: 0.125rem solid var(--primary-color);
-    background-color: var(--dropdown-bg);
+    width: 9rem; /* 加寬以符合膠囊形狀 */
+    height: 2.3rem; /* 略減高度 */
+    padding: 0.5rem 1rem 0.5rem 1rem; /* 右側留空間給箭頭 */
+    border-radius: 1.5rem; /* 大圓角，形成膠囊形狀 */
+    border: 0.1875rem solid var(--primary-color); /* 加粗邊框 */
+    background-color: var(--dropdown-bg); /* 保持背景 */
+    color: var(--primary-color); /* 文字顏色 */
     font-weight: bold;
-    text-align: left;
     font-size: 0.875rem;
+    text-align: left; /* 文字居中 */
+    appearance: none; /* 移除瀏覽器預設樣式 */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    box-shadow: var(--shadow); /* 添加陰影 */
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.1s ease; /* 平滑過渡 */
+
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 0.75rem;
+}
+
+/* 懸停效果 */
+.dropdown-style:hover {
+    transform: scale(1.02); /* 略微放大 */
+    box-shadow: 0 0.25rem 0.375rem rgba(0, 0, 0, 0.2); /* 增強陰影 */
+}
+
+/* 焦點效果 */
+.dropdown-style:focus {
+    outline: none;
+    box-shadow: 0 0 0 0.25rem rgba(107, 62, 117, 0.3); /* 焦點陰影 */
 }
 
 /* ==========================================================================
