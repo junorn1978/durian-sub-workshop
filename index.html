@@ -6,7 +6,7 @@
     <title>トリアンの字幕アトリエ</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-	<link rel="icon" type="image/x-icon" href="images/favicon.ico">
+    <link rel="icon" type="image/x-icon" href="images/favicon.ico">
 </head>
 <body>
     <div class="left-panel">
@@ -20,38 +20,33 @@
         <div class="divider"></div>
         <div class="left-content">
             <div class="controls-container">
-		<div class="dropdown-group">
-			<p>言語設定</p>
-			<select id="source-language" class="dropdown-style">
-				<!-- 由 JavaScript 動態填充 -->
-			</select>
-			<select id="target-language1" class="dropdown-style">
-				<option value="none">言語1 - 翻訳しない</option>
-				<!-- 由 JavaScript 動態填充 -->
-			</select>
-			<select id="target-language2" class="dropdown-style">
-				<option value="none">言語2 - 翻訳しない</option>
-				<!-- 由 JavaScript 動態填充 -->
-			</select>
-			<select id="target-language3" class="dropdown-style">
-				<option value="none">言語3 - 翻訳しない</option>
-				<!-- 由 JavaScript 動態填充 -->
-			</select>
-			<select id="text-alignment-selector" class="dropdown-style">
-				<option value="left">文字揃え - 左寄せ</option>
-				<option value="center">文字揃え - 中央揃え</option>
-				<option value="right">文字揃え - 右寄せ</option>
-			</select>
-			<select id="text-truncate-mode" class="dropdown-style">
-				<option value="truncate">れいモード</option>
-				<option value="full">普通モード</option>
-			</select>
-			<button id="reset-settings" class="reset-button">デフォルトに戻す</button>
-		</div>
+                <div class="dropdown-group">
+                    <p>言語設定</p>
+                    <select id="source-language" class="dropdown-style">
+                        <!-- 由 JavaScript 動態填充 -->
+                    </select>
+                    <select id="target-language1" class="dropdown-style">
+                        <option value="none">言語1 - 翻訳しない</option>
+                        <!-- 由 JavaScript 動態填充 -->
+                    </select>
+                    <select id="target-language2" class="dropdown-style">
+                        <option value="none">言語2 - 翻訳しない</option>
+                        <!-- 由 JavaScript 動態填充 -->
+                    </select>
+                    <select id="target-language3" class="dropdown-style">
+                        <option value="none">言語3 - 翻訳しない</option>
+                        <!-- 由 JavaScript 動態填充 -->
+                    </select>
+                    <select id="text-alignment-selector" class="dropdown-style">
+                        <option value="left">左寄せ</option>
+                        <option value="center">中央揃え</option>
+                        <option value="right">右寄せ</option>
+                    </select>
+                </div>
                 <div class="style-group">
                     <p>スタイル設定</p>
                     <select id="option-language-selector" class="dropdown-style">
-                        <option value="source-language">ソース言語</option>
+                        <option value="source-language">原文</option>
                         <option value="target-language1">目標言語 1</option>
                         <option value="target-language2">目標言語 2</option>
                         <option value="target-language3">目標言語 3</option>
@@ -78,6 +73,13 @@
                     </label>
                 </div>
             </div>
+            <div class="other-settings">
+                <select id="text-truncate-mode" class="dropdown-style">
+                    <option value="truncate">れいモード</option>
+                    <option value="full">普通モード</option>
+                </select>
+                <button id="reset-settings" class="reset-button">スタイルを初期化</button>
+            </div>
             <div class="divider"></div>
             <div class="input-group">
                 <div class="input-wrapper">
@@ -90,9 +92,6 @@
                 </div>
             </div>
         </div>
-        <footer class="left-footer">
-            <p>著作権 © 2025 | 自由使用、著作者の偽装および商業販売禁止</p>
-        </footer>
     </div>
     <div class="right-panel">
         <div class="section" id="section-1">
@@ -104,7 +103,7 @@
             </div>
         </div>
     </div>
-	<script src="javascript/speechAndTranslation.js" defer></script>
-	<script src="javascript/styleController.js" defer></script>
+    <script src="javascript/speechAndTranslation.js" defer></script>
+    <script src="javascript/styleController.js" defer></script>
 </body>
 </html>

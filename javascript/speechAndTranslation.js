@@ -732,6 +732,7 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.stopSpeechButton.addEventListener("click", () => {
         console.info("[SpeechAndTranslation] Stop button clicked.");
         if (window.SpeechRecognitionAPI.stop()) {
+			window.location.reload();
             elements.startSpeechButton.disabled = false;
             elements.stopSpeechButton.disabled = true;
             elements.stopSpeechButton.classList.add("pressed");

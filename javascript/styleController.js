@@ -40,7 +40,7 @@ const DEFAULT_SETTINGS = {
 
 const LANGUAGE_OPTIONS = [
     { value: "ja", label: "日本語" },
-    { value: "zh-TW", label: "繁体台湾語" },
+    { value: "zh-TW", label: "繁體字(台湾)" },
     { value: "en", label: "英語" },
     { value: "es", label: "スペイン語" },
     { value: "id", label: "インドネシア語" }
@@ -101,7 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return console.error(`Language select not found: ${id}`);
         }
 
-        const prefix = id === "source-language" ? "來源 - " : `語言${id.slice(-1)} - `;
+        const prefix = id === "source-language" ? "來源 - " : `言語${id.slice(-1)} - `;
         LANGUAGE_OPTIONS.forEach(option => {
             const optionElement = document.createElement("option");
             optionElement.value = option.value;
