@@ -1,5 +1,12 @@
+const DEBUG = false;
+function logInfo(...args) {
+	if (DEBUG) {
+        console.info(...args);
+	}
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-    console.info("[SpeechAndTranslation] Script loaded.");
+    logInfo("[SpeechAndTranslation] Script loaded.");
 
     // ==========================================================================
     // 常量與配置
@@ -11,7 +18,8 @@ document.addEventListener("DOMContentLoaded", () => {
         MAX_PENDING_RESPONSES: 10,
         RESTART_DELAY: 500,
         MIN_TEXT_LENGTH: 5,
-        TRANSLATION_PENDING_TIMEOUT: 2000
+        TRANSLATION_PENDING_TIMEOUT: 2000,
+        INTERIM_STAGNATION_TIMEOUT: 3000 // 新增：臨時文字停滯超時
     };
 
     const ELEMENT_IDS = {
@@ -78,7 +86,10 @@ document.addEventListener("DOMContentLoaded", () => {
         translationTimer: null,
         isManuallyStopped: false,
         lastStopWasManual: false,
-		ignoreTranslations: false,
+        ignoreTranslations: false,
+        lastInterimUpdateTime: null, // 新增：記錄臨時文字最後更新時間
+        lastSentInterimText: "", // 新增：記錄最後發送的臨時文字
+        interimStagnationTimer: null, // 新增：臨時文字停滯定時器
         displayBuffer: {
             target1: { text: "", timestamp: 0, minDisplayTime: 5000 },
             target2: { text: "", timestamp: 0, minDisplayTime: 5000 },
@@ -96,6 +107,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // ==========================================================================
     // 輔助函數
     // ==========================================================================
+
     function handleError(type, message, details = {}) {
         const errorConfig = ERROR_MESSAGES[type] || ERROR_MESSAGES.default;
         const logMessage = errorConfig.log.replace("{error}", message);
@@ -118,9 +130,12 @@ document.addEventListener("DOMContentLoaded", () => {
             pendingTranslationText: "",
             translationTimer: null,
             isManuallyStopped: false,
-            lastStopWasManual: false
+            lastStopWasManual: false,
+            lastInterimUpdateTime: null, // 新增
+            lastSentInterimText: "", // 新增
+            interimStagnationTimer: null // 新增
         });
-        console.info("[SpeechAndTranslation] State reset.");
+        logInfo("[SpeechAndTranslation] State reset.");
     }
 
     function ensureRecognition() {
@@ -131,6 +146,26 @@ document.addEventListener("DOMContentLoaded", () => {
         return true;
     }
 
+    function checkInterimStagnation(sourceLang) {
+        const now = Date.now();
+        if (
+            state.interimText &&
+            state.lastInterimUpdateTime &&
+            now - state.lastInterimUpdateTime >= CONFIG.INTERIM_STAGNATION_TIMEOUT &&
+            !state.finalText && // 確保沒有最終文字
+            state.interimText !== state.lastSentInterimText // 避免重複發送
+        ) {
+            logInfo("[SpeechAndTranslation] Interim text stagnated, sending for translation:", {
+                text: state.interimText,
+                length: state.interimText.length
+            });
+            state.lastSentInterimText = state.interimText; // 記錄已發送的臨時文字
+            sendTranslation(state.interimText, sourceLang); // 發送翻譯
+        }
+        // 重新啟動定時器以持續檢查
+        state.interimStagnationTimer = setTimeout(() => checkInterimStagnation(sourceLang), CONFIG.INTERIM_STAGNATION_TIMEOUT);
+    }
+	
     function initializeElements() {
         const forwardRef = {};
         const missingIds = [];
@@ -146,7 +181,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return null;
         }
 
-        console.info("[SpeechAndTranslation] All elements initialized.");
+        logInfo("[SpeechAndTranslation] All elements initialized.");
         return forwardRef;
     }
 
@@ -160,20 +195,20 @@ document.addEventListener("DOMContentLoaded", () => {
         recognition.maxAlternatives = 3;
         recognition.lang = sourceLanguageSelect.value;
 
-        console.info("[SpeechAndTranslation] Speech recognition initialized with language:", recognition.lang);
+        logInfo("[SpeechAndTranslation] Speech recognition initialized with language:", recognition.lang);
         return recognition;
     }
 
     function replacePunctuation(text) {
         if (!text) return text;
         const result = text.replace(/[、。]/g, " ");
-        console.info("[SpeechAndTranslation] Punctuation replaced:", { original: text, replaced: result });
+        logInfo("[SpeechAndTranslation] Punctuation replaced:", { original: text, replaced: result });
         return result;
     }
 
     function sendTranslation(text, sourceLang) {
         const sequenceNumber = state.currentSequenceNumber++;
-        console.info("[SpeechAndTranslation] Sending translation:", {
+        logInfo("[SpeechAndTranslation] Sending translation:", {
             sequenceNumber,
             text,
             length: text.length
@@ -184,7 +219,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function startTranslationTimer(sourceLang) {
         if (state.translationTimer) {
-            console.info("[SpeechAndTranslation] Translation timer already running, updating text:", {
+            logInfo("[SpeechAndTranslation] Translation timer already running, updating text:", {
                 text: state.pendingTranslationText,
                 length: state.pendingTranslationText.length
             });
@@ -198,7 +233,7 @@ document.addEventListener("DOMContentLoaded", () => {
             state.translationTimer = null;
         }, CONFIG.TRANSLATION_PENDING_TIMEOUT);
 
-        console.info("[SpeechAndTranslation] Started translation timer:", {
+        logInfo("[SpeechAndTranslation] Started translation timer:", {
             text: state.pendingTranslationText,
             length: state.pendingTranslationText.length
         });
@@ -209,7 +244,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const chunkSize = 40;
         const multiple = Math.floor(text.length / chunkSize);
         const charsToRemove = multiple * chunkSize;
-        console.info("[SpeechAndTranslation] Truncating text:", {
+        logInfo("[SpeechAndTranslation] Truncating text:", {
             originalLength: text.length,
             multiple,
             charsToRemove
@@ -231,7 +266,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     window.SpeechRecognitionAPI = {
         start() {
-            console.info("[SpeechAndTranslation] Attempting to start speech recognition, state:", state.isRecognitionRunning);
+            logInfo("[SpeechAndTranslation] Attempting to start speech recognition, state:", state.isRecognitionRunning);
             if (state.isRecognitionRunning) {
                 console.warn("[SpeechAndTranslation]", MESSAGES.speechAlreadyRunning);
                 return false;
@@ -240,14 +275,16 @@ document.addEventListener("DOMContentLoaded", () => {
             resetState();
             state.isManuallyStopped = false;
             state.lastStopWasManual = false;
-            console.info("[SpeechAndTranslation] isManuallyStopped reset to:", state.isManuallyStopped);
+            logInfo("[SpeechAndTranslation] isManuallyStopped reset to:", state.isManuallyStopped);
             recognition.lang = elements.sourceLanguageSelect.value;
 
             try {
                 recognition.start();
                 state.isRecognitionRunning = true;
                 state.startTime = Date.now();
-                console.info("[SpeechAndTranslation] Speech recognition started.");
+                // 啟動停滯檢查定時器
+                state.interimStagnationTimer = setTimeout(() => checkInterimStagnation(elements.sourceLanguageSelect.value), CONFIG.INTERIM_STAGNATION_TIMEOUT);
+                logInfo("[SpeechAndTranslation] Speech recognition started.");
                 updateSectionDisplay();
                 return true;
             } catch (error) {
@@ -264,18 +301,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
             state.isManuallyStopped = true;
             state.lastStopWasManual = true;
-			state.ignoreTranslations = true;
+            state.ignoreTranslations = true;
             recognition.stop();
             if (state.translationTimer) {
                 clearTimeout(state.translationTimer);
                 state.translationTimer = null;
                 state.pendingTranslationText = "";
             }
-			
-			// 清除待處理的響應
-			state.pendingResponses = {};
-			state.expectedSequenceNumber = state.currentSequenceNumber; // 重置序列號
-            console.info("[SpeechAndTranslation] Speech recognition stopped.");
+            if (state.interimStagnationTimer) {
+                clearTimeout(state.interimStagnationTimer);
+                state.interimStagnationTimer = null;
+            }
+            // 清除待處理的響應
+            state.pendingResponses = {};
+            state.expectedSequenceNumber = state.currentSequenceNumber; // 重置序列號
+            logInfo("[SpeechAndTranslation] Speech recognition stopped.");
             return true;
         }
     };
@@ -284,7 +324,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 語音與翻譯處理
     // ==========================================================================
     recognition.onresult = function(event) {
-        console.info("[SpeechAndTranslation] Received speech results, count:", event.results.length);
+        logInfo("[SpeechAndTranslation] Received speech results, count:", event.results.length);
         let shouldRestart = false;
 
         if (!event.results) {
@@ -314,7 +354,7 @@ document.addEventListener("DOMContentLoaded", () => {
             handleTranslationResult(translationResults);
 
             if (shouldRestart) {
-                console.info(`[SpeechAndTranslation] Time limit (${CONFIG.MAX_TIME_LIMIT / 1000}s) reached, restarting.`);
+                logInfo(`[SpeechAndTranslation] Time limit (${CONFIG.MAX_TIME_LIMIT / 1000}s) reached, restarting.`);
                 recognition.stop();
                 setTimeout(() => restartRecognition(), CONFIG.RESTART_DELAY);
             }
@@ -334,18 +374,22 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     recognition.onend = () => {
-        console.info("[SpeechAndTranslation] Speech recognition ended, isManuallyStopped:", state.isManuallyStopped, "lastStopWasManual:", state.lastStopWasManual, "restartAttempts:", state.restartAttempts, "elapsedTime:", state.startTime ? (Date.now() - state.startTime) / 1000 : "N/A");
+        logInfo("[SpeechAndTranslation] Speech recognition ended, isManuallyStopped:", state.isManuallyStopped, "lastStopWasManual:", state.lastStopWasManual, "restartAttempts:", state.restartAttempts, "elapsedTime:", state.startTime ? (Date.now() - state.startTime) / 1000 : "N/A");
         state.isRecognitionRunning = false;
         if (state.lastStopWasManual) {
             state.restartAttempts = 0;
             state.isManuallyStopped = false;
             state.lastStopWasManual = false;
+            if (state.interimStagnationTimer) {
+                clearTimeout(state.interimStagnationTimer);
+                state.interimStagnationTimer = null;
+            }
             elements.startSpeechButton.disabled = false;
             elements.stopSpeechButton.disabled = true;
-            console.info("[SpeechAndTranslation] Manually stopped, updating UI.");
+            logInfo("[SpeechAndTranslation] Manually stopped, updating UI.");
         } else {
             if (state.restartAttempts < CONFIG.MAX_RESTART_ATTEMPTS) {
-                console.info(`[SpeechAndTranslation] Restart attempt ${state.restartAttempts + 1}/${CONFIG.MAX_RESTART_ATTEMPTS}`);
+                logInfo(`[SpeechAndTranslation] Restart attempt ${state.restartAttempts + 1}/${CONFIG.MAX_RESTART_ATTEMPTS}`);
                 setTimeout(() => restartRecognition(), CONFIG.RESTART_DELAY);
             } else {
                 console.error("[SpeechAndTranslation] Max restart attempts exceeded.");
@@ -370,8 +414,10 @@ document.addEventListener("DOMContentLoaded", () => {
             recognition.start();
             state.isRecognitionRunning = true;
             state.startTime = Date.now();
-			state.ignoreTranslations = false;
-            console.info("[SpeechAndTranslation] Speech recognition restarted.");
+            state.ignoreTranslations = false;
+            // 重新啟動停滯檢查定時器
+            state.interimStagnationTimer = setTimeout(() => checkInterimStagnation(elements.sourceLanguageSelect.value), CONFIG.INTERIM_STAGNATION_TIMEOUT);
+            logInfo("[SpeechAndTranslation] Speech recognition restarted.");
             state.restartAttempts = 0;
         } catch (error) {
             state.restartAttempts++;
@@ -410,14 +456,14 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        console.info("[SpeechAndTranslation] Processing interim result:", {
+        logInfo("[SpeechAndTranslation] Processing interim result:", {
             original: originalTranscript,
             displayed: displayTranscript
         });
 
         // 計算顯示文字的字數
         const charCount = displayTranscript.length;
-        console.info("[SpeechAndTranslation] Interim text character count:", { charCount });
+        logInfo("[SpeechAndTranslation] Interim text character count:", { charCount });
 
         // 更新顯示結果（使用截斷或完整文字）
         displayResults.interimText = displayTranscript;
@@ -431,6 +477,15 @@ document.addEventListener("DOMContentLoaded", () => {
             state.shouldClearNext = false;
             state.lastNonEmptyText = "";
         }
+
+        // 更新臨時文字最後更新時間
+        state.lastInterimUpdateTime = Date.now();
+
+        // 重置停滯定時器
+        if (state.interimStagnationTimer) {
+            clearTimeout(state.interimStagnationTimer);
+        }
+        state.interimStagnationTimer = setTimeout(() => checkInterimStagnation(elements.sourceLanguageSelect.value), CONFIG.INTERIM_STAGNATION_TIMEOUT);
     }
 
     function handleFinalResult(result, displayResults, translationResults) {
@@ -449,7 +504,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const truncateMode = localStorage.getItem("text-truncate-mode") || "truncate";
         newText = truncateMode === "truncate" ? truncateToLastChunk(newText) : newText;
 
-        console.info("[SpeechAndTranslation] Processing final result:", {
+        logInfo("[SpeechAndTranslation] Processing final result:", {
             original: originalText,
             displayed: newText
         });
@@ -466,14 +521,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (state.startTime && Date.now() - state.startTime >= CONFIG.MAX_TIME_LIMIT) {
             shouldRestart = true;
             state.restartAttempts = 0;
-            console.info("[SpeechAndTranslation] Time limit reached, preparing to restart.");
+            logInfo("[SpeechAndTranslation] Time limit reached, preparing to restart.");
         }
 
         return shouldRestart;
     }
 
     function handleDisplayResult(results) {
-        console.info("[SpeechAndTranslation] Handling display results:", {
+        logInfo("[SpeechAndTranslation] Handling display results:", {
             finalText: results.finalText,
             interimText: results.interimText,
             currentFinalText: state.finalText
@@ -481,10 +536,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // 如果有臨時結果，且存在前次最終結果，清除前次最終結果
         if (results.interimText && state.finalText) {
-            console.info("[SpeechAndTranslation] Clearing previous final result before displaying new interim result.");
+            logInfo("[SpeechAndTranslation] Clearing previous final result before displaying new interim result.");
             state.finalText = "";
             state.interimText = "";
-            texts.source = "\u200B"; // 使用零寬度空格作為佔位
+            texts.source = ""; // 使用零寬度空格作為佔位
             updateSectionDisplay();
         }
 
@@ -493,7 +548,7 @@ document.addEventListener("DOMContentLoaded", () => {
             state.interimText = results.interimText;
             texts.source = replacePunctuation(results.interimText);
             updateSectionDisplay();
-            console.info("[SpeechAndTranslation] Display updated with:", { source: texts.source });
+            logInfo("[SpeechAndTranslation] Display updated with:", { source: texts.source });
         }
     }
 
@@ -511,7 +566,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         if (!text.trim()) {
-            console.info("[SpeechAndTranslation] Skipping translation: empty text.");
+            logInfo("[SpeechAndTranslation] Skipping translation: empty text.");
             return;
         }
 
@@ -529,6 +584,9 @@ document.addEventListener("DOMContentLoaded", () => {
         startTranslationTimer(sourceLang);
     }
 
+	/* ----------------------------------------------------------------------------
+	函數:發送翻譯請求用，格式: (要翻譯的文字, 要翻譯的語言, 序號)
+	---------------------------------------------------------------------------- */
     async function translateText(text, sourceLang, sequenceNumber) {
         const targetLangs = [];
         const lang1 = elements.targetLanguage1Select.value;
@@ -540,16 +598,16 @@ document.addEventListener("DOMContentLoaded", () => {
         if (lang3 && lang3 !== "none") targetLangs.push(lang3);
 
         if (!targetLangs.length) {
-            console.info("[SpeechAndTranslation] No target languages selected.");
+            logInfo("[SpeechAndTranslation] No target languages selected.");
             updateSectionDisplay();
             return;
         }
 
-        console.info("[SpeechAndTranslation] Sending translation request:", { sequenceNumber, text, targetLangs });
+        logInfo("[SpeechAndTranslation] Sending translation request:", { sequenceNumber, text, targetLangs });
 
         const timeoutId = setTimeout(() => {
             if (sequenceNumber === state.expectedSequenceNumber) {
-                console.info(`[SpeechAndTranslation] Translation timeout (sequence: ${sequenceNumber})`);
+                logInfo(`[SpeechAndTranslation] Translation timeout (sequence: ${sequenceNumber})`);
                 state.expectedSequenceNumber++;
                 processPendingResponses();
             }
@@ -580,7 +638,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             const data = await response.json();
-            console.info("[SpeechAndTranslation] Translation received:", { sequenceNumber, translations: data.translations });
+            logInfo("[SpeechAndTranslation] Translation received:", { sequenceNumber, translations: data.translations });
             handleTranslationResponse(sequenceNumber, text, data.translations, null);
         } catch (error) {
             clearTimeout(timeoutId);
@@ -590,7 +648,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function handleTranslationResponse(sequenceNumber, text, translations, errorMessage) {
 		if (state.ignoreTranslations) {
-        console.info("[SpeechAndTranslation] Ignoring translation response after manual stop:", { sequenceNumber });
+        logInfo("[SpeechAndTranslation] Ignoring translation response after manual stop:", { sequenceNumber });
         return;
 		}
 	
@@ -705,22 +763,22 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         if (DEBUG) {
-            console.info("[SpeechAndTranslation] Updated UI spans:", {
+            logInfo("[SpeechAndTranslation] Updated UI spans:", {
                 source: { text: spans.source.textContent, stroke: spans.source.getAttribute("data-stroke") },
                 target1: { text: spans.target1.textContent, stroke: spans.target1.getAttribute("data-stroke") },
                 target2: { text: spans.target2.textContent, stroke: spans.target2.getAttribute("data-stroke") },
                 target3: { text: spans.target3.textContent, stroke: spans.target3.getAttribute("data-stroke") }
             });
         }
-        console.info("[SpeechAndTranslation] UI updated.");
+        logInfo("[SpeechAndTranslation] UI updated.");
     }
 
     // ==========================================================================
     // 事件綁定
     // ==========================================================================
-    console.info("[SpeechAndTranslation] Binding event listeners.");
+    logInfo("[SpeechAndTranslation] Binding event listeners.");
     elements.startSpeechButton.addEventListener("click", () => {
-        console.info("[SpeechAndTranslation] Start button clicked.");
+        logInfo("[SpeechAndTranslation] Start button clicked.");
         if (window.SpeechRecognitionAPI.start()) {
             elements.startSpeechButton.disabled = true;
             elements.stopSpeechButton.disabled = false;
@@ -730,21 +788,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }, { capture: true });
 
     elements.stopSpeechButton.addEventListener("click", () => {
-        console.info("[SpeechAndTranslation] Stop button clicked.");
+        logInfo("[SpeechAndTranslation] Stop button clicked.");
         if (window.SpeechRecognitionAPI.stop()) {
-			window.location.reload();
+            window.location.reload();
             elements.startSpeechButton.disabled = false;
             elements.stopSpeechButton.disabled = true;
             elements.stopSpeechButton.classList.add("pressed");
             setTimeout(() => elements.stopSpeechButton.classList.remove("pressed"), 200);
-			Object.assign(texts, DEFAULT_TEXTS);
-			updateSectionDisplay();
+            Object.assign(texts, DEFAULT_TEXTS);
+            updateSectionDisplay();
         }
     }, { capture: true });
 
     elements.sourceLanguageSelect.addEventListener("change", () => {
         recognition.lang = elements.sourceLanguageSelect.value;
-        console.info("[SpeechAndTranslation] Source language updated to:", recognition.lang);
+        logInfo("[SpeechAndTranslation] Source language updated to:", recognition.lang);
     });
 
     [elements.targetLanguage1Select, elements.targetLanguage2Select, elements.targetLanguage3Select].forEach((select, index) => {
@@ -753,7 +811,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (select.value === "none") {
                 texts[langKey] = "";
                 updateSectionDisplay();
-                console.info(`[SpeechAndTranslation] Cleared ${langKey} due to 'none' selection.`);
+                logInfo(`[SpeechAndTranslation] Cleared ${langKey} due to 'none' selection.`);
             }
         });
     });
