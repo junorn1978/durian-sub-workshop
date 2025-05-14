@@ -1,4 +1,4 @@
-const DEBUG = true;
+const DEBUG = false;
 function logInfo(...args) {
 	if (DEBUG) {
         console.info(...args);
