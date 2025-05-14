@@ -35,18 +35,19 @@ const DEFAULT_SETTINGS = {
     },
     backgroundColor: "#00FF00",
     textAlignment: "left",
-    fontSizeMode: "normal"
+    textTruncateMode: "truncate" // 新增：文字截斷模式的預設值
 };
 
 const LANGUAGE_OPTIONS = [
     { value: "ja", label: "日本語" },
-    { value: "zh-TW", label: "繁体台湾語" },
+    { value: "zh-TW", label: "繁體字(台湾)" },
     { value: "en", label: "英語" },
-    { value: "es", label: "スペイン語" }
+    { value: "es", label: "スペイン語" },
+    { value: "id", label: "インドネシア語" }
 ];
 
 // ==========================================================================
-// 輔助函數 - 提前定義 applyFontSizeMode
+// 輔助函數
 // ==========================================================================
 let elements = {};
 const languageToSpanMap = {
@@ -56,61 +57,11 @@ const languageToSpanMap = {
     "target-language3": ".target-text-3"
 };
 
-function applyFontSizeMode(mode, specificSpan = null, specificLang = null) {
-    const spans = specificSpan ? { [specificLang]: specificSpan } : {
-        "source-language": elements.section?.querySelector(".source-text"),
-        "target-language1": elements.section?.querySelector(".target-text-1"),
-        "target-language2": elements.section?.querySelector(".target-text-2"),
-        "target-language3": elements.section?.querySelector(".target-text-3")
-    };
-
-    Object.entries(spans).forEach(([lang, span]) => {
-        if (span) {
-            const originalFontSize = parseFloat(localStorage.getItem(`${lang}-font-size`) || DEFAULT_SETTINGS[lang].fontSize);
-            span.style.fontSize = `${originalFontSize}px`; // 先恢復原始大小
-            span.style.whiteSpace = "normal"; // 確保文字可以換行
-
-            if (mode === "auto-shrink" && span.textContent) {
-                const containerWidth = elements.section.offsetWidth;
-                const tempSpan = document.createElement("span");
-                tempSpan.style.fontSize = `${originalFontSize}px`;
-                tempSpan.style.position = "absolute";
-                tempSpan.style.visibility = "hidden";
-                tempSpan.style.whiteSpace = "nowrap";
-                tempSpan.style.fontFamily = getComputedStyle(span).fontFamily;
-                tempSpan.textContent = span.textContent;
-                document.body.appendChild(tempSpan);
-
-                const textWidth = tempSpan.offsetWidth;
-                document.body.removeChild(tempSpan);
-
-                if (textWidth > containerWidth) {
-                    const minFontSize = Math.max(originalFontSize - 4, 10); // 最多縮小4px，最小10px
-                    let adjustedFontSize = originalFontSize;
-
-                    while (adjustedFontSize > minFontSize) {
-                        tempSpan.style.fontSize = `${adjustedFontSize}px`;
-                        document.body.appendChild(tempSpan);
-                        const newWidth = tempSpan.offsetWidth;
-                        document.body.removeChild(tempSpan);
-                        if (newWidth <= containerWidth) {
-                            break;
-                        }
-                        adjustedFontSize -= 1;
-                    }
-
-                    span.style.fontSize = `${adjustedFontSize}px`;
-                }
-            }
-        }
-    });
-}
-
-// 暴露給 speechAndTranslation.js 使用
-window.applyFontSizeMode = applyFontSizeMode;
-
 document.addEventListener("DOMContentLoaded", () => {
     console.log("styleController.js loaded successfully");
+
+    // 清理舊的 font-size-mode 儲存
+    localStorage.removeItem("font-size-mode");
 
     // ==========================================================================
     // 初始化變數
@@ -132,7 +83,7 @@ document.addEventListener("DOMContentLoaded", () => {
         rightPanel: document.querySelector(".right-panel"),
         section: document.getElementById("section-1"),
         textAlignmentSelector: document.getElementById("text-alignment-selector"),
-        fontSizeModeSelector: document.getElementById("font-size-mode")
+        textTruncateModeSelector: document.getElementById("text-truncate-mode") // 新增
     };
 
     Object.entries(elements).forEach(([key, element]) => {
@@ -150,7 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return console.error(`Language select not found: ${id}`);
         }
 
-        const prefix = id === "source-language" ? "來源 - " : `語言${id.slice(-1)} - `;
+        const prefix = id === "source-language" ? "來源 - " : `言語${id.slice(-1)} - `;
         LANGUAGE_OPTIONS.forEach(option => {
             const optionElement = document.createElement("option");
             optionElement.value = option.value;
@@ -242,7 +193,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const fontSize = parseFloat(elements.fontSizeSlider.value);
             updateSectionStyle("fontSize", `${fontSize}px`, true);
             saveSettings({ fontSize: fontSize });
-            applyFontSizeMode(elements.fontSizeModeSelector.value);
         });
     }
 
@@ -258,20 +208,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ==========================================================================
-    // 字體大小模式選擇器
+    // 文字截斷模式選擇器
     // ==========================================================================
-    if (elements.fontSizeModeSelector) {
-        const savedMode = localStorage.getItem("font-size-mode") || DEFAULT_SETTINGS.fontSizeMode;
-        elements.fontSizeModeSelector.value = savedMode;
-
-        elements.fontSizeModeSelector.addEventListener("change", () => {
-            const mode = elements.fontSizeModeSelector.value;
-            localStorage.setItem("font-size-mode", mode);
-            applyFontSizeMode(mode);
-        });
-
-        applyFontSizeMode(savedMode);
-    }
+	if (elements.textTruncateModeSelector) {
+		const savedMode = localStorage.getItem("text-truncate-mode") || DEFAULT_SETTINGS.textTruncateMode;
+		elements.textTruncateModeSelector.value = savedMode;
+		updateTruncateModeClass(savedMode);
+	
+		elements.textTruncateModeSelector.addEventListener("change", () => {
+			const mode = elements.textTruncateModeSelector.value;
+			localStorage.setItem("text-truncate-mode", mode);
+			updateTruncateModeClass(mode);
+			console.info("[StyleController] Text truncate mode changed to:", mode);
+		});
+	}
 
     // ==========================================================================
     // 選項選擇器與設定載入
@@ -320,29 +270,31 @@ document.addEventListener("DOMContentLoaded", () => {
     // ==========================================================================
     // 全螢幕切換功能（無翻頁效果）
     // ==========================================================================
-    if (elements.rightPanel) {
-        let isFullscreen = false;
-
-        elements.rightPanel.addEventListener("click", (event) => {
-            if (event.target === elements.rightPanel || event.target.classList.contains("scroll-container")) {
-                if (!isFullscreen) {
-                    document.querySelector(".left-panel").classList.add("hidden");
-                    elements.rightPanel.classList.add("fullscreen");
-                    document.body.classList.add("no-scroll");
-                    isFullscreen = true;
-                    console.log("Right panel switched to fullscreen mode.");
-                    applyFontSizeMode(elements.fontSizeModeSelector.value);
-                } else {
-                    document.querySelector(".left-panel").classList.remove("hidden");
-                    elements.rightPanel.classList.remove("fullscreen");
-                    document.body.classList.remove("no-scroll");
-                    isFullscreen = false;
-                    console.log("Right panel exited fullscreen mode.");
-                    applyFontSizeMode(elements.fontSizeModeSelector.value);
-                }
-            }
-        });
-    }
+	if (elements.rightPanel) {
+		let isFullscreen = false;
+		elements.rightPanel.addEventListener("click", (event) => {
+			const validTargets = [
+				elements.rightPanel,
+				elements.rightPanel.querySelector(".scroll-container"),
+				...elements.rightPanel.querySelectorAll(".text-overlay")
+			];
+			if (validTargets.includes(event.target)) {
+				if (!isFullscreen) {
+					document.querySelector(".left-panel").classList.add("hidden");
+					elements.rightPanel.classList.add("fullscreen");
+					document.body.classList.add("no-scroll");
+					isFullscreen = true;
+					console.log("Right panel switched to fullscreen mode.");
+				} else {
+					document.querySelector(".left-panel").classList.remove("hidden");
+					elements.rightPanel.classList.remove("fullscreen");
+					document.body.classList.remove("no-scroll");
+					isFullscreen = false;
+					console.log("Right panel exited fullscreen mode.");
+				}
+			}
+		});
+	}
 
     // ==========================================================================
     // 恢復預設值按鈕
@@ -359,8 +311,8 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             localStorage.setItem("background-color", DEFAULT_SETTINGS.backgroundColor);
-            localStorage.setItem("font-size-mode", DEFAULT_SETTINGS.fontSizeMode);
             localStorage.setItem("text-alignment", DEFAULT_SETTINGS.textAlignment);
+            localStorage.setItem("text-truncate-mode", DEFAULT_SETTINGS.textTruncateMode);
 
             const currentLanguage = elements.optionSelector.value;
             const currentDefaults = DEFAULT_SETTINGS[currentLanguage];
@@ -369,15 +321,14 @@ document.addEventListener("DOMContentLoaded", () => {
             if (elements.textColorPicker) elements.textColorPicker.value = currentDefaults.textColor;
             if (elements.textStrokeColorPicker) elements.textStrokeColorPicker.value = currentDefaults.textStrokeColor;
             if (elements.backgroundColorPicker) elements.backgroundColorPicker.value = DEFAULT_SETTINGS.backgroundColor;
-            if (elements.fontSizeModeSelector) elements.fontSizeModeSelector.value = DEFAULT_SETTINGS.fontSizeMode;
             if (elements.textAlignmentSelector) elements.textAlignmentSelector.value = DEFAULT_SETTINGS.textAlignment;
+            if (elements.textTruncateModeSelector) elements.textTruncateModeSelector.value = DEFAULT_SETTINGS.textTruncateMode;
 
             languageSelectIds.forEach(language => {
                 loadSettings(language);
             });
 
             applyTextAlignment(DEFAULT_SETTINGS.textAlignment);
-            applyFontSizeMode(DEFAULT_SETTINGS.fontSizeMode);
 
             console.log("Settings reset to defaults and all styles refreshed.");
         });
@@ -439,8 +390,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if (elements.textStrokeColorPicker) elements.textStrokeColorPicker.value = settings.textStrokeColor;
             if (elements.backgroundColorPicker) elements.backgroundColorPicker.value = settings.backgroundColor;
         }
-
-        applyFontSizeMode(elements.fontSizeModeSelector?.value || DEFAULT_SETTINGS.fontSizeMode, span, language);
     }
 
     function saveSettings(settings) {
@@ -496,8 +445,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (span.textContent && span.getAttribute("data-stroke") !== span.textContent) {
                     span.setAttribute("data-stroke", span.textContent);
                 }
-                applyFontSizeMode(elements.fontSizeModeSelector?.value || DEFAULT_SETTINGS.fontSizeMode, span, lang);
             }
+			updateTruncateModeClass(localStorage.getItem("text-truncate-mode") || DEFAULT_SETTINGS.textTruncateMode);
         });
     }
 
@@ -509,4 +458,17 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error("Scroll container not found for text alignment.");
         }
     }
+
+	function updateTruncateModeClass(mode) {
+		const scrollContainer = document.querySelector(".scroll-container");
+		if (scrollContainer) {
+			if (mode === "truncate") {
+				scrollContainer.classList.add("truncate-mode");
+			} else {
+				scrollContainer.classList.remove("truncate-mode");
+			}
+		} else {
+			console.error("[StyleController] Scroll container not found for truncate mode.");
+		}
+	}
 });

@@ -23,6 +23,11 @@
     --divider-color: var(--primary-color);
     --disabled-color: #A68FAF;
     --dropdown-bg: #F8E6F0;
+    /* color-label 專用顏色 */
+    --color-label-bg: #FFF0F5; /* 淡薰衣草色 */
+    --color-label-border: #DB7093; /* 淡粉紅色 */
+    --color-label-text: #4B0082; /* 靛紫色 */
+    --color-label-hover-bg: #FFE4E1; /* 薄霧玫瑰色 */
 
     /* 間距 */
     --spacing-xs: 0.3125rem;  /* 5px */
@@ -37,7 +42,7 @@
 
     /* 邊界 */
     --border-width-sm: 0.125rem;   /* 2px，小邊界 */
-    --border-width-md: 0.1875rem;  /* 3px，中邊界 */
+    --border осуществляется: 0.1875rem;  /* 3px，中邊界 */
     --border-width-lg: 0.3125rem;  /* 5px，大邊界 */
 
     /* 其他 */
@@ -53,6 +58,31 @@
     overflow-wrap: break-word;
     white-space: normal;
     line-height: 1.2;
+}
+
+/* 滾動條 */
+::-webkit-scrollbar {
+    width: 0.425rem; /* 滾動條寬度 */
+}
+
+::-webkit-scrollbar-track {
+    background: #F1C6D2; /* Hello Kitty 淺粉色軌道 */
+    border-radius: 0.3125rem; /* 圓角軌道，呼應膠囊風格 */
+    border: 0.0625rem solid #F7A6B3; /* Hello Kitty 粉紅色邊框 */
+    box-shadow: inset 0 0 0.125rem rgba(0, 0, 0, 0.1); /* 微內凹陰影 */
+}
+
+::-webkit-scrollbar-thumb {
+    background: #F7A6B3; /* Hello Kitty 粉紅色滑塊 */
+    border: 0.0625rem solid var(--primary-color); /* 主題紫色邊框 */
+    border-radius: 0.3125rem; /* 圓潤滑塊 */
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2); /* 滑塊陰影 */
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #8B0000; /* 深紅色，懸停變色 */
+    transform: scale(1.1); /* 懸停放大 */
+    box-shadow: 0 0.25rem 0.375rem rgba(0, 0, 0, 0.3); /* 增強陰影 */
 }
 
 /* ==========================================================================
@@ -101,7 +131,7 @@ body.no-scroll {
     left: 0.625rem;
     right: 0.625rem;
     bottom: 0.625rem;
-    border: 0.1875rem dashed #FFFFFF;
+    border: 0.12rem dashed #FFFFFF;
     border-radius: 0.5rem;
     box-shadow: 
         0 0 0 0.125rem #FFF9C4,
@@ -127,6 +157,7 @@ body.no-scroll {
     gap: var(--spacing-sm);
     max-height: var(--content-max-height);
     overflow-y: auto;
+    overflow-x: hidden; /* 防止水平滾動 */
 }
 
 .left-footer {
@@ -190,7 +221,21 @@ body.no-scroll {
     flex-direction: column;
     gap: var(--spacing-xs);
     text-align: left;
-    caret-color: transparent; /* 隱藏游標 */
+    caret-color: transparent;
+}
+
+.scroll-container.truncate-mode .text-overlay {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.scroll-container:not(.truncate-mode) .text-overlay {
+    -webkit-user-select: auto;
+    -moz-user-select: auto;
+    -ms-user-select: auto;
+    user-select: auto;
 }
 
 /* ==========================================================================
@@ -234,33 +279,37 @@ body.no-scroll {
 
 .logo {
     width: auto;
-    height: 6.25rem;
+    height: 8.5rem;
 }
 
+/* ==========================================================================
+   元件樣式
+========================================================================== */
 .buttons {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--spacing-sm);
+    gap: 1rem;
     width: 100%;
 }
 
 .buttons button {
-    background-color: var(--primary-color);
+    background-color: var(--primary-color); /* 保持紫色 #6B3E75 */
     border: none;
-    padding: 0.75rem 1.25rem;
-    border-radius: var(--border-radius);
+    padding: 0.75rem 2rem; /* 增加水平內距，使按鈕更長 */
+    border-radius: 1.5rem; /* 大圓角，形成長方橢圓形 */
     color: white;
     cursor: pointer;
     font-weight: bold;
+    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif; /* 保持字體 */
     width: 80%;
-    max-width: 12.5rem;
+    max-width: 12.5rem; /* 限制最大寬度，確保不過寬 */
     text-align: center;
     transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
 }
 
 .buttons button:hover:not(:disabled) {
-    background-color: var(--hover-color);
+    background-color: var(--hover-color); /* #7A4A85 */
     transform: scale(1.02);
 }
 
@@ -268,44 +317,51 @@ body.no-scroll {
 .buttons button.pressed {
     transform: scale(0.95);
     box-shadow: inset 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
-    background-color: var(--secondary-color);
+    background-color: var(--secondary-color); /* #5A3263 */
 }
 
 .buttons button:disabled {
-    background-color: var(--disabled-color);
+    background-color: var(--disabled-color); /* #A68FAF */
     cursor: not-allowed;
     opacity: 0.7;
 }
 
 .reset-button {
-    background-color: var(--primary-color);
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: var(--border-radius);
-    color: white;
+    background-color: #F1C6D2; /* Hello Kitty 淺粉色背景 */
+    border: 0.1875rem solid #8B0000; /* Hello Kitty 粉紅色邊框 */
+    padding: 0.5rem 1rem; /* 與 dropdown-style 統一 */
+    border-radius: 1.5rem; /* 膠囊形狀，與錄音按鈕一致 */
+    color: var(--primary-color); /* 主題紫色文字 */
     cursor: pointer;
     font-weight: bold;
+    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
     width: 100%;
-    max-width: 9.375rem;
+    max-width: 9rem;
+    height: 2.3rem;
     text-align: center;
+    box-shadow: var(--shadow);
     transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
-    margin-top: var(--spacing-sm);
+    margin: 0; /* 移除 margin-top */
+    line-height: 1.2; /* 統一行高 */
 }
 
 .reset-button:hover:not(:disabled) {
-    background-color: var(--hover-color);
+    background-color: #F7E7BB; /* Hello Kitty 淺黃色，懸停變亮 */
     transform: scale(1.02);
+    box-shadow: 0 0.25rem 0.375rem rgba(0, 0, 0, 0.2);
 }
 
 .reset-button:active,
 .reset-button.pressed {
     transform: scale(0.95);
     box-shadow: inset 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
-    background-color: var(--secondary-color);
+    background-color: #F3E0D3; /* Hello Kitty 米色，點擊變深 */
 }
 
 .reset-button:disabled {
-    background-color: var(--disabled-color);
+    background-color: #F3E0D3; /* Hello Kitty 米色，禁用狀態 */
+    border-color: #F3E0D3;
+    color: #A68FAF; /* 主題禁用色 */
     cursor: not-allowed;
     opacity: 0.7;
 }
@@ -321,15 +377,68 @@ body.no-scroll {
     display: flex;
     width: 100%;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: stretch; /* 確保子容器高度一致 */
     gap: var(--spacing-sm);
     flex-grow: 1;
+    height: 100%; /* 填充 left-content 的高度 */
     max-height: calc(var(--content-max-height) - 3rem);
     overflow-y: auto;
+    overflow-x: hidden; /* 防止水平滾動 */
 }
 
 .controls-container p {
-    margin: 0 var(--spacing-sm);
+    margin: 0 0 var(--spacing-sm) 0;
+    font-weight: bold;
+    color: var(--primary-color);
+    text-align: center;
+}
+
+.other-settings {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    width: auto;
+    height: auto; /* 改為自適應高度 */
+    padding: var(--spacing-md);
+    background-color: var(--dropdown-bg);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    position: relative;
+}
+
+.other-settings::before {
+    content: '';
+    position: absolute;
+    top: var(--spacing-xs);
+    left: var(--spacing-xs);
+    right: var(--spacing-xs);
+    bottom: var(--spacing-xs);
+    border: 0.125rem dashed #FFFFFF;
+    border-radius: var(--border-radius);
+    box-shadow: 
+        0 0 0 0.0625rem #FFF9C4,
+        0 0 0 0.125rem #F7A6B3;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.other-settings p {
+    margin: 0;
+    font-weight: bold;
+    color: var(--primary-color);
+    text-align: center;
+    flex-shrink: 0;
+    align-self: center; /* 確保標題垂直居中 */
+    width: 6rem; /* 固定寬度以穩定布局 */
+}
+
+.other-settings select,
+.other-settings button {
+    flex: 1;
+    max-width: 9.5rem;
+    align-self: center; /* 確保元素垂直居中 */
 }
 
 .dropdown-group,
@@ -337,30 +446,139 @@ body.no-scroll {
     flex: 1;
     display: flex;
     flex-direction: column;
+    align-items: center; /* X軸水平居中 */
     gap: var(--spacing-sm);
+    width: 100%;
+    max-width: none;
+    min-width: 0; /* 防止溢出 */
+    position: relative;
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius);
+    box-sizing: border-box;
+    height: 21.5rem; /* 固定高度 */
+    min-height: 5rem; /* 確保最小高度 */
+}
+
+.dropdown-group {
+    background-color: var(--dropdown-bg); /* #F8E6F0，淺粉色 */
+}
+
+.dropdown-group::before {
+    content: '';
+    position: absolute;
+    top: var(--spacing-xs);
+    left: var(--spacing-xs);
+    right: var(--spacing-xs);
+    bottom: var(--spacing-xs);
+    border: 0.125rem dashed #FFFFFF;
+    border-radius: var(--border-radius);
+    box-shadow: 
+        0 0 0 0.0625rem #FFF9C4,
+        0 0 0 0.125rem #F7A6B3;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.style-group {
+    background-color: #F3D3E0; /* 略深的粉色 */
+}
+
+.style-group::before {
+    content: '';
+    position: absolute;
+    top: var(--spacing-xs);
+    left: var(--spacing-xs);
+    right: var(--spacing-xs);
+    bottom: var(--spacing-xs);
+    border: 0.125 DemiBold dashed #FFFFFF;
+    border-radius: var(--border-radius);
+    box-shadow: 
+        0 0 0 0.0625rem #FFF9C4,
+        0 0 0 0.125rem #F7A6B3;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.dropdown-style,
+.style-group label input[type="range"],
+.color-label {
+    width: 100%;
+    max-width: 9rem;
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
 }
 
 .style-group label input[type="range"] {
-    width: 6.25rem;
-    max-width: 100%;
-    margin: 0.3125rem 0;
+    height: 1rem;
+    background: transparent;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    cursor: pointer;
+}
+
+.style-group label input[type="range"]::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 0.5rem;
+    background: linear-gradient(
+        to right,
+        #F3CA4F 0%,
+        #F3CA4F var(--range-progress, 0%),
+        #F1C6D2 var(--range-progress, 0%),
+        #F1C6D2 100%
+    );
+    border-radius: 0.25rem;
+    border: 0.125rem solid #F7A6B3;
+    box-shadow: var(--shadow);
+}
+
+.style-group label input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 1.5rem;
+    height: 1.5rem;
+    background: #F7A6B3;
+    border: 0.125rem solid var(--primary-color);
+    border-radius: 50%;
+    margin-top: -0.5rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.style-group label input[type="range"]:hover::-webkit-slider-thumb {
+    transform: scale(1.2);
+    box-shadow: 0 0.25rem 0.375rem rgba(0, 0, 0, 0.3);
+}
+
+.style-group label input[type="range"]:focus {
+    outline: none;
+    box-shadow: 0 0 0 0.25rem rgba(247, 166, 179, 0.3);
 }
 
 .color-label {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 9.0625rem;
-    height: 2.125rem;
-    background-color: #ddd;
-    color: black;
+    height: 2.3rem;
+    padding: 0.5rem 1rem;
+    border-radius: 1.5rem;
+    border: 0.1875rem solid var(--color-label-border);
+    background-color: var(--color-label-bg);
+    color: var(--color-label-text);
     font-size: 0.875rem;
     font-weight: bold;
     cursor: pointer;
-    border-radius: var(--border-radius);
-    border: 0.1875rem solid var(--primary-color);
-    text-align: center;
+    box-shadow: var(--shadow);
+    text-align: left;
     position: relative;
+    transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
+}
+
+.color-label:hover {
+    transform: scale(1.02);
+    box-shadow: 0 0.25rem 0.375rem rgba(0, 0, 0, 0.2);
+    background-color: var(--color-label-hover-bg);
 }
 
 .color-label input[type="color"] {
@@ -432,15 +650,35 @@ body.no-scroll {
 }
 
 .dropdown-style {
-    width: 9.375rem;
-    height: 2.5rem;
-    padding: 0.5rem;
-    border-radius: 0.5rem;
-    border: 0.125rem solid var(--primary-color);
+    height: 2.3rem;
+    padding: 0.5rem 1rem;
+    border-radius: 1.5rem;
+    border: 0.1875rem solid var(--primary-color);
     background-color: var(--dropdown-bg);
+    color: var(--primary-color);
     font-weight: bold;
-    text-align: left;
     font-size: 0.875rem;
+    text-align: left;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 0.75rem;
+    line-height: 1.2; /* 統一行高 */
+}
+
+.dropdown-style:hover {
+    transform: scale(1.02);
+    box-shadow: 0 0.25rem 0.375rem rgba(0, 0, 0, 0.2);
+}
+
+.dropdown-style:focus {
+    outline: none;
+    box-shadow: 0 0 0 0.25rem rgba(107, 62, 117, 0.3);
 }
 
 /* ==========================================================================
@@ -452,13 +690,67 @@ body.no-scroll {
         min-width: 0;
         max-width: none;
     }
+
     .right-panel {
         display: none;
     }
+
     .buttons button {
         width: 100%;
     }
+
     .input-group {
         width: 100%;
+    }
+
+    .controls-container {
+        flex-direction: column;
+        height: auto; /* 垂直排列時高度由內容決定 */
+        max-height: none;
+        overflow-y: visible;
+        overflow-x: hidden; /* 防止水平滾動 */
+    }
+
+    .other-settings {
+        flex-direction: column;
+        align-items: center;
+        height: auto;
+        padding: var(--spacing-sm);
+    }
+
+    .other-settings select,
+    .other-settings button {
+        width: 100%;
+        max-width: none;
+    }
+
+    .other-settings p {
+        width: auto; /* 小螢幕下移除固定寬度 */
+    }
+
+    .dropdown-group,
+    .style-group {
+        height: auto; /* 高度由內容決定 */
+        min-height: 0; /* 移除最小高度限制 */
+        padding: var(--spacing-sm);
+        min-width: 0;
+        align-items: center; /* X軸水平居中 */
+    }
+
+    .dropdown-group::before,
+    .style-group::before,
+    .other-settings::before {
+        border-width: 0.0625rem;
+        box-shadow: 
+            0 0 0 0.03125rem #FFF9C4,
+            0 0 0 0.0625rem #F7A6B3;
+    }
+
+    .dropdown-style,
+    .style-group label input[type="range"],
+    .reset-button,
+    .color-label {
+        width: 100%;
+        max-width: none; /* 小螢幕下移除最大寬度限制 */
     }
 }
