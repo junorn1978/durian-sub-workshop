@@ -225,17 +225,17 @@ body.no-scroll {
 }
 
 .scroll-container.truncate-mode .text-overlay {
-    user-select: none;
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
+    user-select: none;
 }
 
 .scroll-container:not(.truncate-mode) .text-overlay {
-    user-select: auto;
     -webkit-user-select: auto;
     -moz-user-select: auto;
     -ms-user-select: auto;
+    user-select: auto;
 }
 
 /* ==========================================================================
@@ -505,13 +505,17 @@ body.no-scroll {
     width: 100%;
     max-width: 9rem;
     box-sizing: border-box;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
 }
 
 .style-group label input[type="range"] {
     height: 1rem;
     background: transparent;
-    appearance: none;
     -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
     cursor: pointer;
 }
 

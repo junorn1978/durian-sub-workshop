@@ -1,6 +1,17 @@
 // ==========================================================================
 // 全局預設值與語言清單
 // ==========================================================================
+const SELECTORS = {
+    scrollContainer: '.scroll-container',
+    textOverlay: '.text-overlay',
+    sourceText: '.source-text',
+    targetText1: '.target-text-1',
+    targetText2: '.target-text-2',
+    targetText3: '.target-text-3',
+    rightPanel: '.right-panel',
+    leftPanel: '.left-panel'
+};
+
 const DEFAULT_LANGUAGES = {
     "source-language": "ja",
     "target-language1": "none",
@@ -35,7 +46,7 @@ const DEFAULT_SETTINGS = {
     },
     backgroundColor: "#00FF00",
     textAlignment: "left",
-    textTruncateMode: "truncate" // 新增：文字截斷模式的預設值
+    textTruncateMode: "truncate"
 };
 
 const LANGUAGE_OPTIONS = [
@@ -51,46 +62,52 @@ const LANGUAGE_OPTIONS = [
 // ==========================================================================
 let elements = {};
 const languageToSpanMap = {
-    "source-language": ".source-text",
-    "target-language1": ".target-text-1",
-    "target-language2": ".target-text-2",
-    "target-language3": ".target-text-3"
+    "source-language": SELECTORS.sourceText,
+    "target-language1": SELECTORS.targetText1,
+    "target-language2": SELECTORS.targetText2,
+    "target-language3": SELECTORS.targetText3
 };
 
-document.addEventListener("DOMContentLoaded", () => {
-    console.log("styleController.js loaded successfully");
 
-    // 清理舊的 font-size-mode 儲存
+document.addEventListener("DOMContentLoaded", () => {
     localStorage.removeItem("font-size-mode");
 
-    // ==========================================================================
-    // 初始化變數
-    // ==========================================================================
-    const languageSelectIds = ["source-language", "target-language1", "target-language2", "target-language3"];
-    elements = {
-        apiKeyInput: document.getElementById("api-key-input"),
-        apiKeyValue: document.getElementById("api-key-value"),
-        toggleVisibilityUrl: document.getElementById("toggle-visibility-url"),
-        toggleVisibilityKey: document.getElementById("toggle-visibility-key"),
-        startSpeechButton: document.getElementById("start-recording"),
-        stopSpeechButton: document.getElementById("stop-recording"),
-        optionSelector: document.getElementById("option-language-selector"),
-        fontSizeSlider: document.getElementById("font-size-slider"),
-        textStrokeSlider: document.getElementById("text-stroke-slider"),
-        textColorPicker: document.getElementById("text-color-picker"),
-        textStrokeColorPicker: document.getElementById("text-stroke-color-picker"),
-        backgroundColorPicker: document.getElementById("background-color-picker"),
-        rightPanel: document.querySelector(".right-panel"),
-        section: document.getElementById("section-1"),
-        textAlignmentSelector: document.getElementById("text-alignment-selector"),
-        textTruncateModeSelector: document.getElementById("text-truncate-mode") // 新增
-    };
-
-    Object.entries(elements).forEach(([key, element]) => {
-        if (!element) {
-            console.error(`Element not found: ${key}`);
-        }
-    });
+	// ==========================================================================
+	// 初始化變數
+	// ==========================================================================
+	const languageSelectIds = ["source-language", "target-language1", "target-language2", "target-language3"];
+	const ELEMENT_IDS = {
+		apiKeyInput: "api-key-input",
+		apiKeyValue: "api-key-value",
+		toggleVisibilityUrl: "toggle-visibility-url",
+		toggleVisibilityKey: "toggle-visibility-key",
+		startSpeechButton: "start-recording",
+		stopSpeechButton: "stop-recording",
+		optionSelector: "option-language-selector",
+		fontSizeSlider: "font-size-slider",
+		textStrokeSlider: "text-stroke-slider",
+		textColorPicker: "text-color-picker",
+		textStrokeColorPicker: "text-stroke-color-picker",
+		backgroundColorPicker: "background-color-picker",
+		rightPanel: null,
+		leftPanel: null,
+		section: "section-1",
+		textAlignmentSelector: "text-alignment-selector",
+		textTruncateModeSelector: "text-truncate-mode"
+	};
+	
+	const elements = Object.entries(ELEMENT_IDS).reduce((obj, [key, id]) => {
+		if (id) {
+			obj[key] = document.getElementById(id);
+			if (!obj[key]) console.warn(`Element not found: #${id}`);
+		}
+		return obj;
+	}, {});
+	
+	elements.rightPanel = document.querySelector(SELECTORS.rightPanel);
+	if (!elements.rightPanel) console.warn(`Element not found: ${SELECTORS.rightPanel}`);
+	elements.leftPanel = document.querySelector(SELECTORS.leftPanel);
+	if (!elements.leftPanel) console.warn(`Element not found: ${SELECTORS.leftPanel}`);
 
     // ==========================================================================
     // 動態生成語言選擇器選項
@@ -120,92 +137,21 @@ document.addEventListener("DOMContentLoaded", () => {
     // ==========================================================================
     // 輸入框遮蔽功能
     // ==========================================================================
-    if (elements.apiKeyInput && elements.toggleVisibilityUrl) {
-        const savedUrl = localStorage.getItem("api-key-input");
-        if (savedUrl) elements.apiKeyInput.value = savedUrl;
-
-        elements.apiKeyInput.addEventListener("input", () => {
-            localStorage.setItem("api-key-input", elements.apiKeyInput.value);
-        });
-
-        elements.toggleVisibilityUrl.addEventListener("click", () => {
-            const isPassword = elements.apiKeyInput.type === "password";
-            elements.apiKeyInput.type = isPassword ? "text" : "password";
-            elements.toggleVisibilityUrl.classList.toggle("visible", isPassword);
-        });
-    }
-
-    if (elements.apiKeyValue && elements.toggleVisibilityKey) {
-        const savedKey = localStorage.getItem("api-key-value");
-        if (savedKey) elements.apiKeyValue.value = savedKey;
-
-        elements.apiKeyValue.addEventListener("input", () => {
-            localStorage.setItem("api-key-value", elements.apiKeyValue.value);
-        });
-
-        elements.toggleVisibilityKey.addEventListener("click", () => {
-            const isPassword = elements.apiKeyValue.type === "password";
-            elements.apiKeyValue.type = isPassword ? "text" : "password";
-            elements.toggleVisibilityKey.classList.toggle("visible", isPassword);
-        });
-    }
+    bindPasswordInput(elements.apiKeyInput, elements.toggleVisibilityUrl, 'api-key-input');
+    bindPasswordInput(elements.apiKeyValue, elements.toggleVisibilityKey, 'api-key-value');
 
     // ==========================================================================
     // 樣式控制功能
     // ==========================================================================
-    if (elements.textColorPicker) {
-        const savedTextColor = localStorage.getItem(`${elements.optionSelector.value}-text-color`) || DEFAULT_SETTINGS[elements.optionSelector.value].textColor;
-        elements.textColorPicker.value = savedTextColor;
+    bindColorPicker(elements.textColorPicker, "text-color", (value) => updateSectionStyle("color", value));
+    bindColorPicker(elements.textStrokeColorPicker, "stroke-color", (value) => updateSectionStyle("--stroke-color", value));
+    bindColorPicker(elements.backgroundColorPicker, "background-color", (value) => {
+        elements.rightPanel.style.backgroundColor = value;
+        elements.section.style.backgroundColor = value;
+    }, false, true);
 
-        elements.textColorPicker.addEventListener("input", () => {
-            updateSectionStyle("color", elements.textColorPicker.value);
-            saveSettings({ textColor: elements.textColorPicker.value });
-        });
-    }
-
-    if (elements.textStrokeColorPicker) {
-        const savedStrokeColor = localStorage.getItem(`${elements.optionSelector.value}-text-stroke-color`) || DEFAULT_SETTINGS[elements.optionSelector.value].textStrokeColor;
-        elements.textStrokeColorPicker.value = savedStrokeColor;
-
-        elements.textStrokeColorPicker.addEventListener("input", () => {
-            updateSectionStyle("--stroke-color", elements.textStrokeColorPicker.value);
-            saveSettings({ textStrokeColor: elements.textStrokeColorPicker.value });
-        });
-    }
-
-    if (elements.backgroundColorPicker) {
-        const savedBgColor = localStorage.getItem("background-color") || DEFAULT_SETTINGS.backgroundColor;
-        elements.backgroundColorPicker.value = savedBgColor;
-
-        elements.backgroundColorPicker.addEventListener("input", () => {
-            const color = elements.backgroundColorPicker.value;
-            elements.rightPanel.style.backgroundColor = color;
-            elements.section.style.backgroundColor = color;
-            saveSettings({ backgroundColor: color });
-        });
-    }
-
-    if (elements.fontSizeSlider) {
-        const savedFontSize = parseFloat(localStorage.getItem(`${elements.optionSelector.value}-font-size`) || DEFAULT_SETTINGS[elements.optionSelector.value].fontSize);
-        elements.fontSizeSlider.value = savedFontSize;
-
-        elements.fontSizeSlider.addEventListener("input", () => {
-            const fontSize = parseFloat(elements.fontSizeSlider.value);
-            updateSectionStyle("fontSize", `${fontSize}px`, true);
-            saveSettings({ fontSize: fontSize });
-        });
-    }
-
-    if (elements.textStrokeSlider) {
-        const savedStrokeSize = parseFloat(localStorage.getItem(`${elements.optionSelector.value}-text-stroke-size`) || DEFAULT_SETTINGS[elements.optionSelector.value].textStrokeSize);
-        elements.textStrokeSlider.value = savedStrokeSize;
-
-        elements.textStrokeSlider.addEventListener("input", () => {
-            const strokeSize = parseFloat(elements.textStrokeSlider.value);
-            updateSectionStyle("--stroke-width", `${strokeSize}px`);
-            saveSettings({ textStrokeSize: strokeSize });
-        });
-    }
+    bindSlider(elements.fontSizeSlider, "font-size", "fontSize", true);
+    bindSlider(elements.textStrokeSlider, "stroke-size", "--stroke-width");
 
     // ==========================================================================
     // 文字截斷模式選擇器
@@ -215,128 +161,138 @@ document.addEventListener("DOMContentLoaded", () => {
 		elements.textTruncateModeSelector.value = savedMode;
 		updateTruncateModeClass(savedMode);
 	
-		elements.textTruncateModeSelector.addEventListener("change", () => {
-			const mode = elements.textTruncateModeSelector.value;
+		elements.textTruncateModeSelector.addEventListener("change", e => {
+			const mode = e.target.value;
 			localStorage.setItem("text-truncate-mode", mode);
 			updateTruncateModeClass(mode);
-			console.info("[StyleController] Text truncate mode changed to:", mode);
 		});
 	}
 
     // ==========================================================================
     // 選項選擇器與設定載入
     // ==========================================================================
-    if (elements.optionSelector) {
-        const savedOption = localStorage.getItem("selected-option-language") || elements.optionSelector.value;
-        elements.optionSelector.value = savedOption;
-        localStorage.setItem("selected-option-language", savedOption);
-
-        languageSelectIds.forEach(language => {
-            loadSettings(language);
-        });
-
-        elements.optionSelector.addEventListener("change", () => {
-            const language = elements.optionSelector.value;
-            localStorage.setItem("selected-option-language", language);
-            loadSettings(language);
-            const settings = {
-                fontSize: parseFloat(localStorage.getItem(`${language}-font-size`) || DEFAULT_SETTINGS[language].fontSize),
-                textStrokeSize: parseFloat(localStorage.getItem(`${language}-text-stroke-size`) || DEFAULT_SETTINGS[language].textStrokeSize),
-                textColor: localStorage.getItem(`${language}-text-color`) || DEFAULT_SETTINGS[language].textColor,
-                textStrokeColor: localStorage.getItem(`${language}-text-stroke-color`) || DEFAULT_SETTINGS[language].textStrokeColor
-            };
-            if (elements.fontSizeSlider) elements.fontSizeSlider.value = settings.fontSize;
-            if (elements.textStrokeSlider) elements.textStrokeSlider.value = settings.textStrokeSize;
-            if (elements.textColorPicker) elements.textColorPicker.value = settings.textColor;
-            if (elements.textStrokeColorPicker) elements.textStrokeColorPicker.value = settings.textStrokeColor;
-        });
-    }
+	if (elements.optionSelector) {
+		const savedOption = localStorage.getItem("selected-option-language") || elements.optionSelector.value;
+		elements.optionSelector.value = savedOption;
+		localStorage.setItem("selected-option-language", savedOption);
+	
+		languageSelectIds.forEach(language => {
+			loadSettings(language);
+		});
+	
+		elements.optionSelector.addEventListener("change", e => {
+			const language = e.target.value;
+			localStorage.setItem("selected-option-language", language);
+			loadSettings(language);
+		});
+	}
 
     // ==========================================================================
     // 文字對齊選單初始化與功能
     // ==========================================================================
-    if (elements.textAlignmentSelector) {
-        const savedAlignment = localStorage.getItem("text-alignment") || DEFAULT_SETTINGS.textAlignment;
-        elements.textAlignmentSelector.value = savedAlignment;
-        applyTextAlignment(savedAlignment);
-
-        elements.textAlignmentSelector.addEventListener("change", () => {
-            const alignment = elements.textAlignmentSelector.value;
-            localStorage.setItem("text-alignment", alignment);
-            applyTextAlignment(alignment);
-        });
-    }
+	if (elements.textAlignmentSelector) {
+		const savedAlignment = localStorage.getItem("text-alignment") || DEFAULT_SETTINGS.textAlignment;
+		elements.textAlignmentSelector.value = savedAlignment;
+		applyTextAlignment(savedAlignment);
+	
+		elements.textAlignmentSelector.addEventListener("change", e => {
+			const alignment = e.target.value;
+			localStorage.setItem("text-alignment", alignment);
+			applyTextAlignment(alignment);
+		});
+	}
 
     // ==========================================================================
     // 全螢幕切換功能（無翻頁效果）
     // ==========================================================================
 	if (elements.rightPanel) {
-		let isFullscreen = false;
-		elements.rightPanel.addEventListener("click", (event) => {
-			const validTargets = [
-				elements.rightPanel,
-				elements.rightPanel.querySelector(".scroll-container"),
-				...elements.rightPanel.querySelectorAll(".text-overlay")
-			];
-			if (validTargets.includes(event.target)) {
-				if (!isFullscreen) {
-					document.querySelector(".left-panel").classList.add("hidden");
-					elements.rightPanel.classList.add("fullscreen");
-					document.body.classList.add("no-scroll");
-					isFullscreen = true;
-					console.log("Right panel switched to fullscreen mode.");
-				} else {
-					document.querySelector(".left-panel").classList.remove("hidden");
-					elements.rightPanel.classList.remove("fullscreen");
-					document.body.classList.remove("no-scroll");
-					isFullscreen = false;
-					console.log("Right panel exited fullscreen mode.");
-				}
-			}
+		elements.rightPanel.addEventListener("click", (e) => {
+			if (elements.rightPanel.contains(e.target)) toggleFullscreen();
 		});
 	}
 
     // ==========================================================================
     // 恢復預設值按鈕
     // ==========================================================================
-    const resetButton = document.getElementById("reset-settings");
-    if (resetButton) {
-        resetButton.addEventListener("click", () => {
-            languageSelectIds.forEach(language => {
-                const defaults = DEFAULT_SETTINGS[language];
-                localStorage.setItem(`${language}-font-size`, defaults.fontSize);
-                localStorage.setItem(`${language}-text-stroke-size`, defaults.textStrokeSize);
-                localStorage.setItem(`${language}-text-color`, defaults.textColor);
-                localStorage.setItem(`${language}-text-stroke-color`, defaults.textStrokeColor);
-            });
-
-            localStorage.setItem("background-color", DEFAULT_SETTINGS.backgroundColor);
-            localStorage.setItem("text-alignment", DEFAULT_SETTINGS.textAlignment);
-            localStorage.setItem("text-truncate-mode", DEFAULT_SETTINGS.textTruncateMode);
-
-            const currentLanguage = elements.optionSelector.value;
-            const currentDefaults = DEFAULT_SETTINGS[currentLanguage];
-            if (elements.fontSizeSlider) elements.fontSizeSlider.value = currentDefaults.fontSize;
-            if (elements.textStrokeSlider) elements.textStrokeSlider.value = currentDefaults.textStrokeSize;
-            if (elements.textColorPicker) elements.textColorPicker.value = currentDefaults.textColor;
-            if (elements.textStrokeColorPicker) elements.textStrokeColorPicker.value = currentDefaults.textStrokeColor;
-            if (elements.backgroundColorPicker) elements.backgroundColorPicker.value = DEFAULT_SETTINGS.backgroundColor;
-            if (elements.textAlignmentSelector) elements.textAlignmentSelector.value = DEFAULT_SETTINGS.textAlignment;
-            if (elements.textTruncateModeSelector) elements.textTruncateModeSelector.value = DEFAULT_SETTINGS.textTruncateMode;
-
-            languageSelectIds.forEach(language => {
-                loadSettings(language);
-            });
-
-            applyTextAlignment(DEFAULT_SETTINGS.textAlignment);
-
-            console.log("Settings reset to defaults and all styles refreshed.");
-        });
-    }
+	const resetButton = document.getElementById("reset-settings");
+	if (resetButton) {
+		resetButton.addEventListener("click", resetAllSettings);
+	}
 
     // ==========================================================================
     // 輔助函數
     // ==========================================================================
+	function toggleFullscreen() {
+    const isFs = elements.rightPanel.classList.toggle("fullscreen");
+    elements.leftPanel.classList.toggle("hidden", isFs);
+    document.body.classList.toggle("no-scroll", isFs);
+	}
+	
+	function resetAllSettings() {
+    languageSelectIds.forEach(lang => {
+        const defs = DEFAULT_SETTINGS[lang];
+        localStorage.setItem(`${lang}-font-size`, defs.fontSize);
+        localStorage.setItem(`${lang}-stroke-size`, defs.textStrokeSize);
+        localStorage.setItem(`${lang}-text-color`, defs.textColor);
+        localStorage.setItem(`${lang}-stroke-color`, defs.textStrokeColor);
+    });
+
+    localStorage.setItem("background-color", DEFAULT_SETTINGS.backgroundColor);
+    localStorage.setItem("text-alignment", DEFAULT_SETTINGS.textAlignment);
+    localStorage.setItem("text-truncate-mode", DEFAULT_SETTINGS.textTruncateMode);
+
+    const current = elements.optionSelector.value;
+    loadSettings(current);
+
+    applyTextAlignment(DEFAULT_SETTINGS.textAlignment);
+    updateTruncateModeClass(DEFAULT_SETTINGS.textTruncateMode);
+    refreshAllStyles();
+	}
+	
+    function bindPasswordInput(inputElement, toggleElement, key) {
+        if (!inputElement || !toggleElement) {
+            console.error(`[StyleController] Invalid input or toggle element for ${key}`);
+            return;
+        }
+        const saved = localStorage.getItem(key);
+        if (saved) inputElement.value = saved;
+
+        inputElement.addEventListener('input', () => {
+            localStorage.setItem(key, inputElement.value);
+        });
+
+        toggleElement.addEventListener('click', () => {
+            const isPassword = inputElement.type === 'password';
+            inputElement.type = isPassword ? 'text' : 'password';
+            toggleElement.classList.toggle('visible', isPassword);
+        });
+    }
+
+    function bindColorPicker(element, key, updateCallback, isLangSpecific = true, isGlobal = false) {
+        if (!element) {
+            console.error(`[StyleController] Invalid element for ${key}`);
+            return;
+        }
+        element.addEventListener("input", () => {
+            const lang = isLangSpecific ? elements.optionSelector.value : "";
+            updateCallback(element.value);
+            saveSettings({ [key]: element.value });
+        });
+    }
+
+    function bindSlider(element, key, cssProperty, isSectionLevel = false) {
+        if (!element) {
+            console.error(`[StyleController] Invalid element for ${key}`);
+            return;
+        }
+        element.addEventListener("input", () => {
+            const value = parseFloat(element.value);
+            const lang = elements.optionSelector.value;
+            updateSectionStyle(cssProperty, `${value}px`, isSectionLevel);
+            saveSettings({ [key]: value });
+        });
+    }
+
     function updateSectionStyle(property, value, isSectionLevel = false) {
         const spanClass = languageToSpanMap[elements.optionSelector.value];
         const span = elements.section.querySelector(spanClass);
@@ -354,66 +310,66 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    function loadSettings(language) {
-        const defaults = DEFAULT_SETTINGS[language];
-        const savedFontSize = localStorage.getItem(`${language}-font-size`);
-        const savedStrokeSize = localStorage.getItem(`${language}-text-stroke-size`);
-        const settings = {
-            fontSize: savedFontSize !== null ? Math.min(Math.max(parseFloat(savedFontSize), 10), 100) : defaults.fontSize,
-            textStrokeSize: savedStrokeSize !== null ? Math.min(Math.max(parseFloat(savedStrokeSize), 0), 25) : defaults.textStrokeSize,
-            textColor: localStorage.getItem(`${language}-text-color`) || defaults.textColor,
-            textStrokeColor: localStorage.getItem(`${language}-text-stroke-color`) || defaults.textStrokeColor,
-            backgroundColor: localStorage.getItem("background-color") || DEFAULT_SETTINGS.backgroundColor
-        };
-
-        const spanClass = languageToSpanMap[language];
-        const span = elements.section.querySelector(spanClass);
-        if (span) {
-            span.style.fontSize = `${settings.fontSize}px`;
-            span.style.color = settings.textColor;
-            span.style.setProperty("--stroke-width", `${settings.textStrokeSize}px`);
-            span.style.setProperty("--stroke-color", settings.textStrokeColor);
-            if (!span.getAttribute("data-stroke") || span.getAttribute("data-stroke") !== span.textContent) {
-                span.setAttribute("data-stroke", span.textContent);
-            }
-        }
-
-        if (elements.rightPanel && elements.section) {
-            elements.rightPanel.style.backgroundColor = settings.backgroundColor;
-            elements.section.style.backgroundColor = settings.backgroundColor;
-        }
-
-        if (elements.optionSelector.value === language) {
-            if (elements.fontSizeSlider) elements.fontSizeSlider.value = settings.fontSize;
-            if (elements.textStrokeSlider) elements.textStrokeSlider.value = settings.textStrokeSize;
-            if (elements.textColorPicker) elements.textColorPicker.value = settings.textColor;
-            if (elements.textStrokeColorPicker) elements.textStrokeColorPicker.value = settings.textStrokeColor;
-            if (elements.backgroundColorPicker) elements.backgroundColorPicker.value = settings.backgroundColor;
-        }
-    }
+	// ==========================================================================
+	// 輔助函數
+	// ==========================================================================
+	function getNumericSetting(key, defaultVal, min, max) {
+		const raw = localStorage.getItem(key);
+		if (raw === null) return defaultVal;
+		const n = parseFloat(raw);
+		return isNaN(n) ? defaultVal : Math.min(Math.max(n, min), max);
+	}
+	
+	function applySpanSettings(span, { fontSize, textColor, textStrokeSize, textStrokeColor }) {
+		span.style.fontSize = `${fontSize}px`;
+		span.style.color = textColor;
+		span.style.setProperty("--stroke-width", `${textStrokeSize}px`);
+		span.style.setProperty("--stroke-color", textStrokeColor);
+		if (span.getAttribute("data-stroke") !== span.textContent) {
+			span.setAttribute("data-stroke", span.textContent);
+		}
+	}
+	
+	function applyControlValues(settings, language) {
+		if (elements.optionSelector.value !== language) return;
+		const { fontSize, textStrokeSize, textColor, textStrokeColor, backgroundColor } = settings;
+		if (elements.fontSizeSlider) elements.fontSizeSlider.value = fontSize;
+		if (elements.textStrokeSlider) elements.textStrokeSlider.value = textStrokeSize;
+		if (elements.textColorPicker) elements.textColorPicker.value = textColor;
+		if (elements.textStrokeColorPicker) elements.textStrokeColorPicker.value = textStrokeColor;
+		if (elements.backgroundColorPicker) elements.backgroundColorPicker.value = backgroundColor;
+	}
+	
+	function loadSettings(language) {
+		const defaults = DEFAULT_SETTINGS[language];
+		const settings = {
+			fontSize: getNumericSetting(`${language}-font-size`, defaults.fontSize, 10, 100),
+			textStrokeSize: getNumericSetting(`${language}-stroke-size`, defaults.textStrokeSize, 0, 25),
+			textColor: localStorage.getItem(`${language}-text-color`) || defaults.textColor,
+			textStrokeColor: localStorage.getItem(`${language}-stroke-color`) || defaults.textStrokeColor,
+			backgroundColor: localStorage.getItem("background-color") || DEFAULT_SETTINGS.backgroundColor
+		};
+	
+		const span = elements.section.querySelector(languageToSpanMap[language]);
+		if (span) applySpanSettings(span, settings);
+	
+		if (elements.rightPanel && elements.section) {
+			elements.rightPanel.style.backgroundColor = settings.backgroundColor;
+			elements.section.style.backgroundColor = settings.backgroundColor;
+		}
+	
+		applyControlValues(settings, language);
+	}
 
     function saveSettings(settings) {
         const language = elements.optionSelector.value;
-        if (settings.fontSize !== undefined) {
-            localStorage.setItem(`${language}-font-size`, settings.fontSize);
-            console.log(`Saved ${language}-font-size: ${settings.fontSize}`);
-        }
-        if (settings.textStrokeSize !== undefined) {
-            localStorage.setItem(`${language}-text-stroke-size`, settings.textStrokeSize);
-            console.log(`Saved ${language}-text-stroke-size: ${settings.textStrokeSize}`);
-        }
-        if (settings.textColor !== undefined) {
-            localStorage.setItem(`${language}-text-color`, settings.textColor);
-            console.log(`Saved ${language}-text-color: ${settings.textColor}`);
-        }
-        if (settings.textStrokeColor !== undefined) {
-            localStorage.setItem(`${language}-text-stroke-color`, settings.textStrokeColor);
-            console.log(`Saved ${language}-text-stroke-color: ${settings.textStrokeColor}`);
-        }
-        if (settings.backgroundColor !== undefined) {
-            localStorage.setItem("background-color", settings.backgroundColor);
-            console.log(`Saved background-color: ${settings.backgroundColor}`);
-        }
+        Object.entries(settings).forEach(([key, value]) => {
+            if (key === "background-color") {
+                localStorage.setItem(key, value);
+            } else {
+                localStorage.setItem(`${language}-${key}`, value);
+            }
+        });
         refreshAllStyles();
     }
 
@@ -431,12 +387,12 @@ document.addEventListener("DOMContentLoaded", () => {
         Object.entries(spans).forEach(([lang, span]) => {
             if (span) {
                 const savedFontSize = localStorage.getItem(`${lang}-font-size`);
-                const savedStrokeSize = localStorage.getItem(`${lang}-text-stroke-size`);
+                const savedStrokeSize = localStorage.getItem(`${lang}-stroke-size`);
                 const settings = {
                     fontSize: savedFontSize !== null ? parseFloat(savedFontSize) : DEFAULT_SETTINGS[lang].fontSize,
                     textColor: localStorage.getItem(`${lang}-text-color`) || DEFAULT_SETTINGS[lang].textColor,
                     textStrokeSize: savedStrokeSize !== null ? parseFloat(savedStrokeSize) : DEFAULT_SETTINGS[lang].textStrokeSize,
-                    textStrokeColor: localStorage.getItem(`${lang}-text-stroke-color`) || DEFAULT_SETTINGS[lang].textStrokeColor
+                    textStrokeColor: localStorage.getItem(`${lang}-stroke-color`) || DEFAULT_SETTINGS[lang].textStrokeColor
                 };
                 span.style.fontSize = `${settings.fontSize}px`;
                 span.style.color = settings.textColor;
@@ -446,21 +402,21 @@ document.addEventListener("DOMContentLoaded", () => {
                     span.setAttribute("data-stroke", span.textContent);
                 }
             }
-			updateTruncateModeClass(localStorage.getItem("text-truncate-mode") || DEFAULT_SETTINGS.textTruncateMode);
+            updateTruncateModeClass(localStorage.getItem("text-truncate-mode") || DEFAULT_SETTINGS.textTruncateMode);
         });
     }
 
-    function applyTextAlignment(alignment) {
-        const scrollContainer = elements.section.querySelector(".scroll-container");
-        if (scrollContainer) {
-            scrollContainer.style.textAlign = alignment;
-        } else {
-            console.error("Scroll container not found for text alignment.");
-        }
-    }
+	function applyTextAlignment(alignment) {
+		const scrollContainer = elements.section.querySelector(SELECTORS.scrollContainer);
+		if (scrollContainer) {
+			scrollContainer.style.textAlign = alignment;
+		} else {
+			console.error(`Scroll container not found: ${SELECTORS.scrollContainer}`);
+		}
+	}
 
 	function updateTruncateModeClass(mode) {
-		const scrollContainer = document.querySelector(".scroll-container");
+		const scrollContainer = document.querySelector(SELECTORS.scrollContainer);
 		if (scrollContainer) {
 			if (mode === "truncate") {
 				scrollContainer.classList.add("truncate-mode");
@@ -468,7 +424,7 @@ document.addEventListener("DOMContentLoaded", () => {
 				scrollContainer.classList.remove("truncate-mode");
 			}
 		} else {
-			console.error("[StyleController] Scroll container not found for truncate mode.");
+			console.error(`Scroll container not found: ${SELECTORS.scrollContainer}`);
 		}
 	}
 });

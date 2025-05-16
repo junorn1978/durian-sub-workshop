@@ -22,6 +22,16 @@ document.addEventListener("DOMContentLoaded", () => {
         INTERIM_STAGNATION_TIMEOUT: 3000 // 新增：臨時文字停滯超時
     };
 
+	const TEXT_REPLACEMENTS = {
+		"リカちゃん": "(れいかちゃん)",
+		"リコちゃん": "(れいかちゃん)",
+		"***ょっと": "ちょっと",
+		"処刑さん": "初見さん",
+		"証券さん": "初見さん"
+		// 可根據需要添加更多替換規則，例如：
+		// "他の誤判文字": "正確文字"
+	};
+
     const ELEMENT_IDS = {
         startSpeechButton: "start-recording",
         stopSpeechButton: "stop-recording",
@@ -65,8 +75,6 @@ document.addEventListener("DOMContentLoaded", () => {
 		target3: "著作権 © 2025｜改変・複製・自由使用可、販売および作者の偽称は禁止"
 	};
 	
-    const DEBUG = true;
-
     // ==========================================================================
     // 狀態與文字
     // ==========================================================================
@@ -146,25 +154,27 @@ document.addEventListener("DOMContentLoaded", () => {
         return true;
     }
 
-    function checkInterimStagnation(sourceLang) {
-        const now = Date.now();
-        if (
-            state.interimText &&
-            state.lastInterimUpdateTime &&
-            now - state.lastInterimUpdateTime >= CONFIG.INTERIM_STAGNATION_TIMEOUT &&
-            !state.finalText && // 確保沒有最終文字
-            state.interimText !== state.lastSentInterimText // 避免重複發送
-        ) {
-            logInfo("[SpeechAndTranslation] Interim text stagnated, sending for translation:", {
-                text: state.interimText,
-                length: state.interimText.length
-            });
-            state.lastSentInterimText = state.interimText; // 記錄已發送的臨時文字
-            sendTranslation(state.interimText, sourceLang); // 發送翻譯
-        }
-        // 重新啟動定時器以持續檢查
-        state.interimStagnationTimer = setTimeout(() => checkInterimStagnation(sourceLang), CONFIG.INTERIM_STAGNATION_TIMEOUT);
-    }
+	function checkInterimStagnation(sourceLang) {
+		const now = Date.now();
+		if (
+			state.interimText &&
+			state.lastInterimUpdateTime &&
+			now - state.lastInterimUpdateTime >= CONFIG.INTERIM_STAGNATION_TIMEOUT &&
+			!state.finalText && // 確保沒有最終文字
+			state.interimText !== state.lastSentInterimText // 避免重複發送
+		) {
+			const translationText = applyTextReplacements(state.interimText); // 應用替換
+			logInfo("[SpeechAndTranslation] Interim text stagnated, sending for translation:", {
+				text: state.interimText,
+				translated: translationText,
+				length: translationText.length
+			});
+			state.lastSentInterimText = state.interimText; // 記錄已發送的臨時文字
+			sendTranslation(translationText, sourceLang); // 發送替換後的文字
+		}
+		// 重新啟動定時器以持續檢查
+		state.interimStagnationTimer = setTimeout(() => checkInterimStagnation(sourceLang), CONFIG.INTERIM_STAGNATION_TIMEOUT);
+	}
 	
     function initializeElements() {
         const forwardRef = {};
@@ -239,19 +249,69 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function truncateToLastChunk(text) {
-        if (!text || text.length < 40) return text;
-        const chunkSize = 40;
-        const multiple = Math.floor(text.length / chunkSize);
-        const charsToRemove = multiple * chunkSize;
-        logInfo("[SpeechAndTranslation] Truncating text:", {
-            originalLength: text.length,
-            multiple,
-            charsToRemove
-        });
-        return text.substring(charsToRemove);
-    }
+	function truncateToLastChunk(text) {
+		if (!text) return text;
+	
+		// 語言與 chunkSize 的映射表
+		const chunkSizeMap = {
+			"ja": 40,      // 日文：每塊 40 字
+			"zh-TW": 30,   // 繁體中文：每塊 30 字
+			"en": 110,      // 英文：每塊 110 字
+			"es": 110,      // 西班牙文：每塊 110 字
+			"id": 110       // 印尼文：每塊 110 字
+		};
+	
+		// 獲取當前來源語言
+		const sourceLang = document.getElementById("source-language")?.value || "ja";
+		
+		// 根據語言選擇 chunkSize，默認為 40
+		const chunkSize = chunkSizeMap[sourceLang] || 40;
+	
+		// 如果文字長度小於 chunkSize，則不截斷
+		if (text.length < chunkSize) return text;
+	
+		const multiple = Math.floor(text.length / chunkSize);
+		const charsToRemove = multiple * chunkSize;
+		logInfo("[SpeechAndTranslation] Truncating text:", {
+			sourceLang,
+			chunkSize,
+			originalLength: text.length,
+			multiple,
+			charsToRemove
+		});
+		
+		return text.substring(charsToRemove);
+	}
 
+	//替換擷取的文字用，翻譯和顯示都會，只有在れいーモード下執行
+	function applyTextReplacements(text) {
+		// 檢查單獨「っ」或空輸入
+		if (!text || text.trim() === '' || text.trim() === 'っ') {
+			logInfo("[SpeechAndTranslation] Skipping invalid text:", { original: text });
+			return '';
+		}
+		
+		const truncateMode = localStorage.getItem("text-truncate-mode") || "truncate";
+		if (truncateMode !== "truncate") {
+			return text; // 非 truncate 模式不進行替換
+		}
+	
+		let result = text;
+		// 移除開頭的「っ」
+		result = result.replace(/^っ+/, '').trim();
+	
+		// 現有替換規則
+		Object.entries(TEXT_REPLACEMENTS).forEach(([from, to]) => {
+			const escapedFrom = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+			result = result.replace(new RegExp(escapedFrom, "g"), to);
+		});
+	
+		if (result !== text) {
+			logInfo("[SpeechAndTranslation] Applied text replacements:", { original: text, replaced: result });
+		}
+		return result;
+	}
+	
     // ==========================================================================
     // 初始化
     // ==========================================================================
@@ -438,94 +498,111 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    function handleInterimResult(result, displayResults, translationResults) {
-        let transcript = result[0].transcript.trim();
-        if (!transcript) {
-            console.warn("[SpeechAndTranslation] Empty interim transcript received.");
-            return;
-        }
+	function handleInterimResult(result, displayResults, translationResults) {
+		let transcript = result[0].transcript.trim();
+		if (!transcript) {
+			console.warn("[SpeechAndTranslation] Empty interim transcript received.");
+			return;
+		}
+	
+		// 保留原始文字用於日誌
+		const originalTranscript = transcript;
+	
+		// 根據 text-truncate-mode 決定是否截斷和替換
+		const truncateMode = localStorage.getItem("text-truncate-mode") || "truncate";
+		let displayTranscript = transcript;
+		let translationTranscript = transcript;
+	
+		if (truncateMode === "truncate") {
+			displayTranscript = truncateToLastChunk(transcript); // 截斷顯示文字
+			displayTranscript = applyTextReplacements(displayTranscript); // 替換顯示文字
+			translationTranscript = applyTextReplacements(transcript); // 替換翻譯文字
+		}
+	
+		if (!displayTranscript) {
+			console.warn("[SpeechAndTranslation] Display transcript is empty after processing.");
+			return;
+		}
+	
+		logInfo("[SpeechAndTranslation] Processing interim result:", {
+			original: originalTranscript,
+			displayed: displayTranscript,
+			translated: translationTranscript
+		});
+	
+		// 計算顯示文字的字數
+		const charCount = displayTranscript.length;
+		logInfo("[SpeechAndTranslation] Interim text character count:", { charCount });
+	
+		// 更新顯示結果（使用截斷和替換後的文字）
+		displayResults.interimText = displayTranscript;
+	
+		// 更新翻譯結果（使用替換後的文字，或原始文字若非 truncate 模式）
+		translationResults.interimText += (translationResults.interimText ? " " : "") + translationTranscript;
+	
+		if (state.shouldClearNext && translationResults.interimText) {
+			translationResults.finalText = "";
+			state.totalCharCount = 0;
+			state.shouldClearNext = false;
+			state.lastNonEmptyText = "";
+		}
+	
+		// 更新臨時文字最後更新時間
+		state.lastInterimUpdateTime = Date.now();
+	
+		// 重置停滯定時器
+		if (state.interimStagnationTimer) {
+			clearTimeout(state.interimStagnationTimer);
+		}
+		state.interimStagnationTimer = setTimeout(() => checkInterimStagnation(elements.sourceLanguageSelect.value), CONFIG.INTERIM_STAGNATION_TIMEOUT);
+	}
 
-        // 保留原始文字用於翻譯
-        const originalTranscript = transcript;
-
-        // 根據 text-truncate-mode 決定是否截斷
-        const truncateMode = localStorage.getItem("text-truncate-mode") || "truncate";
-        const displayTranscript = truncateMode === "truncate" ? truncateToLastChunk(transcript) : transcript;
-        if (!displayTranscript) {
-            console.warn("[SpeechAndTranslation] Display transcript is empty after processing.");
-            return;
-        }
-
-        logInfo("[SpeechAndTranslation] Processing interim result:", {
-            original: originalTranscript,
-            displayed: displayTranscript
-        });
-
-        // 計算顯示文字的字數
-        const charCount = displayTranscript.length;
-        logInfo("[SpeechAndTranslation] Interim text character count:", { charCount });
-
-        // 更新顯示結果（使用截斷或完整文字）
-        displayResults.interimText = displayTranscript;
-
-        // 更新翻譯結果（使用原始文字）
-        translationResults.interimText += (translationResults.interimText ? " " : "") + originalTranscript;
-
-        if (state.shouldClearNext && translationResults.interimText) {
-            translationResults.finalText = "";
-            state.totalCharCount = 0;
-            state.shouldClearNext = false;
-            state.lastNonEmptyText = "";
-        }
-
-        // 更新臨時文字最後更新時間
-        state.lastInterimUpdateTime = Date.now();
-
-        // 重置停滯定時器
-        if (state.interimStagnationTimer) {
-            clearTimeout(state.interimStagnationTimer);
-        }
-        state.interimStagnationTimer = setTimeout(() => checkInterimStagnation(elements.sourceLanguageSelect.value), CONFIG.INTERIM_STAGNATION_TIMEOUT);
-    }
-
-    function handleFinalResult(result, displayResults, translationResults) {
-        let newText = result[0].transcript.trim();
-        let shouldRestart = false;
-
-        if (!newText) {
-            console.warn("[SpeechAndTranslation] Empty final transcript received.");
-            return shouldRestart;
-        }
-
-        // 保留原始文字用於翻譯
-        const originalText = newText;
-
-        // 根據 text-truncate-mode 決定是否截斷（雖然目前不顯示）
-        const truncateMode = localStorage.getItem("text-truncate-mode") || "truncate";
-        newText = truncateMode === "truncate" ? truncateToLastChunk(newText) : newText;
-
-        logInfo("[SpeechAndTranslation] Processing final result:", {
-            original: originalText,
-            displayed: newText
-        });
-
-        // 更新顯示結果（保留邏輯，但不影響畫面）
-        displayResults.finalText = newText;
-        state.lastNonEmptyText = newText;
-
-        // 更新翻譯結果（使用原始文字）
-        translationResults.finalText += (translationResults.finalText ? " " : "") + originalText;
-        state.totalCharCount += originalText.length;
-        if (state.totalCharCount > 2) state.shouldClearNext = true;
-
-        if (state.startTime && Date.now() - state.startTime >= CONFIG.MAX_TIME_LIMIT) {
-            shouldRestart = true;
-            state.restartAttempts = 0;
-            logInfo("[SpeechAndTranslation] Time limit reached, preparing to restart.");
-        }
-
-        return shouldRestart;
-    }
+	function handleFinalResult(result, displayResults, translationResults) {
+		let newText = result[0].transcript.trim();
+		let shouldRestart = false;
+	
+		if (!newText) {
+			console.warn("[SpeechAndTranslation] Empty final transcript received.");
+			return shouldRestart;
+		}
+	
+		// 保留原始文字用於日誌
+		const originalText = newText;
+	
+		// 根據 text-truncate-mode 決定是否截斷和替換
+		const truncateMode = localStorage.getItem("text-truncate-mode") || "truncate";
+		let displayText = newText;
+		let translationText = newText;
+	
+		if (truncateMode === "truncate") {
+			displayText = truncateToLastChunk(newText); // 截斷顯示文字
+			displayText = applyTextReplacements(displayText); // 替換顯示文字
+			translationText = applyTextReplacements(newText); // 替換翻譯文字
+		}
+	
+		logInfo("[SpeechAndTranslation] Processing final result:", {
+			original: originalText,
+			displayed: displayText,
+			translated: translationText
+		});
+	
+		// 更新顯示結果（使用截斷和替換後的文字）
+		displayResults.finalText = displayText;
+		state.lastNonEmptyText = displayText;
+	
+		// 更新翻譯結果（使用替換後的文字，或原始文字若非 truncate 模式）
+		translationResults.finalText += (translationResults.finalText ? " " : "") + translationText;
+		state.totalCharCount += translationText.length;
+		if (state.totalCharCount > 2) state.shouldClearNext = true;
+	
+		if (state.startTime && Date.now() - state.startTime >= CONFIG.MAX_TIME_LIMIT) {
+			shouldRestart = true;
+			state.restartAttempts = 0;
+			logInfo("[SpeechAndTranslation] Time limit reached, preparing to restart.");
+		}
+	
+		return shouldRestart;
+	}
 
     function handleDisplayResult(results) {
         logInfo("[SpeechAndTranslation] Handling display results:", {
@@ -557,32 +634,34 @@ document.addEventListener("DOMContentLoaded", () => {
         state.interimText = results.interimText;
 
         // 基於最終文字進行翻譯
-        decideAndTranslate(results.finalText, elements.sourceLanguageSelect.value);
+        decideAndTranslate(replacePunctuation(results.finalText), elements.sourceLanguageSelect.value);
     }
 
-    function decideAndTranslate(text, sourceLang) {
-        if (!sourceLang) {
-            handleError("invalid", "Source language is empty");
-            return;
-        }
-        if (!text.trim()) {
-            logInfo("[SpeechAndTranslation] Skipping translation: empty text.");
-            return;
-        }
-
-        state.pendingTranslationText = text;
-
-        if (text.length >= CONFIG.MIN_TEXT_LENGTH) {
-            if (state.translationTimer) {
-                clearTimeout(state.translationTimer);
-                state.translationTimer = null;
-            }
-            sendTranslation(text, sourceLang);
-            return;
-        }
-
-        startTranslationTimer(sourceLang);
-    }
+	function decideAndTranslate(text, sourceLang) {
+		if (!sourceLang) {
+			handleError("invalid", "Source language is empty");
+			return;
+		}
+		if (!text.trim()) {
+			logInfo("[SpeechAndTranslation] Skipping translation: empty text.");
+			return;
+		}
+	
+		// 對翻譯文字應用替換（若在 truncate 模式下）
+		const translationText = applyTextReplacements(text);
+		state.pendingTranslationText = translationText;
+	
+		if (translationText.length >= CONFIG.MIN_TEXT_LENGTH) {
+			if (state.translationTimer) {
+				clearTimeout(state.translationTimer);
+				state.translationTimer = null;
+			}
+			sendTranslation(translationText, sourceLang);
+			return;
+		}
+	
+		startTranslationTimer(sourceLang);
+	}
 
 	/* ----------------------------------------------------------------------------
 	函數:發送翻譯請求用，格式: (要翻譯的文字, 要翻譯的語言, 序號)
