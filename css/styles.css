@@ -23,6 +23,8 @@
     --divider-color: var(--primary-color);
     --disabled-color: #A68FAF;
     --dropdown-bg: #F8E6F0;
+	--right-panel-bg: #00FF00;
+	
     /* color-label 專用顏色 */
     --color-label-bg: #FFF0F5; /* 淡薰衣草色 */
     --color-label-border: #DB7093; /* 淡粉紅色 */
@@ -177,17 +179,20 @@ body.no-scroll {
     line-height: 1;
 }
 
+.right-panel,
+.section {
+	background-color: var(--right-panel-bg, #E1C6DC);
+}
 .right-panel {
     flex-grow: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    background-color: var(--panel-bg);
     max-height: 100vh;
     box-sizing: border-box;
     flex-shrink: 1;
     overflow: hidden;
-    padding: var(--spacing-sm);
+	padding: 0;
     transition: all 0.3s ease; /* 平滑轉場，時間縮短為 0.3s */
 }
 
@@ -198,13 +203,12 @@ body.no-scroll {
     width: 100vw;
     height: 100vh;
     z-index: 1000;
-    padding: var(--spacing-sm);
+    /* padding: var(--spacing-sm); */
     margin: 0;
     overflow-y: auto;
 }
 
 .section {
-    background-color: var(--panel-bg);
     padding: var(--spacing-sm);
     width: 100%;
     box-sizing: border-box;
@@ -242,7 +246,6 @@ body.no-scroll {
    元件樣式
 ========================================================================== */
 .section {
-    background-color: var(--panel-bg);
     padding: 0.9375rem;
     font-weight: bold;
     font-size: 2rem;
@@ -255,6 +258,7 @@ body.no-scroll {
     --stroke-width: 2px;
     --stroke-color: #000000;
     color: var(--text-primary);
+	font-size: 24px;
     position: relative;
     z-index: 1;
     display: inline-block;
@@ -378,7 +382,7 @@ body.no-scroll {
     width: 100%;
     justify-content: space-between;
     align-items: stretch; /* 確保子容器高度一致 */
-    gap: var(--spacing-sm);
+    gap: var(--spacing-xs);
     flex-grow: 1;
     height: 100%; /* 填充 left-content 的高度 */
     max-height: calc(var(--content-max-height) - 3rem);
@@ -386,8 +390,8 @@ body.no-scroll {
     overflow-x: hidden; /* 防止水平滾動 */
 }
 
-.controls-container p {
-    margin: 0 0 var(--spacing-sm) 0;
+.controls-container p, .controls-container span {
+    margin: 2px 0 0 0;
     font-weight: bold;
     color: var(--primary-color);
     text-align: center;
@@ -408,6 +412,7 @@ body.no-scroll {
     position: relative;
 }
 
+
 .other-settings::before {
     content: '';
     position: absolute;
@@ -423,6 +428,7 @@ body.no-scroll {
     pointer-events: none;
     z-index: 1;
 }
+
 
 .other-settings p {
     margin: 0;
@@ -446,22 +452,22 @@ body.no-scroll {
     flex: 1;
     display: flex;
     flex-direction: column;
-    align-items: center; /* X軸水平居中 */
-    gap: var(--spacing-sm);
+    align-items: center;
+    gap: 7.5px;
     width: 100%;
     max-width: none;
-    min-width: 0; /* 防止溢出 */
     position: relative;
-    padding: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
     border-radius: var(--border-radius);
     box-sizing: border-box;
-    height: 21.5rem; /* 固定高度 */
+    height: 20rem; /* 固定高度 */
     min-height: 5rem; /* 確保最小高度 */
 }
 
 .dropdown-group {
     background-color: var(--dropdown-bg); /* #F8E6F0，淺粉色 */
 }
+
 
 .dropdown-group::before {
     content: '';
@@ -511,12 +517,13 @@ body.no-scroll {
 }
 
 .style-group label input[type="range"] {
-    height: 1rem;
-    background: transparent;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    cursor: pointer;
+	height: 0.5rem;
+	padding: 3px;
+	background: transparent;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	appearance: none;
+	cursor: pointer;
 }
 
 .style-group label input[type="range"]::-webkit-slider-runnable-track {
@@ -536,8 +543,8 @@ body.no-scroll {
 
 .style-group label input[type="range"]::-webkit-slider-thumb {
     appearance: none;
-    width: 1.5rem;
-    height: 1.5rem;
+    width: 1.2rem;
+    height: 1.2rem;
     background: #F7A6B3;
     border: 0.125rem solid var(--primary-color);
     border-radius: 50%;
@@ -684,66 +691,61 @@ body.no-scroll {
 /* ==========================================================================
    響應式設計
 ========================================================================== */
-@media (max-width: 48rem) {
+@media (max-width: 28rem) {
+	
+    body {
+        flex-direction: column;
+        height: auto;
+        overflow-y: auto;
+    }
+
     .left-panel {
         width: 100%;
         min-width: 0;
         max-width: none;
+        height: auto;
+        overflow-y: visible;
     }
 
     .right-panel {
-        display: none;
+        display: flex;
+        width: 100%;
+        height: auto;
+        min-height: 50vh;
+        padding: 0;
     }
 
-    .buttons button {
+    .section {
         width: 100%;
+        height: auto;
+        min-height: 20rem;
+        padding: 0;
     }
 
-    .input-group {
-        width: 100%;
+    .scroll-container {
+        padding: var(--spacing-sm);
+        min-height: 15rem;
     }
 
     .controls-container {
-        flex-direction: column;
-        height: auto; /* 垂直排列時高度由內容決定 */
+        flex-direction: row;
+        height: auto;
         max-height: none;
         overflow-y: visible;
-        overflow-x: hidden; /* 防止水平滾動 */
-    }
-
-    .other-settings {
-        flex-direction: column;
-        align-items: center;
-        height: auto;
-        padding: var(--spacing-sm);
-    }
-
-    .other-settings select,
-    .other-settings button {
-        width: 100%;
-        max-width: none;
-    }
-
-    .other-settings p {
-        width: auto; /* 小螢幕下移除固定寬度 */
     }
 
     .dropdown-group,
     .style-group {
-        height: auto; /* 高度由內容決定 */
-        min-height: 0; /* 移除最小高度限制 */
+        height: auto;
+        min-height: 0;
         padding: var(--spacing-sm);
-        min-width: 0;
-        align-items: center; /* X軸水平居中 */
     }
 
-    .dropdown-group::before,
-    .style-group::before,
-    .other-settings::before {
-        border-width: 0.0625rem;
-        box-shadow: 
-            0 0 0 0.03125rem #FFF9C4,
-            0 0 0 0.0625rem #F7A6B3;
+    .other-settings {
+        flex-direction: row;
+        align-items: center;
+        height: auto;
+        padding: var(--spacing-sm);
     }
 
     .dropdown-style,
@@ -751,6 +753,6 @@ body.no-scroll {
     .reset-button,
     .color-label {
         width: 100%;
-        max-width: none; /* 小螢幕下移除最大寬度限制 */
+        max-width: none;
     }
 }
