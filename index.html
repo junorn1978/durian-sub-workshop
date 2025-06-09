@@ -22,26 +22,20 @@
             <div class="controls-container">
                 <div class="dropdown-group">
                     <p>言語設定</p>
-                    <select id="source-language" class="dropdown-style">
-                        <!-- 由 JavaScript 動態填充 -->
-                    </select>
-                    <select id="target-language1" class="dropdown-style">
-                        <option value="none">言語1:翻訳しない</option>
-                        <!-- 由 JavaScript 動態填充 -->
-                    </select>
-                    <select id="target-language2" class="dropdown-style">
-                        <option value="none">言語2:翻訳しない</option>
-                        <!-- 由 JavaScript 動態填充 -->
-                    </select>
-                    <select id="target-language3" class="dropdown-style">
-                        <option value="none">言語3:翻訳しない</option>
-                        <!-- 由 JavaScript 動態填充 -->
-                    </select>
+                    <select id="source-language" class="dropdown-style"></select>
+                    <select id="target-language1" class="dropdown-style"><option value="none">言語1:翻訳しない</option></select>
+                    <select id="target-language2" class="dropdown-style"><option value="none">言語2:翻訳しない</option></select>
+                    <select id="target-language3" class="dropdown-style"><option value="none">言語3:翻訳しない</option></select>
                     <select id="text-alignment-selector" class="dropdown-style">
                         <option value="left">左寄せ</option>
                         <option value="center">中央揃え</option>
                         <option value="right">右寄せ</option>
                     </select>
+                    <select id="api-mode" class="dropdown-style" style="display: none;">
+                        <option value="backend" selected>翻訳用のリンクを使用する</option>
+                        <option value="openai">OpenAIのAPIキーを使用する</option>
+                    </select>
+                    <button id="toggle-advanced-settings" class="advanced-settings-button" data-advanced-text="詳細設定"  data-basic-text="基本設定">詳細設定</button>
                 </div>
                 <div class="style-group">
                     <p>スタイル設定</p>
@@ -90,6 +84,10 @@
                     <input type="password" placeholder="認証キー（任意）" id="api-key-value" value="">
                     <span class="eye-icon" id="toggle-visibility-key"><i class="fas fa-eye"></i></span>
                 </div>
+                <!-- 新增提示文字，初始隱藏 -->
+                <p id="api-hint" style="display: none; color: var(--primary-color); font-size: 0.875rem; text-align: center; margin-top: 0.5rem;">
+                請輸入後端服務 URL 和驗證 Key
+                </p>
             </div>
         </div>
     </div>

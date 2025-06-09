@@ -101,7 +101,12 @@ document.addEventListener("DOMContentLoaded", () => {
     leftPanel: null,
     section: "section-1",
     textAlignmentSelector: "text-alignment-selector",
-    textTruncateModeSelector: "text-truncate-mode"
+    textTruncateModeSelector: "text-truncate-mode",
+    apiKeyInput: "api-key-input",
+    apiKeyValue: "api-key-value",
+    toggleAdvancedSettings: "toggle-advanced-settings",
+    apiMode: "api-mode",
+    apiHint: "api-hint"
   };
   elements = Object.entries(ELEMENT_IDS).reduce((obj, [key, id]) => {
     if (id) {
@@ -208,7 +213,112 @@ document.addEventListener("DOMContentLoaded", () => {
       applyTextAlignment(alignment);
     });
   }
+
+  // ==========================================================================
+  // 進階設定切換功能
+  // ==========================================================================
+  if (elements.toggleAdvancedSettings) {
+    let isAdvancedMode = localStorage.getItem('settings-mode') === 'advanced';
+    
+    function toggleSettingsMode() {
+      isAdvancedMode = !isAdvancedMode;
+      localStorage.setItem('settings-mode', isAdvancedMode ? 'advanced' : 'basic');
+      
+      // 從 data-* 屬性讀取文字
+      const advancedText = elements.toggleAdvancedSettings.getAttribute('data-advanced-text') || '詳細設定';
+      const basicText = elements.toggleAdvancedSettings.getAttribute('data-basic-text') || '基本設定';
+      elements.toggleAdvancedSettings.textContent = isAdvancedMode ? basicText : advancedText;
+      
+      // 切換 dropdown-group 內容顯示
+      const dropdownGroup = document.querySelector('.dropdown-group');
+      if (!dropdownGroup) {
+        console.error('[StyleController] dropdown-group not found');
+        return;
+      }
+      // 選擇語言選單，排除 api-mode
+      const languageSelects = dropdownGroup.querySelectorAll('select.dropdown-style:not(#api-mode)');
+      const apiModeSelect = document.getElementById('api-mode');
+      const apiHint = document.getElementById('api-hint');
+      
+      if (isAdvancedMode) {
+        languageSelects.forEach(select => select.style.display = 'none');
+        if (apiModeSelect) apiModeSelect.style.display = 'block';
+        if (apiHint) apiHint.style.display = 'block';
+      } else {
+        languageSelects.forEach(select => select.style.display = '');
+        if (apiModeSelect) apiModeSelect.style.display = 'none';
+        if (apiHint) apiHint.style.display = 'none';
+      }
+      
+      logInfo(`[StyleController] 設定模式切換至：${isAdvancedMode ? '進階' : '基本'}`);
+    }
+    
+    // 初始化按鈕文字與顯示狀態
+    const initialText = isAdvancedMode
+      ? (elements.toggleAdvancedSettings.getAttribute('data-basic-text') || '基本設定')
+      : (elements.toggleAdvancedSettings.getAttribute('data-advanced-text') || '詳細設定');
+    elements.toggleAdvancedSettings.textContent = initialText;
+    
+    // 初始化 dropdown-group 顯示
+    const dropdownGroup = document.querySelector('.dropdown-group');
+    if (dropdownGroup) {
+      const languageSelects = dropdownGroup.querySelectorAll('select.dropdown-style:not(#api-mode)');
+      const apiModeSelect = document.getElementById('api-mode');
+      const apiHint = document.getElementById('api-hint');
+      if (isAdvancedMode) {
+        languageSelects.forEach(select => select.style.display = 'none');
+        if (apiModeSelect) apiModeSelect.style.display = 'block';
+        if (apiHint) apiHint.style.display = 'block';
+      } else {
+        languageSelects.forEach(select => select.style.display = '');
+        if (apiModeSelect) apiModeSelect.style.display = 'none';
+        if (apiHint) apiHint.style.display = 'none';
+      }
+    } else {
+      console.error('[StyleController] 初始化時找不到 dropdown-group');
+    }
+    
+    elements.toggleAdvancedSettings.addEventListener('click', () => {
+      toggleSettingsMode();
+      elements.toggleAdvancedSettings.classList.add('pressed');
+      setTimeout(() => elements.toggleAdvancedSettings.classList.remove('pressed'), 200);
+    });
+  }
+
+  // 勾選框控制 OpenAI API Key 輸入
+  if (elements.apiMode) {
+    const serviceUrlInput = elements.apiKeyInput; // 後端服務 URL
+    const apiKeyInput = elements.apiKeyValue;    // API Key
+    const apiHint = elements.apiHint;           // 提示文字
+    if (!serviceUrlInput || !apiKeyInput || !apiHint) {
+      console.warn('[StyleController] service-url-input, api-key-input, or api-hint not found');
+    } else {
+      // 從 localStorage 讀取 API 模式，預設 backend
+      const savedApiMode = localStorage.getItem('api-mode') || 'backend';
+      elements.apiMode.value = savedApiMode;
+      // 初始輸入框狀態
+      serviceUrlInput.disabled = savedApiMode !== 'backend';
+      apiKeyInput.disabled = false; // 兩模式均需 API Key
+      apiHint.textContent = savedApiMode === 'openai'
+        ? '請輸入 OpenAI API Key'
+        : '請輸入後端服務 URL 和驗證 Key';
+      apiHint.classList.remove('error');
   
+      // 監聽 API 模式變化
+      elements.apiMode.addEventListener('change', () => {
+        const apiMode = elements.apiMode.value;
+        localStorage.setItem('api-mode', apiMode);
+        serviceUrlInput.disabled = apiMode !== 'backend';
+        apiKeyInput.disabled = false;
+        apiHint.textContent = apiMode === 'openai'
+          ? '請輸入 OpenAI API Key'
+          : '請輸入後端服務 URL 和驗證 Key';
+        apiHint.classList.remove('error');
+        logInfo(`[StyleController] API 模式切換至：${apiMode}`);
+      });
+    }
+  }
+
   // ==========================================================================
   // 全螢幕切換功能（無翻頁效果）
   // ==========================================================================

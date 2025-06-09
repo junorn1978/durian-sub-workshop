@@ -31,7 +31,8 @@ document.addEventListener("DOMContentLoaded", () => {
     "出勤さん": "初見さん",
     "スパちゃん": "(スパチャ)",
     "スバちゃん": "(スパチャ)",
-    "麗華ちゃん": "れいかちゃん"
+    "麗華ちゃん": "れいかちゃん",
+    "えっちゃん": "れいちゃん"
     // 可根據需要添加更多替換規則，例如：
     // "他の誤判文字": "正確文字"
   };
@@ -42,7 +43,10 @@ document.addEventListener("DOMContentLoaded", () => {
     sourceLanguageSelect: "source-language",
     targetLanguage1Select: "target-language1",
     targetLanguage2Select: "target-language2",
-    targetLanguage3Select: "target-language3"
+    targetLanguage3Select: "target-language3",
+    apiMode: "api-mode",
+    serviceUrlInput: "api-key-input",
+    apiKeyInput: "api-key-value"
   };
   
   const ERROR_MESSAGES = {
@@ -203,7 +207,7 @@ function checkInterimStagnation(sourceLang) {
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.maxAlternatives = 3;
+    recognition.maxAlternatives = 1;
     recognition.lang = sourceLanguageSelect.value;
 	
     const truncateMode = localStorage.getItem("text-truncate-mode") || "truncate";
@@ -436,6 +440,7 @@ function checkInterimStagnation(sourceLang) {
       handleError("speech", error.message);
     }
   };
+  
   recognition.onerror = (event) => {
     const errorType = event.error;
     if (errorType === "aborted") {
@@ -447,6 +452,7 @@ function checkInterimStagnation(sourceLang) {
       event
     });
   };
+  
   recognition.onend = () => {
     logInfo("[SpeechAndTranslation] 語音識別已結束，isManuallyStopped：", state.isManuallyStopped, "lastStopWasManual:", state.lastStopWasManual, "restartAttempts:", state.restartAttempts, "elapsedTime:", state.startTime ? (Date.now() - state.startTime) / 1000 : "N/A");
     state.isRecognitionRunning = false;
@@ -478,6 +484,17 @@ function checkInterimStagnation(sourceLang) {
         elements.stopSpeechButton.disabled = true;
       }
     }
+  };
+
+  recognition.onnomatch = (event) => {
+    logInfo("[SpeechAndTranslation] 語音無法辨識（onnomatch）：", {
+      results: event.results ? Array.from(event.results).map(r => ({
+        transcript: r[0]?.transcript || "empty",
+        isFinal: r.isFinal
+      })) : "無結果",
+      sequenceNumber: state.sequenceNumber,
+      timestamp: new Date().toISOString()
+    });
   };
 
   function restartRecognition() {
@@ -556,6 +573,7 @@ function checkInterimStagnation(sourceLang) {
     }
     state.interimStagnationTimer = setTimeout(() => checkInterimStagnation(elements.sourceLanguageSelect.value), CONFIG.INTERIM_STAGNATION_TIMEOUT);
   } // 重置停滯定時器
+  
   function handleFinalResult(result, displayResults, translationResults) {
     let newText = result[0].transcript.trim();
     let shouldRestart = false;
@@ -656,6 +674,10 @@ function checkInterimStagnation(sourceLang) {
   /* ----------------------------------------------------------------------------
   函數:發送翻譯請求用，格式: (要翻譯的文字, 要翻譯的語言, 序號)
   ---------------------------------------------------------------------------- */
+  /* ----------------------------------------------------------------------------
+  函數: 發送翻譯請求
+  參數: (要翻譯的文字, 來源語言, 序號)
+  ---------------------------------------------------------------------------- */
   async function translateText(text, sourceLang, sequenceNumber) {
     const targetLangs = [];
     const lang1 = elements.targetLanguage1Select.value;
@@ -681,43 +703,147 @@ function checkInterimStagnation(sourceLang) {
         processPendingResponses();
       }
     }, CONFIG.TRANSLATION_TIMEOUT);
+  
     try {
-      const serviceUrl = document.getElementById("api-key-input").value.trim();
-      const apiKey = document.getElementById("api-key-value").value.trim();
-      if (!serviceUrl) throw new Error("Service URL is empty.");
-      if (!/^https?:\/\/[a-zA-Z0-9.-]+(:\d+)?\/.+$/.test(serviceUrl)) {
-        throw new Error("Invalid URL format.");
+      const apiMode = elements.apiMode?.value || 'backend';
+      if (apiMode === 'openai') {
+        await translateWithOpenAI(text, sourceLang, targetLangs, sequenceNumber, timeoutId);
+      } else if (apiMode === 'gemini') {
+        // 未來 Gemini 支援，暫記錄日誌
+        logInfo("[SpeechAndTranslation] Gemini API 尚未實作：", { sequenceNumber, text });
+        clearTimeout(timeoutId);
+        throw new Error("Gemini API 尚未支援");
+      } else {
+        // 使用原有服務 URL
+        const serviceUrl = document.getElementById("api-key-input").value.trim();
+        const apiKey = document.getElementById("api-key-value").value.trim();
+        if (!serviceUrl) throw new Error("Service URL is empty.");
+        if (!/^https?:\/\/[a-zA-Z0-9.-]+(:\d+)?\/.+$/.test(serviceUrl)) {
+          throw new Error("Invalid URL format.");
+        }
+        const headers = {
+          "Content-Type": "application/json"
+        };
+        if (apiKey) headers["X-API-Key"] = apiKey;
+        const response = await fetch(serviceUrl, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify({
+            text,
+            targetLangs
+          })
+        });
+  
+        clearTimeout(timeoutId);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP error: ${response.status} - ${errorText}`);
+        }
+        const data = await response.json();
+        logInfo("[SpeechAndTranslation] 已接收翻譯：", {
+          sequenceNumber,
+          translations: data.translations
+        });
+        handleTranslationResponse(sequenceNumber, text, data.translations, null);
       }
-      const headers = {
-        "Content-Type": "application/json"
-      };
-      if (apiKey) headers["X-API-Key"] = apiKey;
-      const response = await fetch(serviceUrl, {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify({
-          text,
-          targetLangs
-        })
-      });
-      clearTimeout(timeoutId);
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
-      logInfo("[SpeechAndTranslation] 已接收翻譯：", {
-        sequenceNumber,
-        translations: data.translations
-      });
-      handleTranslationResponse(sequenceNumber, text, data.translations, null);
-    }
-    catch (error) {
+    } catch (error) {
       clearTimeout(timeoutId);
       handleError("translation", error.message, {
         sequenceNumber,
         text
       });
+    }
+  }
+
+  /**
+   * 使用 OpenAI API 進行翻譯
+   * @param {string} text - 要翻譯的文字
+   * @param {string} sourceLang - 要來源語言（例如 "ja"）
+   * @param {string[]} targetLangs - 目標語言陣列（例如 ["zh-TW", "en"]）
+   * @param {number} sequenceNumber - 翻譯請求序列號
+   * @param {number} timeoutId - 超時定時器 ID，用於清除超時
+   */
+  async function translateWithOpenAI(text, sourceLang, targetLangs, sequenceNumber, timeoutId) {
+    // 從 DOM 讀取 OpenAI API Key
+    const apiKey = document.getElementById("api-key-value").value.trim();
+    if (!apiKey) {
+      throw new Error("OpenAI API Key 不可為空。");
+    }
+    if (!apiKey.startsWith('sk-')) {
+      throw new Error("無效的 OpenAI API Key 格式。");
+    }
+  
+    const openaiUrl = "https://api.openai.com/v1/chat/completions";
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    };
+  
+    const body = JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `你是一位專業翻譯者。將 "${text}" 從 ${sourceLang} 翻譯成 ${targetLangs.join("、")}，僅回傳純 JSON 陣列，按目標語言順序，例如 ["翻譯1", "翻譯2"]，禁止包含 Markdown 程式碼區塊、說明或其他格式。`
+        },
+        {
+          role: "user",
+          content: text
+        }
+      ],
+      max_tokens: 300, // 參考後端，限制輸出長度
+      temperature: 0.1 // 與後端一致，略微提高確定性
+    });
+  
+    try {
+      const response = await fetch(openaiUrl, {
+        method: "POST",
+        headers,
+        body
+      });
+  
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenAI API 錯誤：${response.status} - ${errorText}`);
+      }
+  
+      const data = await response.json();
+      let translations = [];
+      try {
+        let content = data.choices[0]?.message.content || '[]';
+        // 增強清理邏輯，移除多種 Markdown 變體
+        content = content
+          .replace(/^```(json)?\n|\n```$/g, '') // 移除 ```json 或 ```
+          .replace(/^`+|\n`+$/g, '')          // 移除單獨的 ` 標記
+          .trim();                             // 去除多餘空白
+        logInfo("[SpeechAndTranslation] 清理後的 OpenAI 回應內容：", { content });
+        translations = JSON.parse(content);
+        if (!Array.isArray(translations)) {
+          throw new Error("回應不是有效的 JSON 陣列。");
+        }
+      } catch (e) {
+        logInfo("[SpeechAndTranslation] 回應解析失敗，原始內容：", {
+          rawContent: data.choices[0]?.message.content
+        });
+        throw new Error(`無效的 OpenAI 回應格式：${e.message}`);
+      }
+  
+      logInfo("[SpeechAndTranslation] 已接收 OpenAI 翻譯：", {
+        sequenceNumber,
+        translations,
+        usage: data.usage
+      });
+  
+      clearTimeout(timeoutId);
+      handleTranslationResponse(sequenceNumber, text, translations, null);
+    } catch (error) {
+      // 顯示用戶友好的錯誤提示
+      const apiHint = document.getElementById('api-hint');
+      if (apiHint && error.message.includes('無效的 OpenAI 回應格式')) {
+        apiHint.textContent = 'OpenAI 回應格式錯誤，請檢查 API Key 或稍後重試';
+        apiHint.style.color = 'red';
+      }
+      throw error;
     }
   }
 
