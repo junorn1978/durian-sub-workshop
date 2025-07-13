@@ -45,6 +45,7 @@ const DEFAULT_SETTINGS = {
   textAlignment: "left",
   textTruncateMode: "truncate"
 };
+
 const LANGUAGE_OPTIONS = [{
     value: "ja",
     label: "日本語"
@@ -111,14 +112,14 @@ document.addEventListener("DOMContentLoaded", () => {
   elements = Object.entries(ELEMENT_IDS).reduce((obj, [key, id]) => {
     if (id) {
       obj[key] = document.getElementById(id);
-      if (!obj[key]) console.warn(`Element not found: #${id}`);
+      if (!obj[key]) console.warn(`[WARN] [StyleController] Element not found: #${id}`);
     }
     return obj;
   }, {});
   elements.rightPanel = document.querySelector(SELECTORS.rightPanel);
-  if (!elements.rightPanel) console.warn(`Element not found: ${SELECTORS.rightPanel}`);
+  if (!elements.rightPanel) console.warn(`[WARN] [StyleController] Element not found: ${SELECTORS.rightPanel}`);
   elements.leftPanel = document.querySelector(SELECTORS.leftPanel);
-  if (!elements.leftPanel) console.warn(`Element not found: ${SELECTORS.leftPanel}`);
+  if (!elements.leftPanel) console.warn(`[WARN] [StyleController] Element not found: ${SELECTORS.leftPanel}`);
   
   // ==========================================================================
   // 動態生成語言選擇器選項
@@ -126,7 +127,7 @@ document.addEventListener("DOMContentLoaded", () => {
   languageSelectIds.forEach(id => {
     const selectElement = document.getElementById(id);
     if (!selectElement) {
-      return console.error(`Language select not found: ${id}`);
+      return console.error(`[ERROR] [StyleController] Language select not found: ${id}`);
     }
     const prefix = id === "source-language" ? "來源:" : `言語${id.slice(-1)}:`;
     LANGUAGE_OPTIONS.forEach(option => {
@@ -165,8 +166,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.documentElement.style.setProperty('--right-panel-bg', value);
     elements.rightPanel.style.backgroundColor = null;
     elements.section.style.backgroundColor = null;
-    console.log("rightPanel", getComputedStyle(elements.rightPanel).backgroundColor);
-    console.log("section", getComputedStyle(elements.section).backgroundColor);
+    console.info("[INFO] [StyleController] rightPanel", getComputedStyle(elements.rightPanel).backgroundColor);
+    console.info("[INFO] [StyleController] section", getComputedStyle(elements.section).backgroundColor);
   }, false, true);
   
   bindSlider(elements.fontSizeSlider, "font-size", "fontSize");
@@ -232,7 +233,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // 切換 dropdown-group 內容顯示
       const dropdownGroup = document.querySelector('.dropdown-group');
       if (!dropdownGroup) {
-        console.error('[StyleController] dropdown-group not found');
+        console.error('[ERROR] [StyleController] dropdown-group not found');
         return;
       }
       // 選擇語言選單，排除 api-mode
@@ -250,7 +251,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (apiHint) apiHint.style.display = 'none';
       }
       
-      logInfo(`[StyleController] 設定模式切換至：${isAdvancedMode ? '進階' : '基本'}`);
+      console.info(`[INFO] [StyleController] 設定模式切換至：${isAdvancedMode ? '進階' : '基本'}`);
     }
     
     // 初始化按鈕文字與顯示狀態
@@ -275,7 +276,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (apiHint) apiHint.style.display = 'none';
       }
     } else {
-      console.error('[StyleController] 初始化時找不到 dropdown-group');
+      console.error('[ERROR] [StyleController] 初始化時找不到 dropdown-group');
     }
     
     elements.toggleAdvancedSettings.addEventListener('click', () => {
@@ -291,7 +292,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const apiKeyInput = elements.apiKeyValue;    // API Key
     const apiHint = elements.apiHint;           // 提示文字
     if (!serviceUrlInput || !apiKeyInput || !apiHint) {
-      console.warn('[StyleController] service-url-input, api-key-input, or api-hint not found');
+      console.warn('[WARN] [StyleController] service-url-input, api-key-input, or api-hint not found');
     } else {
       // 從 localStorage 讀取 API 模式，預設 backend
       const savedApiMode = localStorage.getItem('api-mode') || 'backend';
@@ -314,7 +315,7 @@ document.addEventListener("DOMContentLoaded", () => {
           ? '請輸入 OpenAI API Key'
           : '請輸入後端服務 URL 和驗證 Key';
         apiHint.classList.remove('error');
-        logInfo(`[StyleController] API 模式切換至：${apiMode}`);
+        console.info(`[INFO] [StyleController] API 模式切換至：${apiMode}`);
       });
     }
   }
@@ -385,7 +386,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function bindPasswordInput(inputElement, toggleElement, key) {
     if (!inputElement || !toggleElement) {
-      console.error(`[StyleController] Invalid input or toggle element for ${key}`);
+      console.error(`[ERROR] [StyleController] Invalid input or toggle element for ${key}`);
       return;
     }
     const saved = localStorage.getItem(key);
@@ -402,12 +403,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function bindColorPicker(element, key, updateCallback, isLangSpecific = true, isGlobal = false) {
     if (!element) {
-      console.error(`[StyleController] Invalid element for ${key}`);
+      console.error(`[ERROR] [StyleController] Invalid element for ${key}`);
       return;
     }
     element.addEventListener("input", () => {
       const lang = isLangSpecific ? elements.optionSelector.value : "";
-      console.log(`[bindColorPicker] Input for ${key}, lang: ${lang}, value: ${element.value}`);
+      console.info(`[INFO] [StyleController] [bindColorPicker] Input for ${key}, lang: ${lang}, value: ${element.value}`);
       const value = element.value;
       updateCallback(value);
       saveSettings({
@@ -431,14 +432,14 @@ document.addEventListener("DOMContentLoaded", () => {
     else {
       const lang = isLangSpecific ? elements.optionSelector.value : "";
       if (!lang || !languageToSpanMap[lang]) {
-        console.warn(`[bindColorPicker] Invalid language: ${lang}, defaulting to source-language`);
+        console.warn(`[ERROR] [StyleController] [bindColorPicker] Invalid language: ${lang}, defaulting to source-language`);
         elements.optionSelector.value = "source-language"; // 設置默認語言
       }
       const savedValue = localStorage.getItem(isGlobal ? key : `${lang}-${key}`) ||
         DEFAULT_SETTINGS[lang]?.[key] ||
         element.value ||
         "#FFFFFF";
-      console.log(`[bindColorPicker] Initializing ${key}, lang: ${lang}, value: ${savedValue}`);
+      console.info(`[ERROR] [StyleController] [bindColorPicker] Initializing ${key}, lang: ${lang}, value: ${savedValue}`);
       element.value = savedValue;
       updateCallback(savedValue);
     }
@@ -446,7 +447,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function bindSlider(element, key, cssProperty) {
     if (!element) {
-      console.error(`[StyleController] Invalid element for ${key}`);
+      console.error(`[ERROR] [StyleController] Invalid element for ${key}`);
       return;
     }
     element.addEventListener("input", () => {
@@ -474,12 +475,18 @@ document.addEventListener("DOMContentLoaded", () => {
       else {
         span.style[property] = value;
       }
+
+      if (span.classList.contains('source-text') && property === 'fontSize') {
+        span.style.minHeight = value; // 同步 min-height 與 font-size
+        span.setAttribute("data-stroke", span.textContent || "");
+      }
+
       if (!span.getAttribute("data-stroke") || span.getAttribute("data-stroke") !== span.textContent) {
         span.setAttribute("data-stroke", span.textContent);
       }
     }
     else {
-      console.error(`Span not found for class: ${spanClass}`);
+      console.error(`[ERROR] [StyleController] Span not found for class: ${spanClass}`);
     }
   }
 
@@ -490,16 +497,12 @@ document.addEventListener("DOMContentLoaded", () => {
     return isNaN(n) ? defaultVal : Math.min(Math.max(n, min), max);
   }
 
-  function applySpanSettings(span, {
-    fontSize,
-    textColor,
-    textStrokeSize,
-    textStrokeColor
-  }) {
+  function applySpanSettings(span, {fontSize, textColor, textStrokeSize, textStrokeColor}) {
     span.style.fontSize = `${fontSize}px`;
     span.style.color = textColor;
     span.style.setProperty("--stroke-width", `${textStrokeSize}px`);
     span.style.setProperty("--stroke-color", textStrokeColor);
+    if (span.classList.contains('source-text')) {span.style.minHeight = `${fontSize}px`;}
     if (span.getAttribute("data-stroke") !== span.textContent) {
       span.setAttribute("data-stroke", span.textContent);
     }
@@ -578,7 +581,7 @@ document.addEventListener("DOMContentLoaded", () => {
       scrollContainer.style.textAlign = alignment;
     }
     else {
-      console.error(`Scroll container not found: ${SELECTORS.scrollContainer}`);
+      console.error(`[ERROR] [StyleController] Scroll container not found: ${SELECTORS.scrollContainer}`);
     }
   }
 
@@ -593,7 +596,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
     else {
-      console.error(`Scroll container not found: ${SELECTORS.scrollContainer}`);
+      console.error(`[ERROR] [StyleController] Scroll container not found: ${SELECTORS.scrollContainer}`);
     }
   }
   

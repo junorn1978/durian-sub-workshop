@@ -255,6 +255,7 @@ body.no-scroll {
 }
 
 .text-overlay {
+    font-family: "Roboto Condensed", "JF OPEN 粉圓 2.1", Arial, sans-serif;
     --stroke-width: 2px;
     --stroke-color: #000000;
     color: var(--text-primary);
@@ -268,6 +269,7 @@ body.no-scroll {
 }
 
 .text-overlay::before {
+    font-family: "Roboto Condensed", "JF OPEN 粉圓 2.1", Arial, sans-serif;
     content: attr(data-stroke);
     position: absolute;
     z-index: -1;
@@ -279,6 +281,11 @@ body.no-scroll {
     width: 100%;
     text-align: inherit;
     composes: text-wrap;
+}
+
+.text-overlay.source-text {
+    min-height: 28px;
+    display: inline-block;
 }
 
 .logo {
