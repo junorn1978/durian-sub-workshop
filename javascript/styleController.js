@@ -46,26 +46,12 @@ const DEFAULT_SETTINGS = {
   textTruncateMode: "truncate"
 };
 
-const LANGUAGE_OPTIONS = [{
-    value: "ja",
-    label: "日本語"
-  },
-  {
-    value: "zh-TW",
-    label: "台湾繁體"
-  },
-  {
-    value: "en",
-    label: "英語"
-  },
-  {
-    value: "es",
-    label: "スペイン語"
-  },
-  {
-    value: "id",
-    label: "インドネシア語"
-  }
+const LANGUAGE_OPTIONS = [
+  {value: "ja", label: "日本語"},
+  {value: "zh-TW", label: "台湾繁體"},
+  {value: "en", label: "英語"},
+  {value: "es", label: "スペイン語"},
+  {value: "id", label: "インドネシア語"}
 ];
 
 // ==========================================================================
@@ -87,9 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const languageSelectIds = ["source-language", "target-language1", "target-language2", "target-language3"];
   const ELEMENT_IDS = {
     apiKeyInput: "api-key-input",
-    apiKeyValue: "api-key-value",
     toggleVisibilityUrl: "toggle-visibility-url",
-    toggleVisibilityKey: "toggle-visibility-key",
     startSpeechButton: "start-recording",
     stopSpeechButton: "stop-recording",
     optionSelector: "option-language-selector",
@@ -103,11 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
     section: "section-1",
     textAlignmentSelector: "text-alignment-selector",
     textTruncateModeSelector: "text-truncate-mode",
-    apiKeyInput: "api-key-input",
-    apiKeyValue: "api-key-value",
-    toggleAdvancedSettings: "toggle-advanced-settings",
-    apiMode: "api-mode",
-    apiHint: "api-hint"
+    toggleAdvancedSettings: "toggle-advanced-settings"
   };
   elements = Object.entries(ELEMENT_IDS).reduce((obj, [key, id]) => {
     if (id) {
@@ -143,6 +123,16 @@ document.addEventListener("DOMContentLoaded", () => {
       if (elements.optionSelector.value === id) {
         loadSettings(id);
       }
+      // 添加清空邏輯
+      if (selectElement.value === "none" && id !== "source-language") {
+        const spanClass = languageToSpanMap[id];
+        const span = document.querySelector(spanClass);
+        if (span) {
+          span.textContent = "\u200B";
+          span.setAttribute("data-stroke", "\u200B");
+          console.debug(`[DEBUG] [StyleController] 清空 ${id} 內容`);
+        }
+      }
     });
   });
   
@@ -150,8 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // 輸入框遮蔽功能
   // ==========================================================================
   bindPasswordInput(elements.apiKeyInput, elements.toggleVisibilityUrl, 'api-key-input');
-  bindPasswordInput(elements.apiKeyValue, elements.toggleVisibilityKey, 'api-key-value');
-  
+    
   // ==========================================================================
   // 樣式控制功能
   // ==========================================================================
@@ -236,19 +225,15 @@ document.addEventListener("DOMContentLoaded", () => {
         console.error('[ERROR] [StyleController] dropdown-group not found');
         return;
       }
-      // 選擇語言選單，排除 api-mode
-      const languageSelects = dropdownGroup.querySelectorAll('select.dropdown-style:not(#api-mode)');
-      const apiModeSelect = document.getElementById('api-mode');
-      const apiHint = document.getElementById('api-hint');
+      const languageSelects = dropdownGroup.querySelectorAll('select.dropdown-style');
+      const inputs = dropdownGroup.querySelectorAll('input');
       
       if (isAdvancedMode) {
         languageSelects.forEach(select => select.style.display = 'none');
-        if (apiModeSelect) apiModeSelect.style.display = 'block';
-        if (apiHint) apiHint.style.display = 'block';
+        inputs.forEach(input => input.style.display = 'block');
       } else {
         languageSelects.forEach(select => select.style.display = '');
-        if (apiModeSelect) apiModeSelect.style.display = 'none';
-        if (apiHint) apiHint.style.display = 'none';
+        inputs.forEach(input => input.style.display = 'none');
       }
       
       console.info(`[INFO] [StyleController] 設定模式切換至：${isAdvancedMode ? '進階' : '基本'}`);
@@ -263,17 +248,14 @@ document.addEventListener("DOMContentLoaded", () => {
     // 初始化 dropdown-group 顯示
     const dropdownGroup = document.querySelector('.dropdown-group');
     if (dropdownGroup) {
-      const languageSelects = dropdownGroup.querySelectorAll('select.dropdown-style:not(#api-mode)');
-      const apiModeSelect = document.getElementById('api-mode');
-      const apiHint = document.getElementById('api-hint');
+      const languageSelects = dropdownGroup.querySelectorAll('select.dropdown-style');
+      const inputs = dropdownGroup.querySelectorAll('input');
       if (isAdvancedMode) {
         languageSelects.forEach(select => select.style.display = 'none');
-        if (apiModeSelect) apiModeSelect.style.display = 'block';
-        if (apiHint) apiHint.style.display = 'block';
+        inputs.forEach(input => input.style.display = 'block');
       } else {
         languageSelects.forEach(select => select.style.display = '');
-        if (apiModeSelect) apiModeSelect.style.display = 'none';
-        if (apiHint) apiHint.style.display = 'none';
+        inputs.forEach(input => input.style.display = 'none');
       }
     } else {
       console.error('[ERROR] [StyleController] 初始化時找不到 dropdown-group');
@@ -284,40 +266,6 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.toggleAdvancedSettings.classList.add('pressed');
       setTimeout(() => elements.toggleAdvancedSettings.classList.remove('pressed'), 200);
     });
-  }
-
-  // 勾選框控制 OpenAI API Key 輸入
-  if (elements.apiMode) {
-    const serviceUrlInput = elements.apiKeyInput; // 後端服務 URL
-    const apiKeyInput = elements.apiKeyValue;    // API Key
-    const apiHint = elements.apiHint;           // 提示文字
-    if (!serviceUrlInput || !apiKeyInput || !apiHint) {
-      console.warn('[WARN] [StyleController] service-url-input, api-key-input, or api-hint not found');
-    } else {
-      // 從 localStorage 讀取 API 模式，預設 backend
-      const savedApiMode = localStorage.getItem('api-mode') || 'backend';
-      elements.apiMode.value = savedApiMode;
-      // 初始輸入框狀態
-      serviceUrlInput.disabled = savedApiMode !== 'backend';
-      apiKeyInput.disabled = false; // 兩模式均需 API Key
-      apiHint.textContent = savedApiMode === 'openai'
-        ? '請輸入 OpenAI API Key'
-        : '請輸入後端服務 URL 和驗證 Key';
-      apiHint.classList.remove('error');
-  
-      // 監聽 API 模式變化
-      elements.apiMode.addEventListener('change', () => {
-        const apiMode = elements.apiMode.value;
-        localStorage.setItem('api-mode', apiMode);
-        serviceUrlInput.disabled = apiMode !== 'backend';
-        apiKeyInput.disabled = false;
-        apiHint.textContent = apiMode === 'openai'
-          ? '請輸入 OpenAI API Key'
-          : '請輸入後端服務 URL 和驗證 Key';
-        apiHint.classList.remove('error');
-        console.info(`[INFO] [StyleController] API 模式切換至：${apiMode}`);
-      });
-    }
   }
 
   // ==========================================================================
@@ -432,14 +380,14 @@ document.addEventListener("DOMContentLoaded", () => {
     else {
       const lang = isLangSpecific ? elements.optionSelector.value : "";
       if (!lang || !languageToSpanMap[lang]) {
-        console.warn(`[ERROR] [StyleController] [bindColorPicker] Invalid language: ${lang}, defaulting to source-language`);
+        console.warn(`[WARN] [StyleController] [bindColorPicker] Invalid language: ${lang}, defaulting to source-language`);
         elements.optionSelector.value = "source-language"; // 設置默認語言
       }
       const savedValue = localStorage.getItem(isGlobal ? key : `${lang}-${key}`) ||
         DEFAULT_SETTINGS[lang]?.[key] ||
         element.value ||
         "#FFFFFF";
-      console.info(`[ERROR] [StyleController] [bindColorPicker] Initializing ${key}, lang: ${lang}, value: ${savedValue}`);
+      console.info(`[INFO] [StyleController] [bindColorPicker] Initializing ${key}, lang: ${lang}, value: ${savedValue}`);
       element.value = savedValue;
       updateCallback(savedValue);
     }

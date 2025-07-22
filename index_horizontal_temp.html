@@ -1,116 +1,186 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>トリアンの字幕アトリエ</title>
     <link rel="stylesheet" href="css/styles_horizontal_temp.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+    <title>ジュノーンの字幕アトリエ</title>
+
 </head>
 <body>
-    <div class="container">
-        <div class="right-panel">
-            <div class="section" id="section-1">
-                <div class="scroll-container">
-                    <span class="text-overlay source-text" data-stroke="[トリアンの字幕アトリエ] 緊急事態発生！！¶ゞ(；￣∀￣)ノ☆避難せよ～！">[トリアンの字幕アトリエ] 緊急事態発生！！¶ゞ(；￣∀￣)ノ☆避難せよ～！</span>
-                    <span class="text-overlay target-text-1" data-stroke="開発者：[ 乙夏れいのファン 夏族ジュノーン & Grok 3 ]">開発者：[ 乙夏れいのファン 夏族ジュノーン & Grok 3 ]</span>
-                    <span class="text-overlay target-text-2" data-stroke="----">----</span>
-                    <span class="text-overlay target-text-3" data-stroke="著作権 © 2025｜改変・複製・自由使用可、販売および作者の偽称は禁止">著作権 © 2025｜改変・複製・自由使用可、販売および作者の偽称は禁止</span>
-                </div>
-            </div>
+    <div id="display-panel">
+        <div id="source-text" data-stroke="ジュノーンの字幕アトリエ">
+            <!-- 顯示項目 1 內容可在此添加 -->
+            ジュノーンの字幕アトリエ
         </div>
-        <div class="left-panel">
-            <div class="panel-grid">
-                <header class="left-header">
-                    <img class="logo" src="images/logo.png" alt="即時翻訳 Logo">
-                    <div class="buttons">
-                        <button id="start-recording">録音開始</button>
-                        <button id="stop-recording">録音停止</button>
-                    </div>
-                </header>
-                <div class="center-controls">
-                    <div class="dropdown-group">
-                        <p>言語設定</p>
-                        <div class="language-selectors">
-                            <select id="source-language" class="dropdown-style">
-                                <!-- 由 JavaScript 動態填充 -->
-                            </select>
-                            <select id="target-language1" class="dropdown-style">
-                                <option value="none">言語1 - 翻訳しない</option>
-                                <!-- 由 JavaScript 動態填充 -->
-                            </select>
-                            <select id="target-language2" class="dropdown-style">
-                                <option value="none">言語2 - 翻訳しない</option>
-                                <!-- 由 JavaScript 動態填充 -->
-                            </select>
-                            <select id="target-language3" class="dropdown-style">
-                                <option value="none">言語3 - 翻訳しない</option>
-                                <!-- 由 JavaScript 動態填充 -->
-                            </select>
-                        </div>
-                    </div>
-                    <div class="style-group">
-                        <p>スタイル設定</p>
-                        <div class="style-group-top">
-                            <select id="option-language-selector" class="dropdown-style">
-                                <option value="source-language">原文</option>
-                                <option value="target-language1">目標言語 1</option>
-                                <option value="target-language2">目標言語 2</option>
-                                <option value="target-language3">目標言語 3</option>
-                            </select>
-                            <label class="color-label">
-                                文字色
-                                <input type="color" id="text-color-picker" value="#ff0000">
-                            </label>
-                            <label class="color-label">
-                                文字縁取り色
-                                <input type="color" id="text-stroke-color-picker" value="#000000">
-                            </label>
-                        </div>
-                        <div class="style-group-bottom">
-                            <label>
-                                <span>フォントサイズ</span>
-                                <input type="range" id="font-size-slider" min="10" max="70" step="1">
-                            </label>
-                            <label>
-                                <span>縁取りサイズ</span>
-                                <input type="range" id="text-stroke-slider" min="0" max="25" step="0.1">
-                            </label>
-                        </div>
-						            <div class="input-group">
-                <div class="input-wrapper">
-                    <input type="password" placeholder="翻訳アプリ用のリンク（必須）" id="api-key-input" value="">
-                    <span class="eye-icon" id="toggle-visibility-url"><i class="fas fa-eye"></i></span>
-                </div>
-                <div class="input-wrapper">
-                    <input type="password" placeholder="認証キー（任意）" id="api-key-value" value="">
-                    <span class="eye-icon" id="toggle-visibility-key"><i class="fas fa-eye"></i></span>
+        <div id="target-text-1" data-stroke="開発者：[乙夏れいのファン ジュノーン use Grok3]">
+            <!-- 顯示項目 2 內容可在此添加 -->
+            開発者：[乙夏れいのファン ジュノーン use Grok3]
+        </div>
+        <div id="target-text-2" data-stroke="2025.07.18">
+            <!-- 顯示項目 3 內容可在此添加 -->
+            2025.07.18
+        </div>
+        <div id="target-text-3" data-stroke="機械翻訳の利用は参考程度に留めて">
+            <!-- 顯示項目 4 內容可在此添加 -->
+            機械翻訳の利用は参考程度に留めて
+        </div>
+    </div>
+
+    <div id="control-panel">
+        <div id="recorder-panel">
+            <img id="logo" src="https://pbs.twimg.com/media/GtKAh5maYAAvNXt?format=jpg" alt="Logo">
+            <button class="record-button" id="start-recording">録音開始</button>
+            <button class="record-button" id="stop-recording">録音停止</button>
+        </div>
+        <div id="settings-panel">
+
+            <!-- 選單 -->
+            <div class="menu-panel">
+                <div id="menu">
+                    <button class="menu-button" id="source1">說話語言</button>
+                    <button class="menu-button" id="target1">翻譯語言一</button>
+                    <button class="menu-button" id="target2">翻譯語言二</button>
+                    <button class="menu-button" id="target3">翻譯語言三</button>
+                    <button class="menu-button" id="options">其他</button>
+                    <button class="menu-button" id="comment">留言翻譯</button>
+                    
+                    <button class="menu2-button" id="apilink">翻譯連結</button>
+                    <button class="menu3-button" id="ray-mode">れいーモード</button>
                 </div>
             </div>
-                    </div>
-                </div>
-                <div class="other-settings">
-                    <p>その他の設定</p>
-                    <select id="text-truncate-mode" class="dropdown-style">
-                        <option value="truncate">れいモード</option>
-                        <option value="full">普通モード</option>
+
+            <!--- 軟體宣告 --->
+            <div id="usage-guide">
+                這邊會放入使用宣告
+            </div>
+
+            <!-- 顯示字型的相關設定 -->
+            <!-- 來源語言 -->
+            <div id="source-styles-panel">
+                <div id="lang-setting">
+                    <label for="source-language">語言選擇</label>
+                    <select id="source-language">
+                        <option value="es-ES">西班牙文</option>
+                        <option value="en-US">英文</option>
+                        <option value="id-ID">印尼文</option>
+                        <option value="ja-JP">日文</option>
+                        <option value="th-TH">泰語</option>
+                        <option value="vi-VN">越南語</option>
+                        <option value="zh-TW">繁體中文</option>
                     </select>
-                    <select id="text-alignment-selector" class="dropdown-style">
-                        <option value="left">左寄せ</option>
-                        <option value="center">中央揃え</option>
-                        <option value="right">右寄せ</option>
-                    </select>
-                    <label class="color-label">
-                        背景色
-                        <input type="color" id="background-color-picker" value="#ff0000">
-                    </label>
-                    <button id="reset-settings" class="reset-button">スタイルを初期化</button>
+                    <div>設定を変更した後は、録音を再起動する必要があります</div>
                 </div>
+                <div id="color-setting">
+                    <label for="source-font-color">字型色彩</label>
+                    <input type="color" id="source-font-color" value="#FFFFFF">
+                    <label for="source-font-stroke-color">外框色彩</label>
+                    <input type="color" id="source-font-stroke-color" value="#000000">
+                </div>
+                <div id="size-setting">
+                    <label for="source-font-size">字型尺寸</label>
+                    <input type="range" id="source-font-size" min="14" max="64" value="26">
+                    <label for="source-font-stroke-size">外框尺寸</label>
+                    <input type="range" id="source-font-stroke-size" min="2" max="12" value="5">
+                </div>
+            </div>
+
+            <!-- 目標語言1 -->
+            <div id="target1-styles-panel">
+                <div id="lang-setting">
+                    <label for="target1-language">語言選擇</label>
+                    <select id="target1-language">
+                        <option value="es-ES">西班牙文</option>
+                        <option value="en-US">英文</option>
+                        <option value="id-ID">印尼文</option>
+                        <option value="ja-JP">日文</option>
+                        <option value="th-TH">泰語</option>
+                        <option value="vi-VN">越南語</option>
+                        <option value="zh-TW">繁體中文</option>
+                    </select>
+                </div>
+                <div id="color-setting">
+                    <label for="target1-font-color">字型色彩</label>
+                    <input type="color" id="target1-font-color" value="#FFFFFF">
+                    <label for="target1-font-color">外框色彩</label>
+                    <input type="color" id="target1-font-stroke-color" value="#000000">
+                </div>
+                <div id="size-setting">
+                    <label for="target1-font-size">字型尺寸</label>
+                    <input type="range" id="target1-font-size" min="14" max="64" value="26">
+                    <label for="target1-font-stroke-size">外框尺寸</label>
+                    <input type="range" id="target1-font-stroke-size" min="2" max="12" value="5">
+                </div>
+            </div>
+
+            <!-- 目標語言2 -->
+            <div id="target2-styles-panel">
+                <div id="lang-setting">
+                    <label for="target2-language">語言選擇</label>
+                    <select id="target2-language">
+                        <option value="es-ES">西班牙文</option>
+                        <option value="en-US">英文</option>
+                        <option value="id-ID">印尼文</option>
+                        <option value="ja-JP">日文</option>
+                        <option value="th-TH">泰語</option>
+                        <option value="vi-VN">越南語</option>
+                        <option value="zh-TW">繁體中文</option>
+                    </select>
+                </div>
+                <div id="color-setting">
+                    <label for="target2-font-color">字型色彩</label>
+                    <input type="color" id="target2-font-color" value="#FFFFFF">
+                    <label for="target2-font-color">外框色彩</label>
+                    <input type="color" id="target2-font-stroke-color" value="#000000">
+                </div>
+                <div id="size-setting">
+                    <label for="target2-font-size">字型尺寸</label>
+                    <input type="range" id="target2-font-size" min="14" max="64" value="26">
+                    <label for="target2-font-stroke-size">外框尺寸</label>
+                    <input type="range" id="target2-font-stroke-size" min="2" max="12" value="5">
+                </div>
+            </div>
+
+            <!-- 目標語言3 -->
+            <div id="target3-styles-panel">
+                <div id="lang-setting">
+                    <label for="target3-language">語言選擇</label>
+                    <select id="target3-language">
+                        <option value="es-ES">西班牙文</option>
+                        <option value="en-US">英文</option>
+                        <option value="id-ID">印尼文</option>
+                        <option value="ja-JP">日文</option>
+                        <option value="th-TH">泰語</option>
+                        <option value="vi-VN">越南語</option>
+                        <option value="zh-TW">繁體中文</option>
+                    </select>
+                </div>
+                <div id="color-setting">
+                    <label for="target3-font-color">字型色彩</label>
+                    <input type="color" id="target3-font-color" value="#FFFFFF">
+                    <label for="target3-font-color">外框色彩</label>
+                    <input type="color" id="target3-font-stroke-color" value="#000000">
+                </div>
+                <div id="size-setting">
+                    <label for="target3-font-size">字型尺寸</label>
+                    <input type="range" id="target3-font-size" min="14" max="64" value="26">
+                    <label for="target3-font-stroke-size">外框尺寸</label>
+                    <input type="range" id="target3-font-stroke-size" min="2" max="12" value="5">
+                </div>
+            </div>
+
+            <!-- 其他選項的相關設定 -->
+            <div id="options-panel">
+
+            </div>
+
+            <!-- 留言版翻譯用(不一定能用因為不知道訊息從哪來) -->
+            <div id="comment-translation">
+
             </div>
         </div>
     </div>
-    <script src="javascript/speechAndTranslation.js" defer></script>
-    <script src="javascript/styleController.js" defer></script>
+    
+    <script type="module" src="javascript/uiController.js"></script>
 </body>
 </html>

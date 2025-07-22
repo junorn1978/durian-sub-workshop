@@ -203,7 +203,7 @@ body.no-scroll {
     width: 100vw;
     height: 100vh;
     z-index: 1000;
-    /* padding: var(--spacing-sm); */
+    padding: var(--spacing-sm);
     margin: 0;
     overflow-y: auto;
 }
@@ -284,7 +284,7 @@ body.no-scroll {
 }
 
 .text-overlay.source-text {
-    min-height: 28px;
+    min-height: 26px;
     display: inline-block;
 }
 

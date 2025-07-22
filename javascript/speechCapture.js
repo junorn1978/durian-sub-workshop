@@ -20,6 +20,7 @@ async function loadKeywordRules() {
   try {
     const response = await fetch('data/ray_mode_keywords.json');
     if (!response.ok) throw new Error('無法載入關鍵字規則');
+    
     keywordRules = await response.json();
     console.info('[INFO] [TextProcessing] 關鍵字規則載入成功:');
   } catch (error) {
@@ -27,14 +28,17 @@ async function loadKeywordRules() {
   }
 }
 
-function initializeSpeechRecognition() {
-  let browser = 'Unknown';
-  const userAgent = navigator.userAgent;
-  if (userAgent.includes('Edg/')) {
-    browser = 'Edge';
-  } else if (userAgent.includes('Chrome/')) {
-    browser = 'Chrome';
-  }
+// 判斷瀏覽器是edge還是chrome還是其他
+// 因為主要使用的web speech api只有edge和Chrome可以使用而已，加上使用邏輯不同所以只能先辨識
+function recognitionBrowser() {
+  const userAgent = navigator.userAgent || '';
+  return userAgent.includes('Edg/') ? 'Edge' :
+         userAgent.includes('Chrome/') ? 'Chrome' : 'Unknown';
+}
+
+function executeSpeechRecognition() {
+
+  const browser = recognitionBrowser();
 
   // 確認瀏覽器支援
   if (!SpeechRecognition || browser === 'Unknown') {
@@ -46,14 +50,18 @@ function initializeSpeechRecognition() {
   // 設置語音辨識參數
   recognition.lang = 'ja-JP';
   recognition.interimResults = true;
-  recognition.continuous = true;
+  recognition.continuous = browser === 'Edge'; // 依照瀏覽器類型決定要true(edge)還是false(Chrome)
   recognition.maxAlternatives = 1;
 
   const startButton = document.getElementById('start-recording');
   const stopButton = document.getElementById('stop-recording');
-  const sourceText = document.querySelector('.source-text');
 
-  if (!startButton || !stopButton || !sourceText) {
+  const sourceText = document.querySelector('.source-text');
+  const targetText1 = document.querySelector('.target-text-1');
+  const targetText2 = document.querySelector('.target-text-2');
+  const targetText3 = document.querySelector('.target-text-3');
+
+  if (!startButton || !stopButton || !sourceText || !targetText1 || !targetText2 || !targetText3) {
     console.error('[ERROR] [SpeechRecognition] 必要元素未找到');
     return;
   }
@@ -65,6 +73,7 @@ function initializeSpeechRecognition() {
   function autoRestartRecognition(shouldRestart = true) {
     if (!shouldRestart || stopButtonClicked || restartAttempts >= MAX_RESTART_ATTEMPTS) {
       console.debug('[DEBUG] [SpeechRecognition] 自動重啟取消:', { shouldRestart, stopButtonClicked, restartAttempts });
+
       if (restartAttempts >= MAX_RESTART_ATTEMPTS) {
         sourceText.textContent = 'Failed to restart speech recognition. Please check your network or microphone.';
         sourceText.dataset.stroke = sourceText.textContent;
@@ -104,24 +113,37 @@ function initializeSpeechRecognition() {
       console.info("[INFO] [SpeechRecognition] 跳過無效文字：", { original: text });
       return '';
     }
+
     const sourceLang = document.getElementById("source-language")?.value || "ja";
-    const chunkSizeMap = { "ja": 40, "zh-TW": 30, "en": 100, "es": 100, "id": 100 };
+    const chunkSizeMap = { "ja": 33, "zh-TW": 30, "en": 100, "es": 100, "id": 100 }; //1920*1080 字體24px的狀況下一行的大概數值
     const chunkSize = chunkSizeMap[sourceLang] || 40;
     let result = text.replace(/[、。？,.]/g, '');
+    
     if (!cachedRules.has(sourceLang)) {
       cachedRules.set(sourceLang, keywordRules
         .filter(rule => rule.lang === sourceLang)
         .map(rule => ({ source: new RegExp(rule.source, 'ig'), target: rule.target })));
     }
+    
     cachedRules.get(sourceLang).forEach(rule => {
       result = result.replace(rule.source, rule.target);
     });
+    
     if (result.length >= chunkSize) {
       let multiple = Math.floor(result.length / chunkSize);
       const charsToRemove = multiple * chunkSize;
       result = result.substring(charsToRemove);
     }
+    
     return result;
+  }
+
+  // 根據對齊方式格式化文字
+  function formatAlignedText(baseText) {
+    const alignment = document.getElementById('text-alignment-selector')?.value || 'left';
+    if (alignment === 'center') return `🎼️${baseText}🎼`;
+    if (alignment === 'right') return `🎼${baseText}`;
+    return `${baseText}🎼`; // 預設為 left
   }
 
   // 更新原始文字到 DOM
@@ -130,6 +152,7 @@ function initializeSpeechRecognition() {
       console.error('[ERROR] [SpeechRecognition] sourceText 元素未找到');
       return;
     }
+    
     if (text.trim().length !== 0 && sourceText.textContent !== text) {
       requestAnimationFrame(() => {
         sourceText.textContent = text;
@@ -142,8 +165,23 @@ function initializeSpeechRecognition() {
     }
   }
 
+  // 清空所有文字顯示元素
+  function clearAllTextElements() {
+    requestAnimationFrame(() => {
+      [sourceText, targetText1, targetText2, targetText3].forEach(element => {
+        element.textContent = '';
+        element.dataset.stroke = '';
+        element.style.display = 'inline-block';
+        element.offsetHeight; // 強制重繪
+        element.style.display = '';
+      });
+    });
+  }
+
   // 開始錄音按鈕
   startButton.addEventListener('click', () => {
+    clearAllTextElements();
+
     const sourceLanguageSelect = document.getElementById('source-language');
     const selectedLang = sourceLanguageSelect.value;
     recognition.lang = selectedLang;
@@ -151,6 +189,7 @@ function initializeSpeechRecognition() {
     startButton.disabled = true;
     stopButton.disabled = false;
     stopButtonClicked = false;
+
     recognition.start();
     console.info('[INFO] [SpeechRecognition] 瀏覽器類型:', browser);
     console.info('[INFO] [SpeechRecognition] 開始語音辨識 - recognition 狀態:', recognition);
@@ -165,43 +204,56 @@ function initializeSpeechRecognition() {
     console.info('[INFO] [SpeechRecognition] 停止語音辨識 - recognition 狀態:', recognition);
   });
 
-  // 儲存最終結果
   let finalTranscript = '';
+  let interimTranscript = '';
 
   // 語音辨識結果處理
   recognition.onresult = (event) => {
-    let interimTranscript = '';
+    let hasFinalResult = false;
+    interimTranscript = '';
     finalTranscript = '';
+
+    // 參考Chrome web speech api的demo網頁的寫法，大概...
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const transcript = event.results[i][0].transcript;
       console.debug('[DEBUG] [SpeechRecognition] 擷取結果:', transcript, 'isFinal:', event.results[i].isFinal);
       if (event.results[i].isFinal) {
-        finalTranscript += transcript + ' ';
-        console.info('[INFO] [SpeechRecognition] 最終結果:', finalTranscript.trim(), '字數', finalTranscript.trim().length);
-        sendTranslationRequest(finalTranscript.trim(), recognition.lang, browser);
-        if (browser === 'Chrome' && finalTranscript.trim() !== '') {
-          recognition.stop();
-          autoRestartRecognition();
-        }
+        finalTranscript += event.results[i][0].transcript;
+        hasFinalResult = true;
       } else {
         interimTranscript += transcript;
       }
     }
-    const fullText = finalTranscript + interimTranscript;
-    const truncateMode = document.getElementById('text-truncate-mode').value;
-    if (truncateMode === 'full') {
-      updateSourceText(fullText);
-    } else if (truncateMode === 'truncate') {
-      updateSourceText(processText(fullText));
+
+    // 旗標值最終結果產生時先發送翻譯
+    if (hasFinalResult) {
+      console.info('[INFO] [SpeechRecognition] 最終結果:', finalTranscript.trim(), '字數', finalTranscript.trim().length);
+      sendTranslationRequest(finalTranscript.trim(), recognition.lang, browser);
     }
+
+    // fullText 還沒有最終結果前由 interimTranscript 提供顯示文字
+    //          最終結果產生後則由 finalTranscript 提供顯示文字
+    const fullText = finalTranscript + interimTranscript;
+    const truncateMode = document.getElementById('text-truncate-mode')?.value || 'full';
+    const textToUpdate = truncateMode === 'full' ? fullText :      // 普通模式下只顯示文字
+                         hasFinalResult ? processText(fullText) :  // れいーモード+最終結果時顯示れいーモード的文字
+                         formatAlignedText(processText(fullText)); // 左右依照格式顯示符號+文字
+    updateSourceText(textToUpdate);
+  };
+
+  // 這個是沒有比對到最終結果但卻重新開始了onresult事件的事件(可能)
+  // 這邊目前不清楚運作方式，先嘗試加入一些代碼看這邊產生事件的時候可能的狀況
+  recognition.onnomatch = (event) => {
+    console.warn('[WARN] [SpeechRecognition] 無語音匹配結果', {
+      finalTranscript: finalTranscript,
+      interimTranscript: interimTranscript
+    });
   };
 
   // 辨識結束後的動作
+  // 這邊Chrome是使用一次一句的方式擷取，所以會頻繁產生onend事件
   recognition.onend = () => {
-    if (finalTranscript.trim()) {
-        console.debug('[DEBUG] [SpeechRecognition] 產生onend事件', finalTranscript.trim(), finalTranscript.trim().length);
-        // sendTranslationRequest(finalTranscript.trim(), recognition.lang, browser);
-	}
+    console.debug('[DEBUG] [SpeechRecognition] 產生onend事件', finalTranscript.trim(), finalTranscript.trim().length);
     autoRestartRecognition();
   };
 
@@ -216,5 +268,7 @@ function initializeSpeechRecognition() {
 // 在 DOM 載入完成後初始化
 document.addEventListener('DOMContentLoaded', () => {
   loadKeywordRules();
-  initializeSpeechRecognition();
+  executeSpeechRecognition();
 });
+
+export { keywordRules };

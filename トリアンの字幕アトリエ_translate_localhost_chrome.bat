@@ -6,7 +6,7 @@ start python -m http.server 8081
 :: 如果資料夾不存在，則建立
 if not exist "%translate_DIR%" mkdir "%translate_DIR%"
 
-start chrome.exe --app="http://localhost:8081/index.html" ^
+start chrome.exe --app="http://localhost:8081/index.html" --window-size=1280,720 ^
 --disable-features=CalculateNativeWinOcclusion ^
 --user-data-dir="%translate_DIR%" ^
 --disable-extensions ^
