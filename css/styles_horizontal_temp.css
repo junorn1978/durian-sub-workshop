@@ -1,5 +1,5 @@
 :root {
-    --text-font-size: 26px;
+    --text-font-size: 22px;
     --text-color: #FFFFFF;
     --stroke-color: #000000;
     --stroke-width: 5px;
@@ -9,7 +9,7 @@
 }
 
 *, *::before, *::after {
-  box-sizing: border-box;
+    box-sizing: border-box;
 }
 
 body {
@@ -19,10 +19,14 @@ body {
     flex-direction: column;
     background-color: var(--body-background);
     font-family: "JF OPEN 粉圓 2.1";
+    min-width: 950px;
+    overflow-x: hidden;
+    overflow-y: hidden;
 }
+
 #control-panel {
     height: 40%;
-    background-color: #FFF3E0;
+    background-color: #FFF2DE;
     padding: 20px;
     box-sizing: border-box;
     display: flex;
@@ -30,19 +34,20 @@ body {
     margin: 0 auto;
     width: 100%;
     min-width: 1200px;
+    min-height: 280px;
 }
+
 #display-panel {
     height: 60%;
-    padding: 20px;
-    box-sizing: border-box;
-    border-top: 1px solid #ccc;
     display: flex;
     flex-direction: column;
+    padding: 20px;
     gap: 5px;
     margin: 0 auto;
     width: 100%;
     background-color: transparent;
 }
+
 #recorder-panel {
     width: 300px;
     display: flex;
@@ -53,6 +58,7 @@ body {
     border-radius: 10px;
     background-color: #F8B8C4;
 }
+
 #settings-panel {
     width: 100%;
     display: flex;
@@ -60,6 +66,7 @@ body {
     align-items: flex-start;
     gap: 5px;
 }
+
 .menu-panel {
     display: flex;
     flex-direction: row;
@@ -69,6 +76,7 @@ body {
     height: 50px;
     background-color: #C7EFFF;
 }
+
 #menu {
     display: flex;
     flex-direction: row;
@@ -76,14 +84,55 @@ body {
     gap: 10px;
     border-radius: 10px;
     background-color: #C7EFFF;
-
-
     padding: 0 5px;
+}
+
+#translation-link {
+    display: none;
+    width: 650px;
+    height: 25px;
+    border-radius: 10px;
+    background-color: #FFFAAC;
+    border: none;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.3s;
 }
 
 #usage-guide {
     display: flex;
-    /* display: flex; */
+    flex-direction: column;
+    text-align: left;
+    gap: 5px;
+    color: #8B4513;
+    font-size: 16px;
+    border-radius: 10px;
+    background-color: #D9DCFF;
+    padding: 5px;
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+#source-styles-panel,
+#target1-styles-panel, #target2-styles-panel, #target3-styles-panel,
+#options-panel,
+#comment-translation {
+    display: none;
+    flex-direction: row;
+    gap: 10px;
+    color: #8B4513;
+    font-size: 16px;
+    border-radius: 10px;
+    background-color: #F1C6D2;
+    padding: 5px;
+    width: 100%;
+    height: 100%;
+}
+
+#other-settings-panel, #subtitle-settings-panel {
+    display: none;
     flex-direction: column;
     text-align: left;
     gap: 5px;
@@ -92,55 +141,80 @@ body {
     border-radius: 10px;
     background-color: #F1C6D2;
     padding: 5px;
-    width: 100%;
+    width: 50%;
     height: 100%;
 }
-/*
-#source-styles-panel {
-    display: none;
-}
-#target1-styles-panel {
-    display: none;
-}
-#target2-styles-panel {
-    display: none;
-}
-#target3-styles-panel {
-    display: none;
-}
-#comment-translation {
-    display: none;
-}
-#options-panel {
-    display: none;
-}
-*/
-#source-styles-panel,
-#target1-styles-panel, #target2-styles-panel, #target3-styles-panel,
-#options-panel,
-#comment-translation {
-    display: none;
-    /* display: flex; */
-    flex-direction: row;
-    gap: 10px;
-    color: #8B4513;
-    font-size: 16px;
-    border-radius: 10px;
-    background-color: #F1C6D2;
-    padding: 5px;
-    width: 100%;
-    height: 100%;
-}
-#lang-setting, #color-setting, #size-setting {
+
+#lang-setting, #color-setting, #size-setting,
+#other-options, #subtitle-style,
+#comment1, #comment2, #comm-text {
     flex: 1;
     display: flex;
-    flex-direction: column;
     align-items: flex-start;
     gap: 5px;
     padding: 5px;
     border-radius: 5px;
     background-color: #F8E6F0;
+    width: 50%;
 }
+
+#lang-setting, #color-setting, #size-setting, #subtitle-style {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+#other-options {
+    flex-direction: row;
+}
+
+#option1, #option2 {
+    display: flex;
+    flex-direction: column;
+    width: 50%;
+    gap: 10px;
+}
+
+.option2-1, .option2-2 {
+    display: flex;
+    flex-direction: row;
+}
+
+.option2-3 {
+    display: flex;
+    flex-direction: row;
+}
+
+#comment1, #translation1 {
+    flex-direction: column;
+}
+
+#comment1 textarea {
+    width: 100%;
+    height: 100%;
+    resize: none;
+    border-radius: 5px;
+    border: 1px solid #8B4513;
+    padding: 5px;
+}
+
+#comment2 {
+    flex-direction: column;
+}
+
+#translation-title {
+    display:flex;
+    height: 15%;
+}
+
+#translation-comm {
+    display:flex;
+    height: 150px;
+    width: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
 #lang-setting select {
     width: 100%;
     padding: 5px;
@@ -150,6 +224,7 @@ body {
     color: #333;
     background-color: #FFFFFF;
 }
+
 #color-setting input[type="color"] {
     width: 100%;
     height: 30px;
@@ -157,10 +232,12 @@ body {
     border-radius: 5px;
     cursor: pointer;
 }
+
 #size-setting input[type="range"] {
     width: 100%;
     cursor: pointer;
 }
+
 #source-text, #target-text-1, #target-text-2, #target-text-3 {
     display: flex;
     flex-direction: column;
@@ -172,7 +249,9 @@ body {
     background-color: transparent;
     position: relative;
     font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
+    line-height: 1.1em;
 }
+
 #source-text::before, #target-text-1::before, #target-text-2::before, #target-text-3::before {
     content: attr(data-stroke);
     position: absolute;
@@ -182,77 +261,100 @@ body {
     text-align: var(--text-align);
     font-size: var(--text-font-size);
     font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
-    word-break: break-all;
-    overflow-wrap: break-word;
-    white-space: normal;
+    line-height: 1.1em;
 }
+
+/*
 #source-text[style*="--text-align: center"], 
 #target-text-1[style*="--text-align: center"], 
 #target-text-2[style*="--text-align: center"], 
 #target-text-3[style*="--text-align: center"] {
     align-items: center;
 }
+
 #source-text[style*="--text-align: left"], 
 #target-text-1[style*="--text-align: left"], 
 #target-text-2[style*="--text-align: left"], 
 #target-text-3[style*="--text-align: left"] {
     align-items: flex-start;
 }
+
 #source-text[style*="--text-align: right"], 
 #target-text-1[style*="--text-align: right"], 
 #target-text-2[style*="--text-align: right"], 
 #target-text-3[style*="--text-align: right"] {
     align-items: flex-end;
 }
+*/
+
 #logo {
-    width: auto;
-    height: 150px;
+    height: 130px;
     object-fit: contain;
 }
+
 .record-button {
     width: 150px;
     padding: 10px 30px;
-    border-radius: 25px;
+    border-radius: 10px;
     border: none;
-    background-color: #F1C6D2;
+    background-color: #9398FD;
     color: #333;
     font-size: 16px;
     cursor: pointer;
     transition: background-color 0.3s;
 }
+
 .record-button:hover {
-    background-color: #e0e0e0;
+    background-color: #E0E0E0;
 }
-.menu-button, .menu2-button, .menu3-button {
+
+.record-button:disabled {
+    background-color: #CCCCCC;
+    color: #666;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.record-button:disabled:hover {
+    background-color: #CCCCCC;
+}
+
+.menu-button, .menu2-button, .menu3-button, .options-button {
     width: 100px;
     height: 25px;
     border-radius: 25px;
     border: 2px solid #8B4513;
-    background-color: #D8BFD11;
+    background-color: #D8BFD1;
     color: #333;
     font-size: 12px;
     cursor: pointer;
     transition: background-color 0.3s;
 }
-.menu-button:hover, .menu2-button:hover, .menu3-button:hover {
+
+.menu-button:hover, .menu2-button:hover, .menu3-button:hover, .options-button:hover {
     background-color: #e0e0e0;
 }
+
 .menu-button.active, .menu2-button.active, .menu3-button.active {
-    border: 2px solid #007BFF; /* 選中時的藍色外框 */
+    border: 2px solid #007BFF;
     background-color: #d28bc4;
 }
 
-#other-settings-panel, #subtitle-settings-panel {
-    display: none;
-    /* display: flex; */
+.options-button:active {
+    border: 2px solid #007BFF;
+    background-color: #d28bc4;
+}
+
+.alignment {
     flex-direction: column;
-    text-align: left;
-    gap: 5px;
-    color: #8B4513;
-    font-size: 16px;
-    border-radius: 10px;
-    background-color: #F1C6D2;
-    padding: 5px;
-    width: 50%;
-    height: 100%;
+    border: 1px solid #8B4513;
+    background-color: #FFFBE1;
+    gap: 10px;
+    border-radius: 4px;
+    padding: 0px 3px 0px 3px;
+    min-width: 150px;
+}
+
+#display-panel-color {
+    width: 150px;
 }
