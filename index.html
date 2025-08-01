@@ -1,101 +1,252 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ジュノーンの字幕アトリエ</title>
-  <link rel="stylesheet" href="css/styles.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <link rel="icon" type="image/x-icon" href="images/favicon.ico">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@200..700&family=Roboto+Condensed:ital@0;1&display=swap" rel="stylesheet">
-</head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/styles_horizontal.css">
+    <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+    <title>ハムハムの字幕アトリエ</title>
 
+</head>
 <body>
-  <div class="left-panel">
-    <header class="left-header">
-      <img class="logo" src="images/logo.png" alt="即時翻訳 Logo">
-      <div class="buttons">
-        <button id="start-recording">録音開始</button>
-        <button id="stop-recording">録音停止</button>
-      </div>
-    </header>
-    <div class="divider"></div>
-    <div class="left-content">
-      <div class="controls-container">
-        <div class="dropdown-group">
-            <p>言語設定</p>
-            <select id="source-language" class="dropdown-style"></select>
-            <select id="target-language1" class="dropdown-style"><option value="none">言語1:翻訳しない</option></select>
-            <select id="target-language2" class="dropdown-style"><option value="none">言語2:翻訳しない</option></select>
-            <select id="target-language3" class="dropdown-style"><option value="none">言語3:翻訳しない</option></select>
-            <select id="text-alignment-selector" class="dropdown-style">
-                <option value="left">左寄せ</option>
-                <option value="center">中央揃え</option>
-                <option value="right">右寄せ</option>
-            </select>
-            <button id="toggle-advanced-settings" class="advanced-settings-button" data-advanced-text="詳細設定"  data-basic-text="基本設定">詳細設定</button>
+    <div id="display-panel">
+        <div id="source-text" data-stroke="ハムハム字幕アトリエ">
+            <!--- 顯示項目 1 內容可在此添加 --->
+            ハムハム字幕アトリエ
         </div>
-        <div class="style-group">
-          <p>スタイル設定</p>
-          <select id="option-language-selector" class="dropdown-style">
-            <option value="source-language">原文</option>
-            <option value="target-language1">目標言語 1</option>
-            <option value="target-language2">目標言語 2</option>
-            <option value="target-language3">目標言語 3</option>
-          </select>
-          <label class="color-label">
-            文字色
-            <input type="color" id="text-color-picker" value="#ff0000">
-          </label>
-          <label class="color-label">
-            文字縁取り色
-            <input type="color" id="text-stroke-color-picker" value="#000000">
-          </label>
-          <label class="color-label">
-            背景色
-            <input type="color" id="background-color-picker" value="#ff0000">
-          </label>
-          <label>
-            <span>フォントサイズ</span>
-            <input type="range" id="font-size-slider" min="10" max="70" step="1">
-          </label>
-          <label>
-            <span>縁取りサイズ</span>
-            <input type="range" id="text-stroke-slider" min="0" max="25" step="0.1">
-          </label>
+        <div id="target-text-1" data-stroke="開発者：[乙夏れいのファン ジュノーン use Grok3]">
+            <!--- 顯示項目 2 內容可在此添加 開発者：[乙夏れいのファン ジュノーン use Grok3]--->
+            開発者：[乙夏れいのファン ジュノーン use Grok3]
         </div>
-      </div>
-      <div class="other-settings">
-        <select id="text-truncate-mode" class="dropdown-style">
-          <option value="truncate">れいモード</option>
-          <option value="full">普通モード</option>
-        </select>
-        <button id="reset-settings" class="reset-button">スタイルを初期化</button>
-      </div>
-      <div class="divider"></div>
-      <div class="input-group">
-        <div class="input-wrapper">
-          <input type="password" placeholder="翻訳アプリ用のリンク（必須）" id="api-key-input" value="" >
-          <span class="eye-icon" id="toggle-visibility-url"><i class="fas fa-eye"></i></span>
+        <div id="target-text-2" data-stroke="2025.07.31">
+            <!--- 顯示項目 3 內容可在此添加 --->
+            2025.07.31
         </div>
-      </div>
+        <div id="target-text-3" data-stroke="機械翻訳の利用は参考程度に留めて">
+            <!--- 顯示項目 4 內容可在此添加 --->
+            機械翻訳の利用は参考程度に留めて
+        </div>
     </div>
-  </div>
-  <div class="right-panel">
-    <div class="section" id="section-1">
-      <div class="scroll-container">
-        <span class="text-overlay source-text" data-stroke="[ジュノーンの字幕アトリエ] ¶ゞ(；￣∀￣)ノ☆">[ジュノーンの字幕アトリエ] ¶ゞ(；￣∀￣)ノ☆</span>
-        <span class="text-overlay target-text-1" data-stroke="開発者：[乙夏れいのファン ジュノーン & Grok3]">開発者：[乙夏れいのファン ジュノーン & Grok3]</span>
-        <span class="text-overlay target-text-2" data-stroke="----">----</span>
-        <span class="text-overlay target-text-3" data-stroke="機械翻訳の利用は参考程度に留めて">機械翻訳の利用は参考程度に留めて</span>
-      </div>
+
+    <div id="control-panel">
+        <div id="recorder-panel">
+            <img id="logo" src="images/logo.png" alt="Logo">
+            <button class="record-button" id="start-recording">録音開始</button>
+            <button class="record-button" id="stop-recording">録音停止</button>
+        </div>
+        <div id="settings-panel">
+
+            <!--- 選單 --->
+            <div class="menu-panel">
+                <div id="menu">
+                    <button class="menu-button" id="source1">音声認識言語</button>
+                    <button class="menu-button" id="target1">翻訳言語1</button>
+                    <button class="menu-button" id="target2">翻訳言語2</button>
+                    <button class="menu-button" id="target3">翻訳言語3</button>
+                    <button class="menu-button" id="options">その他</button>
+                    <button class="menu-button" id="comment">コメント翻訳</button>
+                    
+                    <input type="text" class="t-link" placeholder="翻訳アプリ用のリンク（必須）" id="translation-link" value="" >
+                    <div style="width: 80px;"></div> <!--- 空元素單純切割用 --->
+                    <button class="menu2-button" id="apilink">翻訳リンク</button>
+                    <button class="menu3-button" id="raymode">れいーモード</button>
+                </div>
+            </div>
+
+            <!--- 軟體宣告 --->
+            <div id="usage-guide">
+                <p>このソフトウェアは、乙夏れい様のファンが乙夏れいのために作成したものです。</p>
+                配信中に複数の言語を頻繁に使う場合、ブラウザの仕様上、音声認識がうまくいかず、誤認識が起こる可能性があります。<br>
+                誤解やトラブルを避けるためにも、事前にファンの皆さんにご案内されることをおすすめします。<br><br>
+                また、本ソフトで使用している翻訳機能は、OpenAIのAPIを通じて翻訳を行っており、Google翻訳よりも精度はやや高いものの、完全に正確な翻訳とは言えません。<br>
+                その点についてもご理解いただけますと幸いです。<br><br>
+                なお、OpenAIのAPIは文字単位で課金が発生するため、翻訳を使用する際は、海外のファンにご自身の発言を伝える必要性や優先度を考慮したうえで、ご利用をご検討ください。<br><br>
+                3時間程度の配信であれば、GPT-4o miniモデルを使用した場合の費用は約0.2～0.3ドル程度、GPT-4oモデルを使用した場合は約4ドル程度となります。<br>
+                通常はGPT-4o miniモデルで十分対応可能ですので、特別に重要な内容を海外ファンに伝える必要がある場合を除き、miniモデルの使用を推奨いたします。<br><br>
+            </div>
+
+            <!--- 顯示字型的相關設定 --->
+            <!--- 來源語言 --->
+            <div id="source-styles-panel">
+                <div id="lang-setting">
+                    <label for="source-language">言語を選択</label>
+                    <select id="source-language">
+                        <option value="en-US">英語</option>
+                        <option value="es-ES">スペイン語</option>                        
+                        <option value="id-ID">インドネシア語</option>
+                        <option value="ja-JP">日本語</option>
+                        <option value="ko-KR">韓国語</option>
+                        <option value="th-TH">タイ語</option>
+                        <option value="vi-VN">ベトナム語</option>
+                        <option value="zh-TW">中国語(台湾)</option>
+                    </select>
+                    <div>設定を変更した後は、録音を再起動する必要があります</div>
+                </div>
+                <div id="color-setting">
+                    <label for="source-font-color">文字の色</label>
+                    <input type="color" id="source-font-color">
+                    <label for="source-font-stroke-color">縁取りの色</label>
+                    <input type="color" id="source-font-stroke-color" value="#000000">
+                </div>
+                <div id="size-setting">
+                    <label for="source-font-size">文字サイズ</label>
+                    <input type="range" id="source-font-size" min="14" max="32" value="20">
+                    <label for="source-font-stroke-size">縁取りサイズ</label>
+                    <input type="range" id="source-font-stroke-size" min="2" max="10" value="5">
+                </div>
+            </div>
+
+            <!--- 目標語言1 --->
+            <div id="target1-styles-panel">
+                <div id="lang-setting">
+                    <label for="target1-language">言語を選択</label>
+                    <select id="target1-language">
+                        <option value="none">翻訳しない</option>
+                        <option value="en-US">英語</option>
+                        <option value="es-ES">スペイン語</option>
+                        <option value="id-ID">インドネシア語</option>
+                        <option value="ja-JP">日本語</option>
+                        <option value="ko-KR">韓国語</option>
+                        <option value="th-TH">タイ語</option>
+                        <option value="vi-VN">ベトナム語</option>
+                        <option value="zh-TW">中国語(台湾)</option>
+                    </select>
+                </div>
+                <div id="color-setting">
+                    <label for="target1-font-color">文字の色</label>
+                    <input type="color" id="target1-font-color" value="#FFFFFF">
+                    <label for="target1-font-stroke-color">縁取りの色</label>
+                    <input type="color" id="target1-font-stroke-color" value="#000000">
+                </div>
+                <div id="size-setting">
+                    <label for="target1-font-size">文字サイズ</label>
+                    <input type="range" id="target1-font-size" min="14" max="32" value="20">
+                    <label for="target1-font-stroke-size">縁取りサイズ</label>
+                    <input type="range" id="target1-font-stroke-size" min="2" max="10" value="5">
+                </div>
+            </div>
+
+            <!--- 目標語言2 --->
+            <div id="target2-styles-panel">
+                <div id="lang-setting">
+                    <label for="target2-language">言語を選択</label>
+                    <select id="target2-language">
+                        <option value="none">翻訳しない</option>
+                        <option value="en-US">英語</option>
+                        <option value="es-ES">スペイン語</option>
+                        <option value="id-ID">インドネシア語</option>
+                        <option value="ja-JP">日本語</option>
+                        <option value="ko-KR">韓国語</option>
+                        <option value="th-TH">タイ語</option>
+                        <option value="vi-VN">ベトナム語</option>
+                        <option value="zh-TW">中国語(台湾)</option>
+                    </select>
+                </div>
+                <div id="color-setting">
+                    <label for="target2-font-color">文字の色</label>
+                    <input type="color" id="target2-font-color" value="#FFFFFF">
+                    <label for="target2-font-color">縁取りの色</label>
+                    <input type="color" id="target2-font-stroke-color" value="#000000">
+                </div>
+                <div id="size-setting">
+                    <label for="target2-font-size">文字サイズ</label>
+                    <input type="range" id="target2-font-size" min="14" max="32" value="20">
+                    <label for="target2-font-stroke-size">縁取りサイズ</label>
+                    <input type="range" id="target2-font-stroke-size" min="2" max="10" value="5">
+                </div>
+            </div>
+
+            <!--- 目標語言3 --->
+            <div id="target3-styles-panel">
+                <div id="lang-setting">
+                    <label for="target3-language">言語を選択</label>
+                    <select id="target3-language">
+                        <option value="none">翻訳しない</option>
+                        <option value="en-US">英語</option>
+                        <option value="es-ES">スペイン語</option>
+                        <option value="id-ID">インドネシア語</option>
+                        <option value="ja-JP">日本語</option>
+                        <option value="ko-KR">韓国語</option>
+                        <option value="th-TH">タイ語</option>
+                        <option value="vi-VN">ベトナム語</option>
+                        <option value="zh-TW">中国語(台湾)</option>
+                    </select>
+                </div>
+                <div id="color-setting">
+                    <label for="target3-font-color">文字の色</label>
+                    <input type="color" id="target3-font-color" value="#FFFFFF">
+                    <label for="target3-font-color">縁取りの色</label>
+                    <input type="color" id="target3-font-stroke-color" value="#000000">
+                </div>
+                <div id="size-setting">
+                    <label for="target3-font-size">文字サイズ</label>
+                    <input type="range" id="target3-font-size" min="14" max="32" value="20">
+                    <label for="target3-font-stroke-size">縁取りサイズ</label>
+                    <input type="range" id="target3-font-stroke-size" min="2" max="10" value="5">
+                </div>
+            </div>
+
+            <!--- 其他選項的相關設定 --->
+            <div id="options-panel">
+                <div id="other-options">
+                    <div id="option1">
+                        <button class="options-button" id="reset-settings">初始化</button>
+                    </div>
+                    <div id="option2">
+                        <div class="option2-1">
+                            <label for="text-align">横位置：</label>
+                            <div class="alignment">
+                                <input id="text-align" type="radio" name="alignment" value="left">左</input>
+                                <input id="text-align" type="radio" name="alignment" value="center">中央</input>
+                                <input id="text-align" type="radio" name="alignment" value="right">右</input>
+                            </div>
+                        </div>
+                        <div class="option2-2">
+                            <label for="display-panel-color">背景色：</label>
+                            <input type="color" id="display-panel-color" value="#00FF00">
+                        </div>
+                    </div>
+                </div>
+                <div id="subtitle-style">
+                    <div class="option2-3">
+                        <label for="overflow">単一言語行数制限設定：</label>
+                        <div class="overflow-options">
+                            <input type="radio" name="overflow" value="normal">制限なし</input>
+                            <input type="radio" name="overflow" value="truncate">1行</input>
+                            <input type="radio" name="overflow" value="shrink">2行</input>
+                        </div>
+                    </div>
+                    <div style="height: 150px; overflow-y:auto;">
+                        <br>
+                        表示設定を行っているのは、翻訳後のテキストが多すぎて、最初の言語が他の言語の表示を圧迫しないようにするためです。<br><br>
+                        ただし、表示行数を固定すると、文字数が多い場合に内容がすべて表示されないことがあります。ご希望の表示に合わせて調整をお願いいたします。<br><br>
+                        2行表示の場合、文字数が一定を超えると自動的にフォントサイズが小さくなります。<br><br>
+                        スペースに限りがあるため、このような対応となっております。ご理解いただけますと幸いです。
+                    </div>
+                </div>
+            </div>
+
+            <!--- 留言版翻譯用(不一定能用因為不知道訊息從哪來) --->
+            <div id="comment-translation">
+                <div id="comment1">
+                    <button class="comment1-button" id="translation1">翻訳</button>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="radio" name="comment-lang" value="ja-JP"> 日本語</input>
+                        <input type="radio" name="comment-lang" value="en-US"> 英語</input>
+                        <input type="radio" name="comment-lang" value="es-ES"> スペイン語</input>
+                        <input type="radio" name="comment-lang" value="zh-TW"> 中国語（台湾）</input>
+                    </div>
+                    <textarea id="comment-input" placeholder="輸入要翻譯的文字"></textarea>
+                </div>
+                <div id="comment2">
+                    <div class="comment2-text" id="translation-title">翻訳結果:</div>
+                    <div class="comment2-text" id="translation-comm"></div>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
-  
-  <script type="module" src="javascript/styleController.js"></script>
-  <script type="module" src="javascript/speechCapture.js"></script>
-  <script type="module" src="javascript/translationController.js"></script>
+    
+    <script type="module" src="javascript/uiController.js"></script>
+    <script type="module" src="javascript/speechCapture.js"></script>
 </body>
 </html>

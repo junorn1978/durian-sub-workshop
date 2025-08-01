@@ -1,11 +1,19 @@
+@font-face {
+    font-family: "JF OPEN 粉圓 2.1";
+    src: url("fonts/jf-openhuninn-2.1.ttf") format("truetype");
+    font-weight: normal;
+    font-style: normal;
+}
+
 :root {
     --text-font-size: 22px;
+    --font-size-half: 16.5px; /* 22px * 0.75 */
     --text-color: #FFFFFF;
     --stroke-color: #000000;
     --stroke-width: 5px;
     --text-align: center;
-    
     --body-background: #00FF00;
+    --overflow-height: 26.4px; /* font-size * 1.2，僅用於 JavaScript */
 }
 
 *, *::before, *::after {
@@ -18,7 +26,7 @@ body {
     display: flex;
     flex-direction: column;
     background-color: var(--body-background);
-    font-family: "JF OPEN 粉圓 2.1";
+    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
     min-width: 950px;
     overflow-x: hidden;
     overflow-y: hidden;
@@ -46,6 +54,8 @@ body {
     margin: 0 auto;
     width: 100%;
     background-color: transparent;
+    min-height: 100px; /* 確保佈局穩定 */
+    user-select: none; /* 不可選取文字 */
 }
 
 #recorder-panel {
@@ -203,12 +213,12 @@ body {
 }
 
 #translation-title {
-    display:flex;
+    display: flex;
     height: 15%;
 }
 
 #translation-comm {
-    display:flex;
+    display: flex;
     height: 150px;
     width: 100%;
     overflow-y: auto;
@@ -223,6 +233,7 @@ body {
     font-size: 14px;
     color: #333;
     background-color: #FFFFFF;
+    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
 }
 
 #color-setting input[type="color"] {
@@ -249,7 +260,51 @@ body {
     background-color: transparent;
     position: relative;
     font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
-    line-height: 1.1em;
+    line-height: 1.2em; /* 保留改善描邊截斷 */
+    overflow: hidden;
+    padding-bottom: 2px; /* 改善描邊截斷 */
+}
+
+#source-text.overflow-normal, 
+#target-text-1.overflow-normal, 
+#target-text-2.overflow-normal, 
+#target-text-3.overflow-normal {
+    overflow: visible;
+}
+
+#source-text.overflow-truncate, 
+#target-text-1.overflow-truncate, 
+#target-text-2.overflow-truncate, 
+#target-text-3.overflow-truncate {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+    font-size: var(--text-font-size);
+}
+
+#source-text.overflow-shrink {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    font-size: var(--text-font-size);
+    overflow: hidden;
+}
+
+#target-text-1.overflow-shrink, 
+#target-text-2.overflow-shrink, 
+#target-text-3.overflow-shrink {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    font-size: var(--text-font-size);
+    overflow: hidden;
+}
+
+#target-text-1.overflow-shrink.multi-line, 
+#target-text-2.overflow-shrink.multi-line, 
+#target-text-3.overflow-shrink.multi-line {
+    font-size: var(--font-size-half);
 }
 
 #source-text::before, #target-text-1::before, #target-text-2::before, #target-text-3::before {
@@ -261,31 +316,52 @@ body {
     text-align: var(--text-align);
     font-size: var(--text-font-size);
     font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
-    line-height: 1.1em;
+    line-height: 1.2em;
+    overflow: hidden;
+    padding-bottom: 2px; /* 同步改善描邊截斷 */
 }
 
-/*
-#source-text[style*="--text-align: center"], 
-#target-text-1[style*="--text-align: center"], 
-#target-text-2[style*="--text-align: center"], 
-#target-text-3[style*="--text-align: center"] {
-    align-items: center;
+#source-text.overflow-normal::before, 
+#target-text-1.overflow-normal::before, 
+#target-text-2.overflow-normal::before, 
+#target-text-3.overflow-normal::before {
+    overflow: visible;
 }
 
-#source-text[style*="--text-align: left"], 
-#target-text-1[style*="--text-align: left"], 
-#target-text-2[style*="--text-align: left"], 
-#target-text-3[style*="--text-align: left"] {
-    align-items: flex-start;
+#source-text.overflow-truncate::before, 
+#target-text-1.overflow-truncate::before, 
+#target-text-2.overflow-truncate::before, 
+#target-text-3.overflow-truncate::before {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+    font-size: var(--text-font-size);
 }
 
-#source-text[style*="--text-align: right"], 
-#target-text-1[style*="--text-align: right"], 
-#target-text-2[style*="--text-align: right"], 
-#target-text-3[style*="--text-align: right"] {
-    align-items: flex-end;
+#source-text.overflow-shrink::before {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    font-size: var(--text-font-size);
+    overflow: hidden;
 }
-*/
+
+#target-text-1.overflow-shrink::before, 
+#target-text-2.overflow-shrink::before, 
+#target-text-3.overflow-shrink::before {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    font-size: var(--text-font-size);
+    overflow: hidden;
+}
+
+#target-text-1.overflow-shrink.multi-line::before, 
+#target-text-2.overflow-shrink.multi-line::before, 
+#target-text-3.overflow-shrink.multi-line::before {
+    font-size: var(--font-size-half);
+}
 
 #logo {
     height: 130px;
@@ -297,11 +373,12 @@ body {
     padding: 10px 30px;
     border-radius: 10px;
     border: none;
-    background-color: #9398FD;
+    background-color: #FFF2DE;
     color: #333;
     font-size: 16px;
     cursor: pointer;
     transition: background-color 0.3s;
+    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
 }
 
 .record-button:hover {
@@ -319,7 +396,7 @@ body {
     background-color: #CCCCCC;
 }
 
-.menu-button, .menu2-button, .menu3-button, .options-button {
+.menu-button, .menu2-button, .menu3-button, .options-button, .comment1-button {
     width: 100px;
     height: 25px;
     border-radius: 25px;
@@ -329,18 +406,19 @@ body {
     font-size: 12px;
     cursor: pointer;
     transition: background-color 0.3s;
+    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
 }
 
-.menu-button:hover, .menu2-button:hover, .menu3-button:hover, .options-button:hover {
-    background-color: #e0e0e0;
+.menu-button:hover, .menu2-button:hover, .menu3-button:hover, .options-button:hover, .comment1-button:hover {
+    background-color: #E0E0E0;
 }
 
 .menu-button.active, .menu2-button.active, .menu3-button.active {
-    border: 2px solid #007BFF;
-    background-color: #d28bc4;
+    border: 2px solid #000000;
+    background-color: #D28BC4;
 }
 
-.options-button:active {
+.options-button:active, .comment1-button:active {
     border: 2px solid #007BFF;
     background-color: #d28bc4;
 }

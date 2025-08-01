@@ -1,4 +1,4 @@
-import { sendTranslationRequest, sendTranslation, bcp47ToLanguageName } from './translationController_temp.js';
+import { sendTranslationRequest, sendTranslation, bcp47ToLanguageName } from './translationController.js';
 
 document.addEventListener('DOMContentLoaded', function() {
   // 定義所有設定
@@ -39,11 +39,18 @@ document.addEventListener('DOMContentLoaded', function() {
     cssProperty: '--text-align',
     logDescription: 'Text alignment'
   };
-  
+
+  // 溢出處理設定的定義
+  const overflowSettings = {
+    inputName: 'overflow',
+    elements: ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'],
+    logDescription: 'Overflow mode'
+  };
+
   // 儲存到 localStorage 的共用函式
   function saveToLocalStorage(inputId, value, logDescription) {
     localStorage.setItem(inputId, value);
-    console.debug('[DEBUG] [UIController]', `${logDescription} 已儲存至 localStorage: ${value}`);
+    // console.debug('[DEBUG] [UIController]', `${logDescription} 已儲存至 localStorage: ${value}`);
   }
 
   // 載入值的共用函式
@@ -51,13 +58,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (eventType === 'raymode') {
       const savedValue = localStorage.getItem(inputId);
       if (!savedValue) {
-        console.debug('[DEBUG] [UIController]', `${logDescription} 未在 localStorage 中找到`);
+        // console.debug('[DEBUG] [UIController]', `${logDescription} 未在 localStorage 中找到`);
         return;
       }
       
       const rayModeButton = document.getElementById('raymode');
       if (!rayModeButton) {
-        console.debug('[DEBUG] [UIController]', `未找到 Raymode 按鈕`);
+        // console.debug('[DEBUG] [UIController]', `未找到 Raymode 按鈕`);
         return;
       }
       
@@ -67,20 +74,31 @@ document.addEventListener('DOMContentLoaded', function() {
         rayModeButton.classList.remove('active');
       }
       
-      console.debug('[DEBUG] [UIController]', `${logDescription} 從 localStorage 載入: ${savedValue}`);
+      // console.debug('[DEBUG] [UIController]', `${logDescription} 從 localStorage 載入: ${savedValue}`);
+      return;
+    }
+
+    if (eventType === 'overflow') {
+      const savedValue = localStorage.getItem(inputId) || 'normal';
+      const radioToCheck = document.querySelector(`input[name="overflow"][value="${savedValue}"]`);
+      if (radioToCheck) {
+        radioToCheck.checked = true;
+        applyOverflow(savedValue);
+        // console.debug('[DEBUG] [UIController]', `${logDescription} 從 localStorage 載入: ${savedValue}`);
+      }
       return;
     }
   
     const inputElement = document.getElementById(inputId);
     if (!inputElement) {
-      console.debug('[DEBUG] [UIController]', `${inputId} 輸入框未找到`);
+      // console.debug('[DEBUG] [UIController]', `${inputId} 輸入框未找到`);
       return;
     }
     
     const textElement = eventType !== 'select' && eventType !== 'text' ? document.getElementById(textElementId) : null;
     if (eventType === 'color' || eventType === 'range') {
       if (!textElement) {
-        console.debug('[DEBUG] [UIController]', `${logDescription} 元素在初始化時未找到`);
+        // console.debug('[DEBUG] [UIController]', `${logDescription} 元素在初始化時未找到`);
         return;
       }
     }
@@ -94,21 +112,21 @@ document.addEventListener('DOMContentLoaded', function() {
       if (valueToApply) {
         inputElement.value = eventType === 'range' ? parseFloat(valueToApply) : valueToApply;
         textElement.style.setProperty(cssProperty, valueToApply);
-        console.debug('[DEBUG] [UIController]', `${logDescription} ${cssProperty} 從 CSS 載入預設值: ${valueToApply}`);
+        // console.debug('[DEBUG] [UIController]', `${logDescription} ${cssProperty} 從 CSS 載入預設值: ${valueToApply}`);
 
         // 如果是 --text-font-size，同步載入 --overflow-height 和 --font-size-half
         if (cssProperty === '--text-font-size') {
           const savedOverflowHeight = localStorage.getItem(`${inputId}-overflow-height`);
-          const defaultOverflowHeight = getComputedStyle(document.documentElement).getPropertyValue('--overflow-height').trim() || `${parseFloat(valueToApply) + 6}px`;
+          const defaultOverflowHeight = `${parseFloat(valueToApply) * 1.2}px`;
           const overflowHeightToApply = savedOverflowHeight || defaultOverflowHeight;
           textElement.style.setProperty('--overflow-height', overflowHeightToApply);
-          console.debug('[DEBUG] [UIController]', `${logDescription} overflow height 從 ${savedOverflowHeight ? 'localStorage' : 'CSS'} 載入: ${overflowHeightToApply}`);
+          // console.debug('[DEBUG] [UIController]', `${logDescription} overflow height 從 ${savedOverflowHeight ? 'localStorage' : 'CSS'} 載入: ${overflowHeightToApply}`);
 
           const savedFontSizeHalf = localStorage.getItem(`${inputId}-font-size-half`);
-          const defaultFontSizeHalf = getComputedStyle(document.documentElement).getPropertyValue('--font-size-half').trim() || `${parseFloat(valueToApply) * 0.8}px`;
+          const defaultFontSizeHalf = `${parseFloat(valueToApply) * 0.75}px`;
           const fontSizeHalfToApply = savedFontSizeHalf || defaultFontSizeHalf;
           textElement.style.setProperty('--font-size-half', fontSizeHalfToApply);
-          console.debug('[DEBUG] [UIController]', `${logDescription} font size half 從 ${savedFontSizeHalf ? 'localStorage' : 'CSS'} 載入: ${fontSizeHalfToApply}`);
+          // console.debug('[DEBUG] [UIController]', `${logDescription} font size half 從 ${savedFontSizeHalf ? 'localStorage' : 'CSS'} 載入: ${fontSizeHalfToApply}`);
         }
         return;
       }
@@ -117,42 +135,42 @@ document.addEventListener('DOMContentLoaded', function() {
     if (savedValue) {
       if (eventType === 'select' || eventType === 'text') {
         inputElement.value = savedValue;
-        console.debug('[DEBUG] [UIController]', `${logDescription} 從 localStorage 載入: ${savedValue}`);
+        // console.debug('[DEBUG] [UIController]', `${logDescription} 從 localStorage 載入: ${savedValue}`);
         return;
       }
       
       if (eventType === 'color' || eventType === 'range') {
         inputElement.value = eventType === 'range' ? parseFloat(savedValue) : savedValue;
         textElement.style.setProperty(cssProperty, savedValue);
-        console.debug('[DEBUG] [UIController]', `${logDescription} ${cssProperty} 從 localStorage 載入: ${savedValue}`);
+        // console.debug('[DEBUG] [UIController]', `${logDescription} ${cssProperty} 從 localStorage 載入: ${savedValue}`);
 
         // 如果是 --text-font-size，同步載入 --overflow-height 和 --font-size-half
         if (cssProperty === '--text-font-size') {
           const savedOverflowHeight = localStorage.getItem(`${inputId}-overflow-height`);
-          const overflowHeightToApply = savedOverflowHeight || `${parseFloat(savedValue) + 6}px`;
+          const overflowHeightToApply = savedOverflowHeight || `${parseFloat(savedValue) * 1.2}px`;
           textElement.style.setProperty('--overflow-height', overflowHeightToApply);
-          console.debug('[DEBUG] [UIController]', `${logDescription} overflow height 從 localStorage 載入: ${overflowHeightToApply}`);
+          // console.debug('[DEBUG] [UIController]', `${logDescription} overflow height 從 localStorage 載入: ${overflowHeightToApply}`);
 
           const savedFontSizeHalf = localStorage.getItem(`${inputId}-font-size-half`);
-          const fontSizeHalfToApply = savedFontSizeHalf || `${parseFloat(savedValue) * 0.8}px`;
+          const fontSizeHalfToApply = savedFontSizeHalf || `${parseFloat(savedValue) * 0.75}px`;
           textElement.style.setProperty('--font-size-half', fontSizeHalfToApply);
-          console.debug('[DEBUG] [UIController]', `${logDescription} font size half 從 localStorage 載入: ${fontSizeHalfToApply}`);
+          // console.debug('[DEBUG] [UIController]', `${logDescription} font size half 從 localStorage 載入: ${fontSizeHalfToApply}`);
         }
         return;
       }
     }
   
-    console.debug('[DEBUG] [UIController]', `未知的 eventType: ${eventType} 對 ${inputId}`);
+    // console.debug('[DEBUG] [UIController]', `未知的 eventType: ${eventType} 對 ${inputId}`);
   }
 
   // 從 CSS 獲取預設值
   function getDefaultValueFromCSS(cssProperty, inputId, logDescription) {
     const cssValue = getComputedStyle(document.documentElement).getPropertyValue(cssProperty).trim();
     if (!cssValue) {
-      console.debug('[DEBUG] [UIController]', `未找到 ${cssProperty} 的預設值，針對 ${inputId}，跳過重置`);
+      // console.debug('[DEBUG] [UIController]', `未找到 ${cssProperty} 的預設值，針對 ${inputId}，跳過重置`);
       return null;
     }
-    console.debug('[DEBUG] [UIController]', `從 CSS 獲取 ${inputId} 的預設值: ${cssValue}`);
+    // console.debug('[DEBUG] [UIController]', `從 CSS 獲取 ${inputId} 的預設值: ${cssValue}`);
     return cssValue;
   }
 
@@ -169,77 +187,86 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 如果是 --text-font-size，同步重置 --overflow-height 和 --font-size-half
         if (cssProperty === '--text-font-size') {
-          const defaultOverflowHeight = `${parseFloat(defaultValue) + 6}px`;
+          const defaultOverflowHeight = `${parseFloat(defaultValue) * 1.2}px`;
           textElement.style.setProperty('--overflow-height', defaultOverflowHeight);
           saveToLocalStorage(`${inputId}-overflow-height`, defaultOverflowHeight, `${logDescription} overflow height`);
-          console.debug('[DEBUG] [UIController]', `重置 ${logDescription} overflow height 至 CSS 的 ${defaultOverflowHeight}`);
+          // console.debug('[DEBUG] [UIController]', `重置 ${logDescription} overflow height 至 CSS 的 ${defaultOverflowHeight}`);
 
-          const defaultFontSizeHalf = `${parseFloat(defaultValue) * 0.8}px`;
+          const defaultFontSizeHalf = `${parseFloat(defaultValue) * 0.75}px`;
           textElement.style.setProperty('--font-size-half', defaultFontSizeHalf);
           saveToLocalStorage(`${inputId}-font-size-half`, defaultFontSizeHalf, `${logDescription} font size half`);
-          console.debug('[DEBUG] [UIController]', `重置 ${logDescription} font size half 至 CSS 的 ${defaultFontSizeHalf}`);
+          // console.debug('[DEBUG] [UIController]', `重置 ${logDescription} font size half 至 CSS 的 ${defaultFontSizeHalf}`);
         }
       }
     } else {
-      console.debug('[DEBUG] [UIController]', `重置失敗: ${inputId} 或 ${textElementId} 未找到`);
+      // console.debug('[DEBUG] [UIController]', `重置失敗: ${inputId} 或 ${textElementId} 未找到`);
     }
   }
 
   // 重置所有設定
   function resetAllSettings() {
-      settings.forEach(setting => {
-          resetSetting(setting.inputId, setting.textElementId, setting.cssProperty, setting.inputType, setting.textElementId);
-      });
-  
-      // 重置 display-panel-color
-      const inputElement = document.getElementById('display-panel-color');
-      if (inputElement) {
-          const defaultValue = getComputedStyle(document.documentElement).getPropertyValue('--body-background').trim() || '#00FF00';
-          inputElement.value = defaultValue;
-          document.body.style.setProperty('--body-background', defaultValue);
-          localStorage.setItem('display-panel-color', defaultValue);
-          console.debug('[DEBUG] [UIController]', `重置 Body background color 至 CSS 的 ${defaultValue}`);
-      } else {
-          console.debug('[DEBUG] [UIController]', '重置失敗: display-panel-color 未找到');
-      }
-  
-      // 重置 raymode 的 active 狀態
-      const rayModeButton = document.getElementById('raymode');
-      rayModeButton.classList.remove('active');
-  
-      // 重置對齊方式
-      const defaultAlignment = 'center';
-      applyAlignment(defaultAlignment);
-      const radioToCheck = document.querySelector(`input[name="alignment"][value="${defaultAlignment}"]`);
-      if (radioToCheck) {
-          radioToCheck.checked = true;
-          saveToLocalStorage('text-alignment', defaultAlignment, 'Text alignment');
-      }
+    settings.forEach(setting => {
+      resetSetting(setting.inputId, setting.textElementId, setting.cssProperty, setting.inputType, setting.textElementId);
+    });
+
+    // 重置 display-panel-color
+    const inputElement = document.getElementById('display-panel-color');
+    if (inputElement) {
+      const defaultValue = getComputedStyle(document.documentElement).getPropertyValue('--body-background').trim() || '#00FF00';
+      inputElement.value = defaultValue;
+      document.body.style.setProperty('--body-background', defaultValue);
+      localStorage.setItem('display-panel-color', defaultValue);
+      // console.debug('[DEBUG] [UIController]', `重置 Body background color 至 CSS 的 ${defaultValue}`);
+    } else {
+      // console.debug('[DEBUG] [UIController]', '重置失敗: display-panel-color 未找到');
+    }
+
+    // 重置 raymode 的 active 狀態
+    const rayModeButton = document.getElementById('raymode');
+    rayModeButton.classList.remove('active');
+
+    // 重置對齊方式
+    const defaultAlignment = 'center';
+    applyAlignment(defaultAlignment);
+    const radioToCheck = document.querySelector(`input[name="alignment"][value="${defaultAlignment}"]`);
+    if (radioToCheck) {
+      radioToCheck.checked = true;
+      saveToLocalStorage('text-alignment', defaultAlignment, 'Text alignment');
+    }
+
+    // 重置溢出模式
+    const defaultOverflow = 'normal';
+    applyOverflow(defaultOverflow);
+    const overflowRadioToCheck = document.querySelector(`input[name="overflow"][value="${defaultOverflow}"]`);
+    if (overflowRadioToCheck) {
+      overflowRadioToCheck.checked = true;
+      saveToLocalStorage('overflow-mode', defaultOverflow, 'Overflow mode');
+    }
   }
 
   // 設定顯示文字背景色
   function setupBackgroundColorListener() {
-      const inputElement = document.getElementById('display-panel-color');
-      if (!inputElement) {
-          console.debug('[DEBUG] [UIController]', 'display-panel-color 輸入框未找到');
-          return;
-      }
-  
-      // 初始化：從 localStorage 載入或使用 CSS 預設值
-      const savedValue = localStorage.getItem('display-panel-color');
-      const defaultValue = getComputedStyle(document.documentElement).getPropertyValue('--body-background').trim() || '#00FF00';
-      const valueToApply = savedValue || defaultValue;
-      inputElement.value = valueToApply;
-      document.body.style.setProperty('--body-background', valueToApply);
-      console.debug('[DEBUG] [UIController]', `Body background color 從 ${savedValue ? 'localStorage' : 'CSS'} 載入: ${valueToApply}`);
-  
-      // 監聽 input 事件：更新 body 的 --body-background 並儲存
-      inputElement.addEventListener('input', function() {
-          const value = this.value;
-          document.body.style.setProperty('--body-background', value);
-          localStorage.setItem('display-panel-color', value);
-          console.debug('[DEBUG] [UIController]', `Body background color 更新為: ${value}`);
-      });
+    const inputElement = document.getElementById('display-panel-color');
+    if (!inputElement) {
+      // console.debug('[DEBUG] [UIController]', 'display-panel-color 輸入框未找到');
+      return;
+    }
+
+    // 初始化：從 localStorage 載入或使用 CSS 預設值
+    const savedValue = localStorage.getItem('display-panel-color');
+    const defaultValue = getComputedStyle(document.documentElement).getPropertyValue('--body-background').trim() || '#00FF00';
+    const valueToApply = savedValue || defaultValue;
+    inputElement.value = valueToApply;
+    document.body.style.setProperty('--body-background', valueToApply);
+    // console.debug('[DEBUG] [UIController]', `Body background color 從 ${savedValue ? 'localStorage' : 'CSS'} 載入: ${valueToApply}`);
+
+    // 監聽 input 事件：更新 body 的 --body-background 並儲存
+    inputElement.addEventListener('input', function() {
+      const value = this.value;
+      document.body.style.setProperty('--body-background', value);
+      localStorage.setItem('display-panel-color', value);
+      // console.debug('[DEBUG] [UIController]', `Body background color 更新為: ${value}`);
+    });
   }
 
   // 處理面板切換的按鈕點擊
@@ -267,7 +294,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
     
-    console.debug('[DEBUG] [UIController]', `按鈕 ${buttonId} 被點擊，顯示面板 ${targetPanelId}`);
+    // console.debug('[DEBUG] [UIController]', `按鈕 ${buttonId} 被點擊，顯示面板 ${targetPanelId}`);
   }
 
   // 處理 apilink 按鈕點擊
@@ -277,7 +304,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const menuButtons = document.querySelectorAll('.menu-button');
     
     if (!translationLink) {
-      console.debug('[DEBUG] [UIController]', '未找到元素ID [translation-link]');
+      // console.debug('[DEBUG] [UIController]', '未找到元素ID [translation-link]');
       return;
     }
     
@@ -285,14 +312,14 @@ document.addEventListener('DOMContentLoaded', function() {
       // 取消 active 狀態，恢復 menu-button
       button.classList.remove('active');
       menuButtons.forEach(btn => {
-          btn.style.display = 'inline-block';
+        btn.style.display = 'inline-block';
       });
       translationLink.style.display = 'none';
     } else {
       // 設置 active 狀態，隱藏 menu-button
       button.classList.add('active');
       menuButtons.forEach(btn => {
-          btn.style.display = 'none';
+        btn.style.display = 'none';
       });
       translationLink.style.display = 'inline-block';
     }
@@ -303,7 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
     button.classList.toggle('active');
     const isActive = button.classList.contains('active');
     saveToLocalStorage('raymode-active', isActive.toString(), 'Raymode active state');
-    console.debug('[DEBUG] [UIController]', `Raymode toggled to ${isActive ? 'active' : 'inactive'}`);
+    // console.debug('[DEBUG] [UIController]', `Raymode toggled to ${isActive ? 'active' : 'inactive'}`);
   }
 
   // 設置語言選單的監聽器
@@ -325,7 +352,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const textElement = document.getElementById(targetTextId);
         textElement.textContent = '\u200B';
         textElement.setAttribute("data-stroke", "\u200B");
-        console.debug('[DEBUG] [UIController]', `清除 ${targetTextId} 的文字內容`);
+        // console.debug('[DEBUG] [UIController]', `清除 ${targetTextId} 的文字內容`);
       }
     });
   }
@@ -340,7 +367,7 @@ document.addEventListener('DOMContentLoaded', function() {
         saveToLocalStorage('translation-link', value, 'Translation link');
       });
     } else {
-      console.debug('[DEBUG] [UIController]', 'Translation link input not found');
+      // console.debug('[DEBUG] [UIController]', 'Translation link input not found');
     }
   }
 
@@ -359,22 +386,61 @@ document.addEventListener('DOMContentLoaded', function() {
           // 如果更新的是 --text-font-size，同步更新 --overflow-height 和 --font-size-half
           if (cssProperty === '--text-font-size') {
             const fontSize = parseFloat(this.value);
-            const overflowHeight = `${fontSize + 6}px`;
-            const fontSizeHalf = `${fontSize * 0.8}px`;
+            const overflowHeight = `${fontSize * 1.2}px`;
+            const fontSizeHalf = `${fontSize * 0.75}px`;
             textElement.style.setProperty('--overflow-height', overflowHeight);
             textElement.style.setProperty('--font-size-half', fontSizeHalf);
             saveToLocalStorage(`${inputId}-overflow-height`, overflowHeight, `${logDescription} overflow height`);
             saveToLocalStorage(`${inputId}-font-size-half`, fontSizeHalf, `${logDescription} font size half`);
-            console.debug('[DEBUG] [UIController]', `${logDescription} overflow height 更新為: ${overflowHeight}`);
-            console.debug('[DEBUG] [UIController]', `${logDescription} font size half 更新為: ${fontSizeHalf}`);
+            // console.debug('[DEBUG] [UIController]', `${logDescription} overflow height 更新為: ${overflowHeight}`);
+            // console.debug('[DEBUG] [UIController]', `${logDescription} font size half 更新為: ${fontSizeHalf}`);
           }
         } else {
-          console.debug('[DEBUG] [UIController]', `${logDescription} element not found`);
+          // console.debug('[DEBUG] [UIController]', `${logDescription} element not found`);
         }
       });
     } else {
-      console.debug('[DEBUG] [UIController]', `${inputId} input not found`);
+      // console.debug('[DEBUG] [UIController]', `${inputId} input not found`);
     }
+  }
+
+  // 設置溢出模式的監聽器
+  function setupOverflowListener() {
+    const radioButtons = document.querySelectorAll('input[name="overflow"]');
+    if (radioButtons.length === 0) {
+      // console.debug('[DEBUG] [UIController]', '溢出模式 radio 按鈕未找到');
+      return;
+    }
+
+    // 載入儲存的溢出模式或使用預設值
+    loadFromLocalStorage('overflow-mode', null, null, null, 'Overflow mode', 'overflow');
+
+    // 為每個 radio 按鈕綁定 change 事件
+    radioButtons.forEach(radio => {
+      radio.addEventListener('change', function() {
+        if (this.checked) {
+          const value = this.value;
+          applyOverflow(value);
+          saveToLocalStorage('overflow-mode', value, 'Overflow mode');
+          // console.debug('[DEBUG] [UIController]', `溢出模式變更為 ${value}`);
+        }
+      });
+    });
+  }
+
+  // 應用溢出模式到所有文字元素
+  function applyOverflow(value, specificElementId = null) {
+    const elements = specificElementId ? [specificElementId] : overflowSettings.elements;
+    elements.forEach(elementId => {
+      const element = document.getElementById(elementId);
+      if (element) {
+        // 移除所有溢出相關類
+        element.classList.remove('overflow-normal', 'overflow-shrink', 'overflow-truncate');
+        // 添加對應的溢出類
+        element.classList.add(`overflow-${value}`);
+        // console.debug('[DEBUG] [UIController]', `應用溢出模式 ${value} 到 ${elementId}`);
+      }
+    });
   }
 
   // 為 menu-button 按鈕綁定事件
@@ -392,7 +458,7 @@ document.addEventListener('DOMContentLoaded', function() {
       handleApiLinkClick(this);
     });
   } else {
-    console.debug('[DEBUG] [UIController]', 'API link button not found');
+    // console.debug('[DEBUG] [UIController]', 'API link button not found');
   }
 
   // 為 raymode 綁定事件並初始化
@@ -404,7 +470,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     loadFromLocalStorage('raymode-active', null, null, null, 'Raymode 活躍狀態', 'raymode');
   } else {
-    console.debug('[DEBUG] [UIController]', '未找到 Raymode 按鈕');
+    // console.debug('[DEBUG] [UIController]', '未找到 Raymode 按鈕');
   }
 
   // 為 reset-settings 綁定事件
@@ -415,14 +481,14 @@ document.addEventListener('DOMContentLoaded', function() {
       resetAllSettings();
     });
   } else {
-    console.debug('[DEBUG] [UIController]', 'Reset settings button not found');
+    // console.debug('[DEBUG] [UIController]', 'Reset settings button not found');
   }
 
   // 設置對齊方式的監聽器
   function setupAlignmentListener() {
     const radioButtons = document.querySelectorAll('input[name="alignment"]');
     if (radioButtons.length === 0) {
-      console.debug('[DEBUG] [UIController]', '對齊方式 radio 按鈕未找到');
+      // console.debug('[DEBUG] [UIController]', '對 SurveyJS - Survey Creator Example齊方式 radio 按鈕未找到');
       return;
     }
     
@@ -432,7 +498,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     radioToCheck.checked = true;
     applyAlignment(savedAlignment);
-    console.debug('[DEBUG] [UIController]', `從 localStorage 載入對齊方式: ${savedAlignment}`);
+    // console.debug('[DEBUG] [UIController]', `從 localStorage 載入對齊方式: ${savedAlignment}`);
     
     // 為每個 radio 按鈕綁定 change 事件
     radioButtons.forEach(radio => {
@@ -441,7 +507,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const value = this.value;
           applyAlignment(value);
           saveToLocalStorage('text-alignment', value, 'Text alignment');
-          console.debug('[DEBUG] [UIController]', `對齊方式變更為 ${value}`);
+          // console.debug('[DEBUG] [UIController]', `對齊方式變更為 ${value}`);
         }
       });
     });
@@ -475,7 +541,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const targetLang = bcp47ToLanguageName[sourceLang] || sourceLang.split('-')[0];
 
     try {
-      console.debug('[DEBUG] [UIController]', '發送留言翻譯請求:', { text, sourceLang, targetLang });
+      // console.debug('[DEBUG] [UIController]', '發送留言翻譯請求:', { text, sourceLang, targetLang });
       const data = await sendTranslation(text, [targetLang], serviceUrl, '');
 
       if (data && data.translations && data.translations[0]) {
@@ -510,11 +576,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 為樣式設定綁定監聽器
   settings.forEach(setting => {
-      setupStyleListener(setting.inputId, setting.textElementId, setting.cssProperty, setting.inputType, setting.logDescription);
+    setupStyleListener(setting.inputId, setting.textElementId, setting.cssProperty, setting.inputType, setting.logDescription);
   });
   
   // 為對齊方式綁定監聽器
   setupAlignmentListener();
+  
+  // 為溢出模式綁定監聽器
+  setupOverflowListener();
   
   // 修改顯示文字的背景顏色
   setupBackgroundColorListener();
