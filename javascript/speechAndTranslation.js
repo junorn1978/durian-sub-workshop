@@ -1,4 +1,4 @@
-const DEBUG = false;
+const DEBUG = true;
 
 function logInfo(...args) {
   if (DEBUG) {
@@ -6,7 +6,7 @@ function logInfo(...args) {
   }
 }
 document.addEventListener("DOMContentLoaded", () => {
-  logInfo("[SpeechAndTranslation] Script loaded.");
+  logInfo("[SpeechAndTranslation] 腳本已載入。");
   // ==========================================================================
   // 常量與配置
   // ==========================================================================
@@ -17,8 +17,9 @@ document.addEventListener("DOMContentLoaded", () => {
     RESTART_DELAY: 500, // 語音辨識重啟前的延遲時間（毫秒），避免立即重試
     MIN_TEXT_LENGTH: 5, // 發送翻譯請求的最小文字長度，少於此長度則延遲發送
     TRANSLATION_PENDING_TIMEOUT: 2000, // 待翻譯文字的延遲發送時間（毫秒），等待累積足夠文字
-    INTERIM_STAGNATION_TIMEOUT: 2500 // 臨時文字停滯超時時間（毫秒），若臨時文字未更新則觸發翻譯
+    INTERIM_STAGNATION_TIMEOUT: 3000 // 臨時文字停滯超時時間（毫秒），若臨時文字未更新則觸發翻譯
   };
+  
   const TEXT_REPLACEMENTS = {
     "リカちゃん": "(れいかちゃん)",
     "リコちゃん": "(れいかちゃん)",
@@ -26,20 +27,28 @@ document.addEventListener("DOMContentLoaded", () => {
     "***ょっと": "ちょっと",
     "処刑さん": "初見さん",
     "証券さん": "初見さん",
+    "所見さん": "初見さん",
+    "出勤さん": "初見さん",
     "スパちゃん": "(スパチャ)",
     "スバちゃん": "(スパチャ)",
-    "麗華ちゃん": "れいかちゃん"
+    "麗華ちゃん": "れいかちゃん",
+    "えっちゃん": "れいちゃん"
     // 可根據需要添加更多替換規則，例如：
     // "他の誤判文字": "正確文字"
   };
+  
   const ELEMENT_IDS = {
     startSpeechButton: "start-recording",
     stopSpeechButton: "stop-recording",
     sourceLanguageSelect: "source-language",
     targetLanguage1Select: "target-language1",
     targetLanguage2Select: "target-language2",
-    targetLanguage3Select: "target-language3"
+    targetLanguage3Select: "target-language3",
+    apiMode: "api-mode",
+    serviceUrlInput: "api-key-input",
+    apiKeyInput: "api-key-value"
   };
+  
   const ERROR_MESSAGES = {
     "no-speech": {
       log: "音声が検出されませんでした。リスタートを試みます。"
@@ -57,6 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
       log: "予期しないエラー: {error}"
     }
   };
+  
   const MESSAGES = {
     missingElements: "必要なDOM要素が見つかりません: {ids}",
     browserNotSupported: "このブラウザは音声認識をサポートしていません。Chromeを使用してください。",
@@ -92,17 +102,17 @@ document.addEventListener("DOMContentLoaded", () => {
       target1: {
         text: "",
         timestamp: 0,
-        minDisplayTime: 4000
+        minDisplayTime: 2500
       }, // 第一目標語言的顯示文字、時間戳與最小顯示時間
       target2: {
         text: "",
         timestamp: 0,
-        minDisplayTime: 4000
+        minDisplayTime: 2500
       }, // 第二目標語言的顯示文字、時間戳與最小顯示時間
       target3: {
         text: "",
         timestamp: 0,
-        minDisplayTime: 4000
+        minDisplayTime: 2500
       } // 第三目標語言的顯示文字、時間戳與最小顯示時間
     }
   };
@@ -143,7 +153,7 @@ document.addEventListener("DOMContentLoaded", () => {
       lastSentInterimText: "",
       interimStagnationTimer: null
     });
-    logInfo("[SpeechAndTranslation] State reset.");
+    logInfo("[SpeechAndTranslation] 狀態已重置。");
   }
 
   function ensureRecognition() {
@@ -154,27 +164,25 @@ document.addEventListener("DOMContentLoaded", () => {
     return true;
   }
 
-  function checkInterimStagnation(sourceLang) {
-    const now = Date.now();
-    if (
-      state.interimText &&
-      state.lastInterimUpdateTime &&
-      now - state.lastInterimUpdateTime >= CONFIG.INTERIM_STAGNATION_TIMEOUT &&
-      !state.finalText &&
-      state.interimText !== state.lastSentInterimText
-    ) {
-      const translationText = applyTextReplacements(state.interimText);
-      logInfo("[SpeechAndTranslation] Interim text stagnated, sending for translation:", {
-        text: state.interimText,
-        translated: translationText,
-        length: translationText.length
-      });
-      state.lastSentInterimText = state.interimText; // 記錄已發送的臨時文字
-      sendTranslation(translationText, sourceLang); // 發送替換後的文字
-    }
-    // 重新啟動定時器以持續檢查
-    state.interimStagnationTimer = setTimeout(() => checkInterimStagnation(sourceLang), CONFIG.INTERIM_STAGNATION_TIMEOUT);
+function checkInterimStagnation(sourceLang) {
+  const now = Date.now();
+  if (
+    state.interimText &&
+    state.lastInterimUpdateTime &&
+    now - state.lastInterimUpdateTime >= CONFIG.INTERIM_STAGNATION_TIMEOUT &&
+    state.interimText !== state.lastSentInterimText
+  ) {
+    const translationText = applyTextReplacements(state.interimText);
+    logInfo("[SpeechAndTranslation] 暫存文字停滯，正在發送翻譯：", {
+      text: state.interimText,
+      translated: translationText,
+      length: translationText.length
+    });
+    state.lastSentInterimText = state.interimText;
+    sendTranslation(translationText, sourceLang);
   }
+  state.interimStagnationTimer = setTimeout(() => checkInterimStagnation(sourceLang), CONFIG.INTERIM_STAGNATION_TIMEOUT);
+}
 
   function initializeElements() {
     const forwardRef = {};
@@ -188,35 +196,53 @@ document.addEventListener("DOMContentLoaded", () => {
       handleError("dom", MESSAGES.missingElements.replace("{ids}", missingIds.join(", ")));
       return null;
     }
-    logInfo("[SpeechAndTranslation] All elements initialized.");
+    logInfo("[SpeechAndTranslation] 所有元素已初始化。");
     return forwardRef;
   }
 
   function initializeSpeechRecognition(sourceLanguageSelect) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return null;
+	
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.maxAlternatives = 3;
+    recognition.maxAlternatives = 1;
     recognition.lang = sourceLanguageSelect.value;
-    logInfo("[SpeechAndTranslation] Speech recognition initialized with language:", recognition.lang);
+	
+    const truncateMode = localStorage.getItem("text-truncate-mode") || "truncate";
+    const basePhrases = ['ちょっと', '本当', 'ありがとう', 'こんにちは', 'おはよう', '初見さん', 'スパチャ'];
+    if (truncateMode === "truncate") { basePhrases.push('れいかちゃん', 'れいちゃん'); }
+
+    const SpeechGrammarList = window.SpeechGrammarList || window.webkitSpeechGrammarList;
+    if (SpeechGrammarList) {
+      const grammar = `#JSGF V1.0; grammar phrases; public <phrase> = ${basePhrases.join(' | ')} ;`;
+      const speechRecognitionList = new SpeechGrammarList();
+      speechRecognitionList.addFromString(grammar, 1);
+      recognition.grammars = speechRecognitionList;
+    }
+
+    logInfo("[SpeechAndTranslation] 已以指定語言初始化語音識別：", recognition.lang);
+	
     return recognition;
   }
 
   function replacePunctuation(text) {
     if (!text) return text;
-    const result = text.replace(/[、。]/g, " ");
-    logInfo("[SpeechAndTranslation] Punctuation replaced:", {
+	
+    // const result = text.replace(/[、。]/g, " ");
+    const result = text.replace(/[、。]/g, "");
+    logInfo("[SpeechAndTranslation] 已替換標點符號：", {
       original: text,
       replaced: result
     });
+	
     return result;
   }
 
   function sendTranslation(text, sourceLang) {
     const sequenceNumber = state.currentSequenceNumber++;
-    logInfo("[SpeechAndTranslation] Sending translation:", {
+    logInfo("[SpeechAndTranslation] 正在發送翻譯：", {
       sequenceNumber,
       text,
       length: text.length
@@ -227,19 +253,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function startTranslationTimer(sourceLang) {
     if (state.translationTimer) {
-      logInfo("[SpeechAndTranslation] Translation timer already running, updating text:", {
+      logInfo("[SpeechAndTranslation] 翻譯計時器已啟動，正在更新文字：", {
         text: state.pendingTranslationText,
         length: state.pendingTranslationText.length
       });
       return;
     }
+	
     state.translationTimer = setTimeout(() => {
       if (state.pendingTranslationText) {
         sendTranslation(state.pendingTranslationText, sourceLang);
       }
       state.translationTimer = null;
     }, CONFIG.TRANSLATION_PENDING_TIMEOUT);
-    logInfo("[SpeechAndTranslation] Started translation timer:", {
+	
+    logInfo("[SpeechAndTranslation] 已開始翻譯計時器：", {
       text: state.pendingTranslationText,
       length: state.pendingTranslationText.length
     });
@@ -247,37 +275,37 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function truncateToLastChunk(text) {
     if (!text) return text;
-	
+  
     const chunkSizeMap = {
-      "ja": 40, // 日文：每塊 40 字
-      "zh-TW": 30, // 繁體中文：每塊 30 字
-      "en": 110, // 英文：每塊 110 字
-      "es": 110, // 西班牙文：每塊 110 字
-      "id": 110 // 印尼文：每塊 110 字
-    }; // 每一種語言在れいーモード的狀況下多少字截斷重新顯示(只引響顯示)
-	
-    const sourceLang = document.getElementById("source-language")?.value || "ja"; // 獲取當前來源語言
-    const chunkSize = chunkSizeMap[sourceLang] || 40; // 根據語言選擇 chunkSize，默認為 40
-
-    if (text.length < chunkSize) return text; // 如果文字長度小於 chunkSize，則不截斷
+      "ja": 40,
+      "zh-TW": 30,
+      "en": 110,
+      "es": 110,
+      "id": 110
+    };
+  
+    const sourceLang = document.getElementById("source-language")?.value || "ja";
+    const chunkSize = chunkSizeMap[sourceLang] || 40;
+  
+    if (text.length < chunkSize) return text;
+  
     const multiple = Math.floor(text.length / chunkSize);
     const charsToRemove = multiple * chunkSize;
-	
-    logInfo("[SpeechAndTranslation] Truncating text:", {
+    logInfo("[SpeechAndTranslation] 正在截斷文字：", {
       sourceLang,
       chunkSize,
       originalLength: text.length,
       multiple,
       charsToRemove
     });
-	
+  
     return text.substring(charsToRemove);
   }
   
   //替換擷取的文字用，翻譯和顯示都會，只有在れいーモード下執行
   function applyTextReplacements(text) {
     if (!text || text.trim() === '' || text.trim() === 'っ') {
-      logInfo("[SpeechAndTranslation] Skipping invalid text:", {
+      logInfo("[SpeechAndTranslation] 跳過無效文字：", {
         original: text
       }); // 檢查單獨「っ」或空輸入
       return '';
@@ -294,7 +322,7 @@ document.addEventListener("DOMContentLoaded", () => {
       result = result.replaceAll(from, to);
     }); // 現有替換規則
     if (result !== text) {
-      logInfo("[SpeechAndTranslation] Applied text replacements:", {
+      logInfo("[SpeechAndTranslation] 已套用文字替換：", {
         original: text,
         replaced: result
       });
@@ -307,18 +335,21 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==========================================================================
   const elements = initializeElements();
   if (!elements) return;
+
   const recognition = initializeSpeechRecognition(elements.sourceLanguageSelect);
   if (!recognition) {
     handleError("browser", MESSAGES.browserNotSupported);
     return;
   }
+
   window.SpeechRecognitionAPI = {
     start() {
-      logInfo("[SpeechAndTranslation] Attempting to start speech recognition, state:", state.isRecognitionRunning);
+      logInfo("[SpeechAndTranslation] 嘗試啟動語音識別，狀態：", state.isRecognitionRunning);
       if (state.isRecognitionRunning) {
         console.warn("[SpeechAndTranslation]", MESSAGES.speechAlreadyRunning);
         return false;
       }
+
       resetState();
       state.isManuallyStopped = false;
       state.lastStopWasManual = false;
@@ -326,28 +357,33 @@ document.addEventListener("DOMContentLoaded", () => {
       texts.target1 = "";
       texts.target2 = "";
       texts.target3 = "";
-      logInfo("[SpeechAndTranslation] isManuallyStopped reset to:", state.isManuallyStopped);
+      logInfo("[SpeechAndTranslation] 已將 isManuallyStopped 重置為：", state.isManuallyStopped);
+
       recognition.lang = elements.sourceLanguageSelect.value;
+
       try {
         recognition.start();
         state.isRecognitionRunning = true;
         state.startTime = Date.now();
         state.interimStagnationTimer = setTimeout(() => checkInterimStagnation(elements.sourceLanguageSelect.value), CONFIG.INTERIM_STAGNATION_TIMEOUT);　// 啟動停滯檢查定時器
-        logInfo("[SpeechAndTranslation] Speech recognition started.");
+        logInfo("[SpeechAndTranslation] 語音識別已啟動。");
         updateSectionDisplay();
         return true;
       }
       catch (error) {
         state.isRecognitionRunning = false;
         handleError("start", error.message);
+
         return false;
       }
     },
+
     stop() {
       if (!ensureRecognition() || !state.isRecognitionRunning) {
         console.warn("[SpeechAndTranslation]", MESSAGES.speechNotRunning);
         return false;
       }
+
       state.isManuallyStopped = true;
       state.lastStopWasManual = true;
       state.ignoreTranslations = true;
@@ -363,7 +399,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       state.pendingResponses = {}; // 清除待處理的響應
       state.expectedSequenceNumber = state.currentSequenceNumber; // 重置序列號
-      logInfo("[SpeechAndTranslation] Speech recognition stopped.");
+      logInfo("[SpeechAndTranslation] 語音識別已停止。");
       return true;
     }
   };
@@ -372,7 +408,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // 語音與翻譯處理
   // ==========================================================================
   recognition.onresult = function(event) {
-    logInfo("[SpeechAndTranslation] Received speech results, count:", event.results.length);
+    logInfo("[SpeechAndTranslation] 已收到語音結果，數量：", event.results.length);
     let shouldRestart = false;
     if (!event.results) {
       console.warn("[SpeechAndTranslation]", MESSAGES.invalidResults);
@@ -404,6 +440,7 @@ document.addEventListener("DOMContentLoaded", () => {
       handleError("speech", error.message);
     }
   };
+  
   recognition.onerror = (event) => {
     const errorType = event.error;
     if (errorType === "aborted") {
@@ -415,8 +452,9 @@ document.addEventListener("DOMContentLoaded", () => {
       event
     });
   };
+  
   recognition.onend = () => {
-    logInfo("[SpeechAndTranslation] Speech recognition ended, isManuallyStopped:", state.isManuallyStopped, "lastStopWasManual:", state.lastStopWasManual, "restartAttempts:", state.restartAttempts, "elapsedTime:", state.startTime ? (Date.now() - state.startTime) / 1000 : "N/A");
+    logInfo("[SpeechAndTranslation] 語音識別已結束，isManuallyStopped：", state.isManuallyStopped, "lastStopWasManual:", state.lastStopWasManual, "restartAttempts:", state.restartAttempts, "elapsedTime:", state.startTime ? (Date.now() - state.startTime) / 1000 : "N/A");
     state.isRecognitionRunning = false;
     if (state.lastStopWasManual) {
       state.restartAttempts = 0;
@@ -428,11 +466,11 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       elements.startSpeechButton.disabled = false;
       elements.stopSpeechButton.disabled = true;
-      logInfo("[SpeechAndTranslation] Manually stopped, updating UI.");
+      logInfo("[SpeechAndTranslation] 手動停止，正在更新 UI。");
     }
     else {
       if (state.restartAttempts < CONFIG.MAX_RESTART_ATTEMPTS) {
-        logInfo(`[SpeechAndTranslation] Restart attempt ${state.restartAttempts + 1}/${CONFIG.MAX_RESTART_ATTEMPTS}`);
+        logInfo(`[SpeechAndTranslation] 重新啟動嘗試 ${state.restartAttempts + 1}/${CONFIG.MAX_RESTART_ATTEMPTS}`);
         setTimeout(() => restartRecognition(), CONFIG.RESTART_DELAY);
       }
       else {
@@ -448,6 +486,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  recognition.onnomatch = (event) => {
+    logInfo("[SpeechAndTranslation] 語音無法辨識（onnomatch）：", {
+      results: event.results ? Array.from(event.results).map(r => ({
+        transcript: r[0]?.transcript || "empty",
+        isFinal: r.isFinal
+      })) : "無結果",
+      sequenceNumber: state.sequenceNumber,
+      timestamp: new Date().toISOString()
+    });
+  };
+
   function restartRecognition() {
     if (!ensureRecognition()) {
       console.warn("[SpeechAndTranslation] Cannot restart: recognition running or not supported.");
@@ -459,7 +508,7 @@ document.addEventListener("DOMContentLoaded", () => {
       state.startTime = Date.now();
       state.ignoreTranslations = false;
       state.interimStagnationTimer = setTimeout(() => checkInterimStagnation(elements.sourceLanguageSelect.value), CONFIG.INTERIM_STAGNATION_TIMEOUT);
-      logInfo("[SpeechAndTranslation] Speech recognition restarted.");
+      logInfo("[SpeechAndTranslation] 語音識別已重新啟動。");
       state.restartAttempts = 0;
     }
     catch (error) {
@@ -501,13 +550,13 @@ document.addEventListener("DOMContentLoaded", () => {
       console.warn("[SpeechAndTranslation] Display transcript is empty after processing.");
       return;
     }
-    logInfo("[SpeechAndTranslation] Processing interim result:", {
+    logInfo("[SpeechAndTranslation] 正在處理暫存結果：", {
       original: originalTranscript,
       displayed: displayTranscript,
       translated: translationTranscript
     });
     const charCount = displayTranscript.length; // 計算顯示文字的字數
-    logInfo("[SpeechAndTranslation] Interim text character count:", {
+    logInfo("[SpeechAndTranslation] 暫存文字字元數：", {
       charCount
     });
     displayResults.interimText = displayTranscript; // 更新顯示結果（使用截斷和替換後的文字）
@@ -524,6 +573,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     state.interimStagnationTimer = setTimeout(() => checkInterimStagnation(elements.sourceLanguageSelect.value), CONFIG.INTERIM_STAGNATION_TIMEOUT);
   } // 重置停滯定時器
+  
   function handleFinalResult(result, displayResults, translationResults) {
     let newText = result[0].transcript.trim();
     let shouldRestart = false;
@@ -540,7 +590,7 @@ document.addEventListener("DOMContentLoaded", () => {
       displayText = applyTextReplacements(displayText); // 替換顯示文字
       translationText = applyTextReplacements(newText); // 替換翻譯文字
     }
-    logInfo("[SpeechAndTranslation] Processing final result:", {
+    logInfo("[SpeechAndTranslation] 正在處理最終結果：", {
       original: originalText,
       displayed: displayText,
       translated: translationText
@@ -554,26 +604,43 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleDisplayResult(results) {
-    logInfo("[SpeechAndTranslation] Handling display results:", {
+    logInfo("[SpeechAndTranslation] 正在處理顯示結果：", {
       finalText: results.finalText,
       interimText: results.interimText,
       currentFinalText: state.finalText
     });
-    if (results.interimText && state.finalText) {
-      logInfo("[SpeechAndTranslation] Clearing previous final result before displaying new interim result.");
-      state.finalText = "";
-      state.interimText = "";
-      texts.source = "";
-      updateSectionDisplay();
-    } // 如果有臨時結果，且存在前次最終結果，清除前次最終結果
+  
+    // 獲取當前 text-align 設置
+    const textAlignment = localStorage.getItem("text-alignment") || 
+      document.getElementById("text-alignment-selector")?.value || 
+      DEFAULT_SETTINGS.textAlignment;
+  
+    // 如果有臨時結果，根據 text-align 決定是否添加 < >
     if (results.interimText) {
       state.interimText = results.interimText;
-      texts.source = replacePunctuation(results.interimText);
+      const cleanText = replacePunctuation(results.interimText);
+      // 僅在 text-align: center 時添加 < >
+      texts.source = textAlignment === "center" ? `< ${cleanText} >` : cleanText;
       updateSectionDisplay();
-      logInfo("[SpeechAndTranslation] Display updated with:", {
-        source: texts.source
+      logInfo("[SpeechAndTranslation] 使用暫存文字更新顯示：", {
+        source: texts.source,
+        textAlignment
       });
-    } // 僅顯示臨時結果，忽略最終結果
+    }
+    // 如果有最終結果，顯示臨時文字的純文字版本（應用 truncateToLastChunk）
+    else if (results.finalText && state.interimText) {
+      const truncateMode = localStorage.getItem("text-truncate-mode") || "truncate";
+      let processedText = state.interimText;
+      
+      if (truncateMode === "truncate") {
+        processedText = truncateToLastChunk(state.interimText);
+        logInfo("[SpeechAndTranslation] 已套用 truncateToLastChunk：", { processedText });
+      }
+      
+      texts.source = replacePunctuation(processedText);
+      updateSectionDisplay();
+      logInfo("[SpeechAndTranslation] 在最終結果後以無符號暫存文字更新顯示：", { source: texts.source });
+    }
   }
 
   function handleTranslationResult(results) {
@@ -588,7 +655,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     if (!text.trim()) {
-      logInfo("[SpeechAndTranslation] Skipping translation: empty text.");
+      logInfo("[SpeechAndTranslation] 跳過翻譯：文字為空。");
       return;
     }
     const translationText = applyTextReplacements(text); // 對翻譯文字應用替換（若在 truncate 模式下）
@@ -607,6 +674,10 @@ document.addEventListener("DOMContentLoaded", () => {
   /* ----------------------------------------------------------------------------
   函數:發送翻譯請求用，格式: (要翻譯的文字, 要翻譯的語言, 序號)
   ---------------------------------------------------------------------------- */
+  /* ----------------------------------------------------------------------------
+  函數: 發送翻譯請求
+  參數: (要翻譯的文字, 來源語言, 序號)
+  ---------------------------------------------------------------------------- */
   async function translateText(text, sourceLang, sequenceNumber) {
     const targetLangs = [];
     const lang1 = elements.targetLanguage1Select.value;
@@ -616,54 +687,66 @@ document.addEventListener("DOMContentLoaded", () => {
     if (lang2 && lang2 !== "none") targetLangs.push(lang2);
     if (lang3 && lang3 !== "none") targetLangs.push(lang3);
     if (!targetLangs.length) {
-      logInfo("[SpeechAndTranslation] No target languages selected.");
+      logInfo("[SpeechAndTranslation] 未選擇目標語言。");
       updateSectionDisplay();
       return;
     }
-    logInfo("[SpeechAndTranslation] Sending translation request:", {
+    logInfo("[SpeechAndTranslation] 正在發送翻譯請求：", {
       sequenceNumber,
       text,
       targetLangs
     });
     const timeoutId = setTimeout(() => {
       if (sequenceNumber === state.expectedSequenceNumber) {
-        logInfo(`[SpeechAndTranslation] Translation timeout (sequence: ${sequenceNumber})`);
+        logInfo(`[SpeechAndTranslation] 翻譯逾時（序列： ${sequenceNumber})`);
         state.expectedSequenceNumber++;
         processPendingResponses();
       }
     }, CONFIG.TRANSLATION_TIMEOUT);
+  
     try {
-      const serviceUrl = document.getElementById("api-key-input").value.trim();
-      const apiKey = document.getElementById("api-key-value").value.trim();
-      if (!serviceUrl) throw new Error("Service URL is empty.");
-      if (!/^https?:\/\/[a-zA-Z0-9.-]+(:\d+)?\/.+$/.test(serviceUrl)) {
-        throw new Error("Invalid URL format.");
+      const apiMode = elements.apiMode?.value || 'backend';
+      if (apiMode === 'openai') {
+        await translateWithOpenAI(text, sourceLang, targetLangs, sequenceNumber, timeoutId);
+      } else if (apiMode === 'gemini') {
+        // 未來 Gemini 支援，暫記錄日誌
+        logInfo("[SpeechAndTranslation] Gemini API 尚未實作：", { sequenceNumber, text });
+        clearTimeout(timeoutId);
+        throw new Error("Gemini API 尚未支援");
+      } else {
+        // 使用原有服務 URL
+        const serviceUrl = document.getElementById("api-key-input").value.trim();
+        const apiKey = document.getElementById("api-key-value").value.trim();
+        if (!serviceUrl) throw new Error("Service URL is empty.");
+        if (!/^https?:\/\/[a-zA-Z0-9.-]+(:\d+)?\/.+$/.test(serviceUrl)) {
+          throw new Error("Invalid URL format.");
+        }
+        const headers = {
+          "Content-Type": "application/json"
+        };
+        if (apiKey) headers["X-API-Key"] = apiKey;
+        const response = await fetch(serviceUrl, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify({
+            text,
+            targetLangs
+          })
+        });
+  
+        clearTimeout(timeoutId);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP error: ${response.status} - ${errorText}`);
+        }
+        const data = await response.json();
+        logInfo("[SpeechAndTranslation] 已接收翻譯：", {
+          sequenceNumber,
+          translations: data.translations
+        });
+        handleTranslationResponse(sequenceNumber, text, data.translations, null);
       }
-      const headers = {
-        "Content-Type": "application/json"
-      };
-      if (apiKey) headers["X-API-Key"] = apiKey;
-      const response = await fetch(serviceUrl, {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify({
-          text,
-          targetLangs
-        })
-      });
-      clearTimeout(timeoutId);
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
-      logInfo("[SpeechAndTranslation] Translation received:", {
-        sequenceNumber,
-        translations: data.translations
-      });
-      handleTranslationResponse(sequenceNumber, text, data.translations, null);
-    }
-    catch (error) {
+    } catch (error) {
       clearTimeout(timeoutId);
       handleError("translation", error.message, {
         sequenceNumber,
@@ -672,9 +755,101 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  /**
+   * 使用 OpenAI API 進行翻譯
+   * @param {string} text - 要翻譯的文字
+   * @param {string} sourceLang - 要來源語言（例如 "ja"）
+   * @param {string[]} targetLangs - 目標語言陣列（例如 ["zh-TW", "en"]）
+   * @param {number} sequenceNumber - 翻譯請求序列號
+   * @param {number} timeoutId - 超時定時器 ID，用於清除超時
+   */
+  async function translateWithOpenAI(text, sourceLang, targetLangs, sequenceNumber, timeoutId) {
+    // 從 DOM 讀取 OpenAI API Key
+    const apiKey = document.getElementById("api-key-value").value.trim();
+    if (!apiKey) {
+      throw new Error("OpenAI API Key 不可為空。");
+    }
+    if (!apiKey.startsWith('sk-')) {
+      throw new Error("無效的 OpenAI API Key 格式。");
+    }
+  
+    const openaiUrl = "https://api.openai.com/v1/chat/completions";
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    };
+  
+    const body = JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `你是一位專業翻譯者。將 "${text}" 從 ${sourceLang} 翻譯成 ${targetLangs.join("、")}，僅回傳純 JSON 陣列，按目標語言順序，例如 ["翻譯1", "翻譯2"]，禁止包含 Markdown 程式碼區塊、說明或其他格式。`
+        },
+        {
+          role: "user",
+          content: text
+        }
+      ],
+      max_tokens: 300, // 參考後端，限制輸出長度
+      temperature: 0.1 // 與後端一致，略微提高確定性
+    });
+  
+    try {
+      const response = await fetch(openaiUrl, {
+        method: "POST",
+        headers,
+        body
+      });
+  
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenAI API 錯誤：${response.status} - ${errorText}`);
+      }
+  
+      const data = await response.json();
+      let translations = [];
+      try {
+        let content = data.choices[0]?.message.content || '[]';
+        // 增強清理邏輯，移除多種 Markdown 變體
+        content = content
+          .replace(/^```(json)?\n|\n```$/g, '') // 移除 ```json 或 ```
+          .replace(/^`+|\n`+$/g, '')          // 移除單獨的 ` 標記
+          .trim();                             // 去除多餘空白
+        logInfo("[SpeechAndTranslation] 清理後的 OpenAI 回應內容：", { content });
+        translations = JSON.parse(content);
+        if (!Array.isArray(translations)) {
+          throw new Error("回應不是有效的 JSON 陣列。");
+        }
+      } catch (e) {
+        logInfo("[SpeechAndTranslation] 回應解析失敗，原始內容：", {
+          rawContent: data.choices[0]?.message.content
+        });
+        throw new Error(`無效的 OpenAI 回應格式：${e.message}`);
+      }
+  
+      logInfo("[SpeechAndTranslation] 已接收 OpenAI 翻譯：", {
+        sequenceNumber,
+        translations,
+        usage: data.usage
+      });
+  
+      clearTimeout(timeoutId);
+      handleTranslationResponse(sequenceNumber, text, translations, null);
+    } catch (error) {
+      // 顯示用戶友好的錯誤提示
+      const apiHint = document.getElementById('api-hint');
+      if (apiHint && error.message.includes('無效的 OpenAI 回應格式')) {
+        apiHint.textContent = 'OpenAI 回應格式錯誤，請檢查 API Key 或稍後重試';
+        apiHint.style.color = 'red';
+      }
+      throw error;
+    }
+  }
+
   function handleTranslationResponse(sequenceNumber, text, translations, errorMessage) {
     if (state.ignoreTranslations) {
-      logInfo("[SpeechAndTranslation] Ignoring translation response after manual stop:", {
+      logInfo("[SpeechAndTranslation] 手動停止後忽略翻譯回應：", {
         sequenceNumber
       });
       return;
@@ -810,7 +985,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
     if (DEBUG) {
-      logInfo("[SpeechAndTranslation] Updated UI spans:", {
+      logInfo("[SpeechAndTranslation] 已更新 UI spans：", {
         source: {
           text: spans.source.textContent,
           stroke: spans.source.getAttribute("data-stroke")
@@ -829,14 +1004,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
     }
-    logInfo("[SpeechAndTranslation] UI updated.");
+    logInfo("[SpeechAndTranslation] UI 已更新。");
   }
   // ==========================================================================
   // 事件綁定
   // ==========================================================================
-  logInfo("[SpeechAndTranslation] Binding event listeners.");
+  logInfo("[SpeechAndTranslation] 正在綁定事件監聽器。");
   elements.startSpeechButton.addEventListener("click", () => {
-    logInfo("[SpeechAndTranslation] Start button clicked.");
+    logInfo("[SpeechAndTranslation] 點擊開始按鈕。");
     if (window.SpeechRecognitionAPI.start()) {
       elements.startSpeechButton.disabled = true;
       elements.stopSpeechButton.disabled = false;
@@ -847,7 +1022,7 @@ document.addEventListener("DOMContentLoaded", () => {
     capture: true
   });
   elements.stopSpeechButton.addEventListener("click", () => {
-    logInfo("[SpeechAndTranslation] Stop button clicked.");
+    logInfo("[SpeechAndTranslation] 點擊停止按鈕。");
     if (window.SpeechRecognitionAPI.stop()) {
       elements.startSpeechButton.disabled = false;
       elements.stopSpeechButton.disabled = true;
@@ -859,7 +1034,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   elements.sourceLanguageSelect.addEventListener("change", () => {
     recognition.lang = elements.sourceLanguageSelect.value;
-    logInfo("[SpeechAndTranslation] Source language updated to:", recognition.lang);
+    logInfo("[SpeechAndTranslation] 已將來源語言更新為：", recognition.lang);
   });
   [elements.targetLanguage1Select, elements.targetLanguage2Select, elements.targetLanguage3Select].forEach((select, index) => {
     select.addEventListener("change", () => {
@@ -867,7 +1042,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (select.value === "none") {
         texts[langKey] = "";
         updateSectionDisplay();
-        logInfo(`[SpeechAndTranslation] Cleared ${langKey} due to 'none' selection.`);
+        logInfo(`[SpeechAndTranslation] 由於選擇 'none'，已清除 ${langKey}。`);
       }
     });
   });

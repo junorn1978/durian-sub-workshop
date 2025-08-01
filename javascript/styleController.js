@@ -45,26 +45,13 @@ const DEFAULT_SETTINGS = {
   textAlignment: "left",
   textTruncateMode: "truncate"
 };
-const LANGUAGE_OPTIONS = [{
-    value: "ja",
-    label: "日本語"
-  },
-  {
-    value: "zh-TW",
-    label: "台湾繁體"
-  },
-  {
-    value: "en",
-    label: "英語"
-  },
-  {
-    value: "es",
-    label: "スペイン語"
-  },
-  {
-    value: "id",
-    label: "インドネシア語"
-  }
+
+const LANGUAGE_OPTIONS = [
+  {value: "ja", label: "日本語"},
+  {value: "zh-TW", label: "台湾繁體"},
+  {value: "en", label: "英語"},
+  {value: "es", label: "スペイン語"},
+  {value: "id", label: "インドネシア語"}
 ];
 
 // ==========================================================================
@@ -86,9 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const languageSelectIds = ["source-language", "target-language1", "target-language2", "target-language3"];
   const ELEMENT_IDS = {
     apiKeyInput: "api-key-input",
-    apiKeyValue: "api-key-value",
     toggleVisibilityUrl: "toggle-visibility-url",
-    toggleVisibilityKey: "toggle-visibility-key",
     startSpeechButton: "start-recording",
     stopSpeechButton: "stop-recording",
     optionSelector: "option-language-selector",
@@ -101,19 +86,20 @@ document.addEventListener("DOMContentLoaded", () => {
     leftPanel: null,
     section: "section-1",
     textAlignmentSelector: "text-alignment-selector",
-    textTruncateModeSelector: "text-truncate-mode"
+    textTruncateModeSelector: "text-truncate-mode",
+    toggleAdvancedSettings: "toggle-advanced-settings"
   };
   elements = Object.entries(ELEMENT_IDS).reduce((obj, [key, id]) => {
     if (id) {
       obj[key] = document.getElementById(id);
-      if (!obj[key]) console.warn(`Element not found: #${id}`);
+      if (!obj[key]) console.warn(`[WARN] [StyleController] Element not found: #${id}`);
     }
     return obj;
   }, {});
   elements.rightPanel = document.querySelector(SELECTORS.rightPanel);
-  if (!elements.rightPanel) console.warn(`Element not found: ${SELECTORS.rightPanel}`);
+  if (!elements.rightPanel) console.warn(`[WARN] [StyleController] Element not found: ${SELECTORS.rightPanel}`);
   elements.leftPanel = document.querySelector(SELECTORS.leftPanel);
-  if (!elements.leftPanel) console.warn(`Element not found: ${SELECTORS.leftPanel}`);
+  if (!elements.leftPanel) console.warn(`[WARN] [StyleController] Element not found: ${SELECTORS.leftPanel}`);
   
   // ==========================================================================
   // 動態生成語言選擇器選項
@@ -121,7 +107,7 @@ document.addEventListener("DOMContentLoaded", () => {
   languageSelectIds.forEach(id => {
     const selectElement = document.getElementById(id);
     if (!selectElement) {
-      return console.error(`Language select not found: ${id}`);
+      return console.error(`[ERROR] [StyleController] Language select not found: ${id}`);
     }
     const prefix = id === "source-language" ? "來源:" : `言語${id.slice(-1)}:`;
     LANGUAGE_OPTIONS.forEach(option => {
@@ -137,6 +123,16 @@ document.addEventListener("DOMContentLoaded", () => {
       if (elements.optionSelector.value === id) {
         loadSettings(id);
       }
+      // 添加清空邏輯
+      if (selectElement.value === "none" && id !== "source-language") {
+        const spanClass = languageToSpanMap[id];
+        const span = document.querySelector(spanClass);
+        if (span) {
+          span.textContent = "\u200B";
+          span.setAttribute("data-stroke", "\u200B");
+          console.debug(`[DEBUG] [StyleController] 清空 ${id} 內容`);
+        }
+      }
     });
   });
   
@@ -144,8 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // 輸入框遮蔽功能
   // ==========================================================================
   bindPasswordInput(elements.apiKeyInput, elements.toggleVisibilityUrl, 'api-key-input');
-  bindPasswordInput(elements.apiKeyValue, elements.toggleVisibilityKey, 'api-key-value');
-  
+    
   // ==========================================================================
   // 樣式控制功能
   // ==========================================================================
@@ -160,8 +155,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.documentElement.style.setProperty('--right-panel-bg', value);
     elements.rightPanel.style.backgroundColor = null;
     elements.section.style.backgroundColor = null;
-    console.log("rightPanel", getComputedStyle(elements.rightPanel).backgroundColor);
-    console.log("section", getComputedStyle(elements.section).backgroundColor);
+    console.info("[INFO] [StyleController] rightPanel", getComputedStyle(elements.rightPanel).backgroundColor);
+    console.info("[INFO] [StyleController] section", getComputedStyle(elements.section).backgroundColor);
   }, false, true);
   
   bindSlider(elements.fontSizeSlider, "font-size", "fontSize");
@@ -208,7 +203,71 @@ document.addEventListener("DOMContentLoaded", () => {
       applyTextAlignment(alignment);
     });
   }
-  
+
+  // ==========================================================================
+  // 進階設定切換功能
+  // ==========================================================================
+  if (elements.toggleAdvancedSettings) {
+    let isAdvancedMode = localStorage.getItem('settings-mode') === 'advanced';
+    
+    function toggleSettingsMode() {
+      isAdvancedMode = !isAdvancedMode;
+      localStorage.setItem('settings-mode', isAdvancedMode ? 'advanced' : 'basic');
+      
+      // 從 data-* 屬性讀取文字
+      const advancedText = elements.toggleAdvancedSettings.getAttribute('data-advanced-text') || '詳細設定';
+      const basicText = elements.toggleAdvancedSettings.getAttribute('data-basic-text') || '基本設定';
+      elements.toggleAdvancedSettings.textContent = isAdvancedMode ? basicText : advancedText;
+      
+      // 切換 dropdown-group 內容顯示
+      const dropdownGroup = document.querySelector('.dropdown-group');
+      if (!dropdownGroup) {
+        console.error('[ERROR] [StyleController] dropdown-group not found');
+        return;
+      }
+      const languageSelects = dropdownGroup.querySelectorAll('select.dropdown-style');
+      const inputs = dropdownGroup.querySelectorAll('input');
+      
+      if (isAdvancedMode) {
+        languageSelects.forEach(select => select.style.display = 'none');
+        inputs.forEach(input => input.style.display = 'block');
+      } else {
+        languageSelects.forEach(select => select.style.display = '');
+        inputs.forEach(input => input.style.display = 'none');
+      }
+      
+      console.info(`[INFO] [StyleController] 設定模式切換至：${isAdvancedMode ? '進階' : '基本'}`);
+    }
+    
+    // 初始化按鈕文字與顯示狀態
+    const initialText = isAdvancedMode
+      ? (elements.toggleAdvancedSettings.getAttribute('data-basic-text') || '基本設定')
+      : (elements.toggleAdvancedSettings.getAttribute('data-advanced-text') || '詳細設定');
+    elements.toggleAdvancedSettings.textContent = initialText;
+    
+    // 初始化 dropdown-group 顯示
+    const dropdownGroup = document.querySelector('.dropdown-group');
+    if (dropdownGroup) {
+      const languageSelects = dropdownGroup.querySelectorAll('select.dropdown-style');
+      const inputs = dropdownGroup.querySelectorAll('input');
+      if (isAdvancedMode) {
+        languageSelects.forEach(select => select.style.display = 'none');
+        inputs.forEach(input => input.style.display = 'block');
+      } else {
+        languageSelects.forEach(select => select.style.display = '');
+        inputs.forEach(input => input.style.display = 'none');
+      }
+    } else {
+      console.error('[ERROR] [StyleController] 初始化時找不到 dropdown-group');
+    }
+    
+    elements.toggleAdvancedSettings.addEventListener('click', () => {
+      toggleSettingsMode();
+      elements.toggleAdvancedSettings.classList.add('pressed');
+      setTimeout(() => elements.toggleAdvancedSettings.classList.remove('pressed'), 200);
+    });
+  }
+
   // ==========================================================================
   // 全螢幕切換功能（無翻頁效果）
   // ==========================================================================
@@ -275,7 +334,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function bindPasswordInput(inputElement, toggleElement, key) {
     if (!inputElement || !toggleElement) {
-      console.error(`[StyleController] Invalid input or toggle element for ${key}`);
+      console.error(`[ERROR] [StyleController] Invalid input or toggle element for ${key}`);
       return;
     }
     const saved = localStorage.getItem(key);
@@ -292,12 +351,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function bindColorPicker(element, key, updateCallback, isLangSpecific = true, isGlobal = false) {
     if (!element) {
-      console.error(`[StyleController] Invalid element for ${key}`);
+      console.error(`[ERROR] [StyleController] Invalid element for ${key}`);
       return;
     }
     element.addEventListener("input", () => {
       const lang = isLangSpecific ? elements.optionSelector.value : "";
-      console.log(`[bindColorPicker] Input for ${key}, lang: ${lang}, value: ${element.value}`);
+      console.info(`[INFO] [StyleController] [bindColorPicker] Input for ${key}, lang: ${lang}, value: ${element.value}`);
       const value = element.value;
       updateCallback(value);
       saveSettings({
@@ -321,14 +380,14 @@ document.addEventListener("DOMContentLoaded", () => {
     else {
       const lang = isLangSpecific ? elements.optionSelector.value : "";
       if (!lang || !languageToSpanMap[lang]) {
-        console.warn(`[bindColorPicker] Invalid language: ${lang}, defaulting to source-language`);
+        console.warn(`[WARN] [StyleController] [bindColorPicker] Invalid language: ${lang}, defaulting to source-language`);
         elements.optionSelector.value = "source-language"; // 設置默認語言
       }
       const savedValue = localStorage.getItem(isGlobal ? key : `${lang}-${key}`) ||
         DEFAULT_SETTINGS[lang]?.[key] ||
         element.value ||
         "#FFFFFF";
-      console.log(`[bindColorPicker] Initializing ${key}, lang: ${lang}, value: ${savedValue}`);
+      console.info(`[INFO] [StyleController] [bindColorPicker] Initializing ${key}, lang: ${lang}, value: ${savedValue}`);
       element.value = savedValue;
       updateCallback(savedValue);
     }
@@ -336,7 +395,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function bindSlider(element, key, cssProperty) {
     if (!element) {
-      console.error(`[StyleController] Invalid element for ${key}`);
+      console.error(`[ERROR] [StyleController] Invalid element for ${key}`);
       return;
     }
     element.addEventListener("input", () => {
@@ -364,12 +423,18 @@ document.addEventListener("DOMContentLoaded", () => {
       else {
         span.style[property] = value;
       }
+
+      if (span.classList.contains('source-text') && property === 'fontSize') {
+        span.style.minHeight = value; // 同步 min-height 與 font-size
+        span.setAttribute("data-stroke", span.textContent || "");
+      }
+
       if (!span.getAttribute("data-stroke") || span.getAttribute("data-stroke") !== span.textContent) {
         span.setAttribute("data-stroke", span.textContent);
       }
     }
     else {
-      console.error(`Span not found for class: ${spanClass}`);
+      console.error(`[ERROR] [StyleController] Span not found for class: ${spanClass}`);
     }
   }
 
@@ -380,16 +445,12 @@ document.addEventListener("DOMContentLoaded", () => {
     return isNaN(n) ? defaultVal : Math.min(Math.max(n, min), max);
   }
 
-  function applySpanSettings(span, {
-    fontSize,
-    textColor,
-    textStrokeSize,
-    textStrokeColor
-  }) {
+  function applySpanSettings(span, {fontSize, textColor, textStrokeSize, textStrokeColor}) {
     span.style.fontSize = `${fontSize}px`;
     span.style.color = textColor;
     span.style.setProperty("--stroke-width", `${textStrokeSize}px`);
     span.style.setProperty("--stroke-color", textStrokeColor);
+    if (span.classList.contains('source-text')) {span.style.minHeight = `${fontSize}px`;}
     if (span.getAttribute("data-stroke") !== span.textContent) {
       span.setAttribute("data-stroke", span.textContent);
     }
@@ -468,7 +529,7 @@ document.addEventListener("DOMContentLoaded", () => {
       scrollContainer.style.textAlign = alignment;
     }
     else {
-      console.error(`Scroll container not found: ${SELECTORS.scrollContainer}`);
+      console.error(`[ERROR] [StyleController] Scroll container not found: ${SELECTORS.scrollContainer}`);
     }
   }
 
@@ -483,7 +544,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
     else {
-      console.error(`Scroll container not found: ${SELECTORS.scrollContainer}`);
+      console.error(`[ERROR] [StyleController] Scroll container not found: ${SELECTORS.scrollContainer}`);
     }
   }
   
