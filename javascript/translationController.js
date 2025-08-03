@@ -1,16 +1,5 @@
 import { keywordRules, chunkSizeMap } from './speechCapture.js';
 
-const bcp47ToLanguageName = {
-  "zh-TW": "繁體中文",
-  "ja-JP": "日本語",
-  "en-US": "English",
-  "es-ES": "Spanish",
-  "id-ID": "Indonesian",
-  "th-TH": "Thai",
-  "vi-VN": "Vietnamese",
-  "ko-KR": "Korean"
-};
-
 // 佇列和處理狀態
 let translationQueue = [];
 let isProcessing = false;
@@ -40,7 +29,7 @@ function filterTextWithKeywords(text, targetLang) {
   return result;
 }
 
-// 發送翻譯請求的核心邏輯
+// 發送翻譯請求的核心邏輯（原 POST 方式）
 async function sendTranslation(text, targetLangs, serviceUrl, serviceKey) {
   if (!text || text.trim() === '' || text.trim() === 'っ') {
     console.debug('[DEBUG] [Translation] 無效文字，跳過翻譯:', text);
@@ -96,8 +85,67 @@ async function sendTranslation(text, targetLangs, serviceUrl, serviceKey) {
   return await response.json();
 }
 
+// 發送翻譯請求的 GET 方式
+async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl) {
+  if (!text || text.trim() === '' || text.trim() === 'っ') {
+    console.debug('[DEBUG] [Translation] 無效文字，跳過翻譯:', text);
+    return null;
+  }
+
+  // 驗證 Google Apps Script Web App URL
+  if (!serviceUrl.match(/^https:\/\/script\.google\.com\/macros\/s\/[^\/]+\/exec$/)) {
+    console.error('[ERROR] [Translation] 無效的 Google Apps Script URL:', serviceUrl);
+    throw new Error('無效的 Google Apps Script URL');
+  }
+
+  // 序列化查詢參數
+  const queryParams = `text=${encodeURIComponent(text)}&targetLangs=${encodeURIComponent(JSON.stringify(targetLangs))}&sourceLang=${encodeURIComponent(sourceLang)}`;
+  const url = `${serviceUrl}?${queryParams}`;
+
+  // 檢查 URL 長度
+  if (url.length > 20000) {
+    console.error('[ERROR] [Translation] URL 過長:', url.length);
+    throw new Error('請求資料過長，請縮短文字內容');
+  }
+
+  console.debug('[DEBUG] [Translation] 發送 GET 請求:', url);
+
+  const response = await fetch(url, {
+    method: 'GET',
+    mode: 'cors'
+  });
+
+  if (!response.ok) {
+    throw new Error(`翻譯請求失敗: ${response.status} - ${await response.text()}`);
+  }
+
+  const data = await response.json();
+  console.debug('[DEBUG] [Translation] 接收 GET 回應:', data);
+  return data;
+}
+
+// 新增：處理 URL 並選擇 GET 或 POST 方式
+async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, serviceKey) {
+  if (!serviceUrl) {
+    console.error('[ERROR] [Translation] URL 為空');
+    throw new Error('請輸入有效的翻譯服務 URL');
+  }
+
+  if (serviceUrl.startsWith('GAS://')) {
+    const scriptId = serviceUrl.replace('GAS://', '');
+    if (!scriptId.match(/^[a-zA-Z0-9_-]+$/)) {
+      console.error('[ERROR] [Translation] 無效的 Google Apps Script ID:', scriptId);
+      throw new Error('Google Apps Script ID 只能包含字母、數字和連字符');
+    }
+    const gasUrl = `https://script.google.com/macros/s/${scriptId}/exec`;
+    return await sendTranslationGet(text, targetLangs, sourceLang, gasUrl);
+  } else {
+    return await sendTranslation(text, targetLangs, serviceUrl, serviceKey);
+  }
+}
+
 // 更新 UI 的邏輯
-async function updateTranslationUI(data, targetLangs) {
+async function updateTranslationUI(data, targetLangs, minDisplayTime) {
   const spans = {
     target1: document.getElementById('target-text-1'),
     target2: document.getElementById('target-text-2'),
@@ -110,7 +158,7 @@ async function updateTranslationUI(data, targetLangs) {
     const langSelect = document.getElementById(`target${index + 1}-language`)?.value;
     if (span && data.translations && data.translations[index]) {
       const filteredText = isRayModeActive ? filterTextWithKeywords(data.translations[index], lang) : data.translations[index];
-      const minDisplayTime = 3; // 固定 3 秒
+      
       displayBuffers[`target${index + 1}`].push({
         text: filteredText,
         minDisplayTime
@@ -140,7 +188,7 @@ function processDisplayBuffers() {
     }
 
     if (currentDisplays[key] && now - currentDisplays[key].startTime < currentDisplays[key].minDisplayTime * 1000) {
-      return; // 未達 3 秒
+      return; // 未達 minDisplayTime
     }
 
     if (displayBuffers[key].length > 0) {
@@ -179,28 +227,29 @@ async function processQueue() {
 
   try {
     const serviceUrl = document.getElementById('translation-link').value;
-    let serviceKey = '';
-
-    const targetLangsBcp47 = [
+    const targetLangs = [
       document.getElementById('target1-language')?.value,
       document.getElementById('target2-language')?.value,
       document.getElementById('target3-language')?.value
     ].filter(lang => lang && lang !== 'none');
 
-    if (targetLangsBcp47.length === 0) {
+    if (targetLangs.length === 0) {
       console.debug('[DEBUG] [Translation] 無目標語言，跳過翻譯');
       return;
     }
 
-    const targetLangs = targetLangsBcp47.map(lang => {
-      const langName = bcp47ToLanguageName[lang] || lang.split('-')[0];
-      console.debug('[DEBUG] [Translation] 語言轉換: ${lang} -> ${langName}');
-      return langName;
-    });
+    // 根據來源文字長度和語言計算統一的 minDisplayTime
+    let minDisplayTime;
+    if (['ja', 'zh-TW'].includes(sourceLang)) {
+      minDisplayTime = text.length <= 10 ? 1 : 3; // 日文或繁體中文：≤15字1秒，否則3秒
+    } else {
+      minDisplayTime = text.length <= 20 ? 1.5 : 3; // 歐美語言：≤20字1.5秒，否則3秒
+    }
+    console.debug('[DEBUG] [Translation] 計算顯示時間:', { sourceLang, textLength: text.length, minDisplayTime });
 
-    const data = await sendTranslation(text, targetLangs, serviceUrl, serviceKey);
+    const data = await processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, '');
     if (data) {
-      await updateTranslationUI(data, targetLangs);
+      await updateTranslationUI(data, targetLangs, minDisplayTime);
     }
   } catch (error) {
     console.error('[ERROR] [Translation] 翻譯失敗:', error.message);
@@ -222,4 +271,4 @@ document.addEventListener('DOMContentLoaded', () => {
   requestAnimationFrame(processDisplayBuffers);
 });
 
-export { sendTranslationRequest, sendTranslation, bcp47ToLanguageName };
+export { sendTranslationRequest, processTranslationUrl };

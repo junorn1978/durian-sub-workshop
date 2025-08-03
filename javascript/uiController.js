@@ -1,4 +1,4 @@
-import { sendTranslationRequest, sendTranslation, bcp47ToLanguageName } from './translationController.js';
+import { processTranslationUrl } from './translationController.js';
 
 document.addEventListener('DOMContentLoaded', function() {
   // 定義所有設定
@@ -488,7 +488,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function setupAlignmentListener() {
     const radioButtons = document.querySelectorAll('input[name="alignment"]');
     if (radioButtons.length === 0) {
-      // console.debug('[DEBUG] [UIController]', '對 SurveyJS - Survey Creator Example齊方式 radio 按鈕未找到');
+      // console.debug('[DEBUG] [UIController]', '對齊方式 radio 按鈕未找到');
       return;
     }
     
@@ -538,12 +538,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const serviceUrl = document.getElementById('translation-link').value;
-    const targetLang = bcp47ToLanguageName[sourceLang] || sourceLang.split('-')[0];
+    const targetLang = sourceLang;
 
     try {
       // console.debug('[DEBUG] [UIController]', '發送留言翻譯請求:', { text, sourceLang, targetLang });
-      const data = await sendTranslation(text, [targetLang], serviceUrl, '');
-
+      // const data = await sendTranslation(text, [targetLang], serviceUrl, '');
+      const data = await processTranslationUrl(text, [targetLang], 'AUTO', serviceUrl, '');
       if (data && data.translations && data.translations[0]) {
         requestAnimationFrame(() => {
           const isRayModeActive = document.getElementById('raymode')?.classList.contains('active') || false;

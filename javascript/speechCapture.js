@@ -16,7 +16,7 @@ const RESTART_DELAY = 300;
 let keywordRules = [];
 
 // 字閥對應表
-const chunkSizeMap = { "ja": 35, "zh-TW": 33, "es-ES": 80, "en-US": 80, "id-ID": 80 };
+const chunkSizeMap = { "ja": 35, "zh-TW": 33, "es-ES": 80, "en-US": 80, "id-ID": 80, "vi-VN": 80, "th-TH": 80 };
 
 // 初始化時載入關鍵字替換對應表
 async function loadKeywordRules() {
