@@ -1,12 +1,39 @@
 import { keywordRules, chunkSizeMap } from './speechCapture.js';
 
-// 佇列和處理狀態
-let translationQueue = [];
-let isProcessing = false;
+// 全局序列號計數器
+let sequenceCounter = 0;
+const maxConcurrent = 5; // 最大並發請求數
+let activeRequests = 0; // 當前活動請求數
 
 // 顯示緩衝區與當前顯示狀態
 const displayBuffers = { target1: [], target2: [], target3: [] };
 const currentDisplays = { target1: null, target2: null, target3: null };
+const expectedSequenceId = { target1: 0, target2: 0, target3: 0 };
+
+// 顯示時間規則（統一定義）
+const displayTimeRules = {
+  'ja-JP': [
+    { maxLength: 20, time: 1 },
+    { maxLength: 40, time: 2 },
+    { maxLength: Infinity, time: 3 }
+  ],
+  'zh-TW': [
+    { maxLength: 20, time: 1 },
+    { maxLength: 40, time: 2 },
+    { maxLength: Infinity, time: 3 }
+  ],
+  'default': [
+    { maxLength: 30, time: 1 },
+    { maxLength: 70, time: 2 },
+    { maxLength: Infinity, time: 3 }
+  ]
+};
+
+// 超時輔助函數
+const timeout = (promise, time) => Promise.race([
+  promise,
+  new Promise((_, reject) => setTimeout(() => reject(new Error('請求超時')), time))
+]);
 
 // 在使用れいーモード的時候進行翻譯後的文字過濾
 function filterTextWithKeywords(text, targetLang) {
@@ -29,8 +56,8 @@ function filterTextWithKeywords(text, targetLang) {
   return result;
 }
 
-// 發送翻譯請求的核心邏輯（原 POST 方式）
-async function sendTranslation(text, targetLangs, serviceUrl, serviceKey) {
+// 發送翻譯請求的核心邏輯（POST 方式）
+async function sendTranslation(text, targetLangs, serviceUrl, serviceKey, sequenceId) {
   if (!text || text.trim() === '' || text.trim() === 'っ') {
     console.debug('[DEBUG] [Translation] 無效文字，跳過翻譯:', text);
     return null;
@@ -38,7 +65,6 @@ async function sendTranslation(text, targetLangs, serviceUrl, serviceKey) {
 
   if (!serviceUrl) throw new Error('Service URL is empty.');
 
-  // 解析 protocol://domain 格式，允許開頭空格
   const urlPattern = /^\s*(\w+):\/\/(.+)$/;
   const match = serviceUrl.match(urlPattern);
   if (match) {
@@ -52,31 +78,24 @@ async function sendTranslation(text, targetLangs, serviceUrl, serviceKey) {
     }
   }
 
-  // 拼接 https:// 和 /translate
   serviceUrl = `https://${serviceUrl}/translate`;
 
-  // 驗證最終 URL 格式
   if (!/^https:\/\/[a-zA-Z0-9.-]+(:\d+)?\/translate$/.test(serviceUrl)) {
     throw new Error('Invalid URL format.');
   }
 
-  const headers = {
-    'Content-Type': 'application/json'
-  };
+  const headers = { 'Content-Type': 'application/json' };
   if (serviceKey) headers['X-API-Key'] = serviceKey;
 
-  const payload = {
-    text,
-    targetLangs
-  };
+  const payload = { text, targetLangs, sequenceId };
 
-  console.debug('[DEBUG] [Translation] 發送翻譯請求:', { text, targetLangs });
+  console.debug('[DEBUG] [Translation] 發送翻譯請求:', { text, targetLangs, sequenceId });
 
-  const response = await fetch(serviceUrl, {
+  const response = await timeout(fetch(serviceUrl, {
     method: 'POST',
     headers,
     body: JSON.stringify(payload)
-  });
+  }), 10000); // 10 秒超時
 
   if (!response.ok) {
     throw new Error(`翻譯請求失敗: ${response.status} - ${await response.text()}`);
@@ -86,23 +105,20 @@ async function sendTranslation(text, targetLangs, serviceUrl, serviceKey) {
 }
 
 // 發送翻譯請求的 GET 方式
-async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl) {
+async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl, sequenceId) {
   if (!text || text.trim() === '' || text.trim() === 'っ') {
     console.debug('[DEBUG] [Translation] 無效文字，跳過翻譯:', text);
     return null;
   }
 
-  // 驗證 Google Apps Script Web App URL
   if (!serviceUrl.match(/^https:\/\/script\.google\.com\/macros\/s\/[^\/]+\/exec$/)) {
     console.error('[ERROR] [Translation] 無效的 Google Apps Script URL:', serviceUrl);
     throw new Error('無效的 Google Apps Script URL');
   }
 
-  // 序列化查詢參數
-  const queryParams = `text=${encodeURIComponent(text)}&targetLangs=${encodeURIComponent(JSON.stringify(targetLangs))}&sourceLang=${encodeURIComponent(sourceLang)}`;
+  const queryParams = `text=${encodeURIComponent(text)}&targetLangs=${encodeURIComponent(JSON.stringify(targetLangs))}&sourceLang=${encodeURIComponent(sourceLang)}&sequenceId=${sequenceId}`;
   const url = `${serviceUrl}?${queryParams}`;
 
-  // 檢查 URL 長度
   if (url.length > 20000) {
     console.error('[ERROR] [Translation] URL 過長:', url.length);
     throw new Error('請求資料過長，請縮短文字內容');
@@ -110,10 +126,7 @@ async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl) {
 
   console.debug('[DEBUG] [Translation] 發送 GET 請求:', url);
 
-  const response = await fetch(url, {
-    method: 'GET',
-    mode: 'cors'
-  });
+  const response = await timeout(fetch(url, { method: 'GET', mode: 'cors' }), 10000); // 10 秒超時
 
   if (!response.ok) {
     throw new Error(`翻譯請求失敗: ${response.status} - ${await response.text()}`);
@@ -124,8 +137,8 @@ async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl) {
   return data;
 }
 
-// 新增：處理 URL 並選擇 GET 或 POST 方式
-async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, serviceKey) {
+// 處理 URL 並選擇 GET 或 POST 方式
+async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, serviceKey, sequenceId) {
   if (!serviceUrl) {
     console.error('[ERROR] [Translation] URL 為空');
     throw new Error('請輸入有效的翻譯服務 URL');
@@ -138,14 +151,14 @@ async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, 
       throw new Error('Google Apps Script ID 只能包含字母、數字和連字符');
     }
     const gasUrl = `https://script.google.com/macros/s/${scriptId}/exec`;
-    return await sendTranslationGet(text, targetLangs, sourceLang, gasUrl);
+    return await sendTranslationGet(text, targetLangs, sourceLang, gasUrl, sequenceId);
   } else {
-    return await sendTranslation(text, targetLangs, serviceUrl, serviceKey);
+    return await sendTranslation(text, targetLangs, serviceUrl, serviceKey, sequenceId);
   }
 }
 
 // 更新 UI 的邏輯
-async function updateTranslationUI(data, targetLangs, minDisplayTime) {
+async function updateTranslationUI(data, targetLangs, minDisplayTime, sequenceId) {
   const spans = {
     target1: document.getElementById('target-text-1'),
     target2: document.getElementById('target-text-2'),
@@ -161,9 +174,11 @@ async function updateTranslationUI(data, targetLangs, minDisplayTime) {
       
       displayBuffers[`target${index + 1}`].push({
         text: filteredText,
-        minDisplayTime
+        minDisplayTime,
+        sequenceId: data.sequenceId ?? sequenceId, // 使用後端返回的 sequenceId，若無則使用前端的
+        timestamp: Date.now()
       });
-      console.debug('[DEBUG] [Translation] 緩衝區新增:', { lang, text: filteredText, minDisplayTime });
+      console.debug('[DEBUG] [Translation] 緩衝區新增:', { lang, text: filteredText, minDisplayTime, sequenceId });
     }
   });
 }
@@ -179,24 +194,36 @@ function processDisplayBuffers() {
 
   ['target1', 'target2', 'target3'].forEach(key => {
     const span = spans[key];
-    if (!span) return;
+    if (!span || displayBuffers[key].length === 0) return;
 
-    // 檢查緩衝區長度，防止溢出
+    // 按 sequenceId 排序，若無 sequenceId 則按 timestamp
+    displayBuffers[key].sort((a, b) => {
+      if (a.sequenceId === undefined || b.sequenceId === undefined) {
+        return a.timestamp - b.timestamp;
+      }
+      return a.sequenceId - b.sequenceId;
+    });
+
+    // 清理過舊的項目（超過 10 秒）
+    displayBuffers[key] = displayBuffers[key].filter(item => now - item.timestamp < 10000);
     if (displayBuffers[key].length > 10) {
-      displayBuffers[key].shift();
-      console.debug('[DEBUG] [Translation] 緩衝區溢出，丟棄最早結果:', { key });
+      displayBuffers[key] = displayBuffers[key].slice(-10);
+      console.debug('[DEBUG] [Translation] 緩衝區溢出，丟棄早期結果:', { key });
     }
 
     if (currentDisplays[key] && now - currentDisplays[key].startTime < currentDisplays[key].minDisplayTime * 1000) {
       return; // 未達 minDisplayTime
     }
 
-    if (displayBuffers[key].length > 0) {
-      const next = displayBuffers[key].shift();
+    // 查找預期 sequenceId 的項目
+    const nextIndex = displayBuffers[key].findIndex(item => item.sequenceId === expectedSequenceId[key]);
+    if (nextIndex !== -1) {
+      const next = displayBuffers[key].splice(nextIndex, 1)[0]; // 取出匹配項目
       currentDisplays[key] = {
         text: next.text,
         startTime: now,
-        minDisplayTime: next.minDisplayTime
+        minDisplayTime: next.minDisplayTime,
+        sequenceId: next.sequenceId
       };
       span.textContent = next.text;
       span.dataset.stroke = next.text;
@@ -212,18 +239,28 @@ function processDisplayBuffers() {
         span.classList.remove('multi-line');
         console.debug('[DEBUG] [Translation] 移除縮小字體:', { lang: langSelect, length: next.text.length, chunkSize });
       }
-      console.info('[INFO] [Translation] 更新翻譯文字:', { lang: langSelect, text: next.text, elapsed: currentDisplays[key].startTime ? (now - currentDisplays[key].startTime) / 1000 : 0 });
+      console.info('[INFO] [Translation] 更新翻譯文字:', { lang: langSelect, text: next.text, sequenceId: next.sequenceId });
+
+      // 更新預期下一個 sequenceId
+      expectedSequenceId[key]++;
+    } else {
+      console.debug('[DEBUG] [Translation] 等待預期 sequenceId:', { key, expected: expectedSequenceId[key] });
     }
   });
   requestAnimationFrame(processDisplayBuffers);
 }
 
-// 處理佇列中的下一個請求
-async function processQueue() {
-  if (isProcessing || translationQueue.length === 0) return;
+// 公開的翻譯請求函數
+async function sendTranslationRequest(text, sourceLang, browser) {
+  if (activeRequests >= maxConcurrent) {
+    console.debug('[DEBUG] [Translation] 達到並發上限，延遲重試');
+    setTimeout(() => sendTranslationRequest(text, sourceLang, browser), 100);
+    return;
+  }
 
-  isProcessing = true;
-  const { text, sourceLang, browser } = translationQueue.shift();
+  activeRequests++;
+  const sequenceId = sequenceCounter++;
+  console.debug('[DEBUG] [Translation] 發送請求:', { text, sourceLang, browser, sequenceId });
 
   try {
     const serviceUrl = document.getElementById('translation-link').value;
@@ -238,37 +275,34 @@ async function processQueue() {
       return;
     }
 
-    // 根據來源文字長度和語言計算統一的 minDisplayTime
-    let minDisplayTime;
-    if (['ja', 'zh-TW'].includes(sourceLang)) {
-      minDisplayTime = text.length <= 10 ? 1 : 3; // 日文或繁體中文：≤15字1秒，否則3秒
-    } else {
-      minDisplayTime = text.length <= 20 ? 1.5 : 3; // 歐美語言：≤20字1.5秒，否則3秒
-    }
+    const minDisplayTime = serviceUrl.startsWith('GAS://') 
+      ? 0 
+      : (displayTimeRules[sourceLang] || displayTimeRules['default']).find(rule => text.length <= rule.maxLength).time;
+
     console.debug('[DEBUG] [Translation] 計算顯示時間:', { sourceLang, textLength: text.length, minDisplayTime });
 
-    const data = await processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, '');
+    const data = await processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, '', sequenceId);
     if (data) {
-      await updateTranslationUI(data, targetLangs, minDisplayTime);
+      await updateTranslationUI(data, targetLangs, minDisplayTime, sequenceId);
     }
   } catch (error) {
-    console.error('[ERROR] [Translation] 翻譯失敗:', error.message);
+    console.error('[ERROR] [Translation] 翻譯失敗:', { sequenceId, error: error.message });
   } finally {
-    isProcessing = false;
-    processQueue();
+    activeRequests--;
   }
 }
 
-// 公開的翻譯請求函數
-async function sendTranslationRequest(text, sourceLang, browser) {
-  translationQueue.push({ text, sourceLang, browser });
-  console.debug('[DEBUG] [Translation] 加入佇列:', { text, sourceLang, browser });
-  await processQueue();
-}
-
-// 啟動顯示緩衝區處理
+// 啟動顯示緩衝區處理並定期重置 sequenceCounter
 document.addEventListener('DOMContentLoaded', () => {
   requestAnimationFrame(processDisplayBuffers);
+  setInterval(() => {
+    sequenceCounter = 0;
+    // 同時重置 expectedSequenceId
+    expectedSequenceId.target1 = 0;
+    expectedSequenceId.target2 = 0;
+    expectedSequenceId.target3 = 0;
+    console.debug('[DEBUG] [Translation] 重置 sequenceCounter 和 expectedSequenceId');
+  }, 3600000); // 1 小時
 });
 
 export { sendTranslationRequest, processTranslationUrl };

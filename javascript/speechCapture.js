@@ -10,7 +10,7 @@ let restartAttempts = 0;
 
 // 因為各種原因重新啟動語音擷取時的時間
 const MAX_RESTART_ATTEMPTS = 50;
-const RESTART_DELAY = 300;
+const RESTART_DELAY = 150;
 
 // 關鍵字規則表
 let keywordRules = [];

@@ -160,6 +160,7 @@ body {
 #comment1, #comment2, #comm-text {
     flex: 1;
     display: flex;
+    flex-direction: column;
     align-items: flex-start;
     gap: 5px;
     padding: 5px;
@@ -206,6 +207,7 @@ body {
     border-radius: 5px;
     border: 1px solid #8B4513;
     padding: 5px;
+    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
 }
 
 #comment2 {
@@ -247,6 +249,21 @@ body {
 #size-setting input[type="range"] {
     width: 100%;
     cursor: pointer;
+}
+
+#size-setting {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+#size-setting span {
+    font-size: 14px;
+    color: #8B4513;
+    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
+    margin-top: 5px;
+    text-align: center;
 }
 
 #source-text, #target-text-1, #target-text-2, #target-text-3 {
