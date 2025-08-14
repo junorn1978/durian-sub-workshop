@@ -1,6 +1,7 @@
 import { processTranslationUrl } from './translationController.js';
+import { loadLanguageConfig, getAllLanguages } from './config.js';
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
   
   // 統一的設定配置
   const CONFIG = {
@@ -315,8 +316,36 @@ document.addEventListener('DOMContentLoaded', function() {
     };
   };
 
+  // 動態填充語言選單
+  const populateLanguageSelects = () => {
+    CONFIG.languages.forEach(config => {
+      const select = document.getElementById(config.id);
+      if (!select) return;
+
+      // 清空現有選項
+      select.innerHTML = config.id === 'source-language'
+        ? '<option value="">言語を選択</option>'
+        : '<option value="none">翻訳しない</option>';
+
+      // 從 getAllLanguages 獲取語言列表
+      const role = config.id === 'source-language' ? 'source' : 'target';
+      const languages = getAllLanguages(role);
+      languages.forEach(lang => {
+        const option = document.createElement('option');
+        option.value = lang.id; // 使用完整 id (如 "ja-JP")
+        option.textContent = lang.label; // 使用 label 作為顯示文字
+        select.appendChild(option);
+      });
+
+      console.debug(`[DEBUG] [UIController] 已填充 ${config.id} 選單，使用 id 作為 value`);
+    });
+  };
+  
   // 初始化所有設定
   const initializeSettings = () => {
+    // 填充語言選單
+    populateLanguageSelects();
+    
     // 樣式設定
     const styleHandlers = CONFIG.styles.map(config => {
       const handler = createSettingHandler(config);
@@ -445,6 +474,7 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 
   // 主初始化
+  await loadLanguageConfig();
   const handlers = initializeSettings();
   setupPanelSwitching();
   setupResetButton(handlers);

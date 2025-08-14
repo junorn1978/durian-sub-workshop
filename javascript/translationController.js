@@ -1,4 +1,5 @@
-import { keywordRules, chunkSizeMap } from './speechCapture.js';
+import { keywordRules } from './speechCapture.js';
+import { loadLanguageConfig, getChunkSize, getDisplayTimeRules, getTargetCodeById } from './config.js';
 
 // 全局序列號計數器
 let sequenceCounter = 0;
@@ -8,26 +9,6 @@ let activeRequests = 0; // 當前活動請求數
 // 顯示緩衝區與當前顯示狀態
 const displayBuffers = { target1: [], target2: [], target3: [] };
 const currentDisplays = { target1: null, target2: null, target3: null };
-const expectedSequenceId = { target1: 0, target2: 0, target3: 0 };
-
-// 顯示時間規則（統一定義）
-const displayTimeRules = {
-  'ja-JP': [
-    { maxLength: 20, time: 1 },
-    { maxLength: 40, time: 2 },
-    { maxLength: Infinity, time: 3 }
-  ],
-  'zh-TW': [
-    { maxLength: 20, time: 1 },
-    { maxLength: 40, time: 2 },
-    { maxLength: Infinity, time: 3 }
-  ],
-  'default': [
-    { maxLength: 30, time: 1 },
-    { maxLength: 70, time: 2 },
-    { maxLength: Infinity, time: 3 }
-  ]
-};
 
 // 超時輔助函數
 const timeout = (promise, time) => Promise.race([
@@ -215,8 +196,11 @@ function processDisplayBuffers() {
       return; // 未達 minDisplayTime
     }
 
-    // 查找預期 sequenceId 的項目
-    const nextIndex = displayBuffers[key].findIndex(item => item.sequenceId === expectedSequenceId[key]);
+    // 獲取最後顯示的 sequenceId，初始為 -1
+    const lastSequenceId = currentDisplays[key]?.sequenceId ?? -1;
+
+    // 查找 sequenceId > lastSequenceId 的最小項目
+    const nextIndex = displayBuffers[key].findIndex(item => item.sequenceId > lastSequenceId);
     if (nextIndex !== -1) {
       const next = displayBuffers[key].splice(nextIndex, 1)[0]; // 取出匹配項目
       currentDisplays[key] = {
@@ -231,7 +215,7 @@ function processDisplayBuffers() {
       span.offsetHeight;
       span.style.display = '';
       const langSelect = document.getElementById(`${key}-language`)?.value;
-      const chunkSize = chunkSizeMap[langSelect] || 40;
+      const chunkSize = getChunkSize(langSelect) || 40;
       if (next.text.length > chunkSize) {
         span.classList.add('multi-line');
         console.debug('[DEBUG] [Translation] 應用縮小字體:', { lang: langSelect, length: next.text.length, chunkSize });
@@ -240,11 +224,6 @@ function processDisplayBuffers() {
         console.debug('[DEBUG] [Translation] 移除縮小字體:', { lang: langSelect, length: next.text.length, chunkSize });
       }
       console.info('[INFO] [Translation] 更新翻譯文字:', { lang: langSelect, text: next.text, sequenceId: next.sequenceId });
-
-      // 更新預期下一個 sequenceId
-      expectedSequenceId[key]++;
-    } else {
-      console.debug('[DEBUG] [Translation] 等待預期 sequenceId:', { key, expected: expectedSequenceId[key] });
     }
   });
   requestAnimationFrame(processDisplayBuffers);
@@ -268,16 +247,17 @@ async function sendTranslationRequest(text, sourceLang, browser) {
       document.getElementById('target1-language')?.value,
       document.getElementById('target2-language')?.value,
       document.getElementById('target3-language')?.value
-    ].filter(lang => lang && lang !== 'none');
+    ].filter(lang => lang && lang !== 'none').map(lang => getTargetCodeById(lang));
 
     if (targetLangs.length === 0) {
       console.debug('[DEBUG] [Translation] 無目標語言，跳過翻譯');
       return;
     }
 
+    const rules = getDisplayTimeRules(sourceLang) || getDisplayTimeRules('default');
     const minDisplayTime = serviceUrl.startsWith('GAS://') 
       ? 0 
-      : (displayTimeRules[sourceLang] || displayTimeRules['default']).find(rule => text.length <= rule.maxLength).time;
+      : rules.find(rule => text.length <= rule.maxLength).time;
 
     console.debug('[DEBUG] [Translation] 計算顯示時間:', { sourceLang, textLength: text.length, minDisplayTime });
 
@@ -293,15 +273,16 @@ async function sendTranslationRequest(text, sourceLang, browser) {
 }
 
 // 啟動顯示緩衝區處理並定期重置 sequenceCounter
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadLanguageConfig();
   requestAnimationFrame(processDisplayBuffers);
   setInterval(() => {
     sequenceCounter = 0;
-    // 同時重置 expectedSequenceId
-    expectedSequenceId.target1 = 0;
-    expectedSequenceId.target2 = 0;
-    expectedSequenceId.target3 = 0;
-    console.debug('[DEBUG] [Translation] 重置 sequenceCounter 和 expectedSequenceId');
+    // 重置 currentDisplays 的 sequenceId
+    currentDisplays.target1 = null;
+    currentDisplays.target2 = null;
+    currentDisplays.target3 = null;
+    console.debug('[DEBUG] [Translation] 重置 sequenceCounter 和 currentDisplays');
   }, 3600000); // 1 小時
 });
 

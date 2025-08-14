@@ -1,3 +1,4 @@
+import { loadLanguageConfig, getChunkSize, getTargetCodeById } from './config.js';
 import { sendTranslationRequest } from './translationController.js';
 
 // 語音辨識控制器
@@ -14,9 +15,6 @@ const RESTART_DELAY = 150;
 
 // 關鍵字規則表
 let keywordRules = [];
-
-// 字閥對應表
-const chunkSizeMap = { "ja": 35, "zh-TW": 33, "es-ES": 80, "en-US": 80, "id-ID": 80, "vi-VN": 80, "th-TH": 80 };
 
 // 初始化時載入關鍵字替換對應表
 async function loadKeywordRules() {
@@ -37,6 +35,33 @@ function recognitionBrowser() {
   const userAgent = navigator.userAgent || '';
   return userAgent.includes('Edg/') ? 'Edge' :
          userAgent.includes('Chrome/') ? 'Chrome' : 'Unknown';
+}
+
+// 專為RayMode生成關鍵字過濾規則
+function generateRayModeRules(sourceLang) {
+  const cachedRules = new Map();
+  if (!cachedRules.has(sourceLang)) {
+    cachedRules.set(sourceLang, keywordRules
+      .filter(rule => rule.lang === sourceLang)
+      .map(rule => ({ source: new RegExp(rule.source, 'ig'), target: rule.target })));
+  }
+  return cachedRules.get(sourceLang);
+}
+
+// 專為RayMode過濾文字，僅移除標點符號並應用關鍵字替換
+function filterRayModeText(text, sourceLang) {
+  if (!text || text.trim() === '' || text.trim() === 'っ') {
+    console.info("[INFO] [SpeechRecognition] 跳過無效文字：", { original: text });
+    return '';
+  }
+  
+  let result = text.replace(/[、。？,.]/g, '');
+  const rules = generateRayModeRules(sourceLang);
+  rules.forEach(rule => {
+    result = result.replace(rule.source, rule.target);
+  });
+  
+  return result;
 }
 
 function executeSpeechRecognition() {
@@ -110,37 +135,34 @@ function executeSpeechRecognition() {
   }
 
   // 專為乙夏れい配信客製化的模式（れいーモード）
-  const cachedRules = new Map();
+  // 主要處理以下狀況
+  // 1. 處理經常錯誤的語音辨識結果，以及盡量避免部分有心人士因為錯誤的機器翻譯而進行惡意攻擊
+  // 2. 讓語音擷取結果盡可能保持在一行的程度，避免語音擷取結果過度占用版面
   function processText(text) {
     if (!text || text.trim() === '' || text.trim() === 'っ') {
       console.info("[INFO] [SpeechRecognition] 跳過無效文字：", { original: text });
       return '';
     }
-
-    const sourceLang = document.getElementById("source-language")?.value || "ja";
-    const chunkSize = chunkSizeMap[sourceLang] || 40;
+  
+    const sourceLang = document.getElementById("source-language")?.value || "ja-JP";
+    const chunkSize = getChunkSize(sourceLang) || 40;
     let result = text.replace(/[、。？,.]/g, '');
-
-    if (!cachedRules.has(sourceLang)) {
-      cachedRules.set(sourceLang, keywordRules
-        .filter(rule => rule.lang === sourceLang)
-        .map(rule => ({ source: new RegExp(rule.source, 'ig'), target: rule.target })));
-    }
-
-    cachedRules.get(sourceLang).forEach(rule => {
+    
+    const rules = generateRayModeRules(sourceLang);
+    rules.forEach(rule => {
       result = result.replace(rule.source, rule.target);
     });
-
+  
     if (result.length >= chunkSize) {
       let multiple = Math.floor(result.length / chunkSize);
       const charsToRemove = multiple * chunkSize;
       result = result.substring(charsToRemove);
     }
-
+  
     return result;
   }
 
-  // 根據對齊方式格式化文字
+  // 這一段是利用音符符號來識別翻譯發送的訊號，當音符消失時，最終結果產生並發送翻譯請求
   function formatAlignedText(baseText) {
     const alignment = document.querySelector('input[name="alignment"]:checked')?.value || 'left';
     if (alignment === 'center') return `🎼️${baseText}🎼`;
@@ -149,12 +171,9 @@ function executeSpeechRecognition() {
   }
 
   // 更新原始文字到 DOM
+  // 這一段AI是建議這樣可能太過度更新DOM，會造成系統負擔
+  // 但這邊實際測試的結果不這樣做的話反而會出現整個瀏覽器卡住的狀態，所以保持，之後有碰到問題在考慮要怎麼修改。
   function updateSourceText(text) {
-    if (!sourceText) {
-      console.error('[ERROR] [SpeechRecognition] sourceText 元素未找到');
-      return;
-    }
-
     if (text.trim().length !== 0 && sourceText.textContent !== text) {
       requestAnimationFrame(() => {
         sourceText.textContent = text;
@@ -168,6 +187,8 @@ function executeSpeechRecognition() {
   }
 
   // 清空所有文字顯示元素
+  // 這一段只有用在按下開始錄音的時候會將範例文字先清空而已，其他地方沒有使用到
+  // 原本是想有沒有需要和上面的函式合併，但AI建議不要這樣做，所以就另外生成了
   function clearAllTextElements() {
     requestAnimationFrame(() => {
       [sourceText, targetText1, targetText2, targetText3].forEach(element => {
@@ -209,7 +230,7 @@ function executeSpeechRecognition() {
   let finalTranscript = '';
   let interimTranscript = '';
 
-  // 語音辨識結果處理
+  // 語音辨識結果事件處理
   recognition.onresult = (event) => {
     let hasFinalResult = false;
     interimTranscript = '';
@@ -228,23 +249,28 @@ function executeSpeechRecognition() {
       }
     }
 
+    // 判斷raymode有沒有開啟
+    const rayModeButton = document.getElementById('raymode');
+    const isRayModeActive = rayModeButton?.classList.contains('active') || false;
+    
     // 旗標值最終結果產生時先發送翻譯
     if (hasFinalResult) {
       console.info('[INFO] [SpeechRecognition] 最終結果:', finalTranscript.trim(), '字數', finalTranscript.trim().length);
-      sendTranslationRequest(finalTranscript.trim(), recognition.lang, browser);
+      const sourceLang = document.getElementById("source-language")?.value || "ja-JP";
+      const sendTranslationRequestText = isRayModeActive ?
+                                        filterRayModeText(finalTranscript.trim(), sourceLang) :
+                                        finalTranscript.trim();
+      sendTranslationRequest(sendTranslationRequestText, recognition.lang, browser);
     }
 
     // fullText 還沒有最終結果前由 interimTranscript 提供顯示文字
     //          最終結果產生後則由 finalTranscript 提供顯示文字
     const fullText = finalTranscript + interimTranscript;
-    const rayModeButton = document.getElementById('raymode');
-    const isRayModeActive = rayModeButton?.classList.contains('active') || false;
-
     const textToUpdate = isRayModeActive ?                            // 是否在raymode
                          (hasFinalResult ? processText(fullText) :    // 在raymode並且是最終文字，使用raymode專用函式過濾文字
                          formatAlignedText(processText(fullText))) :  // 在raymode並且是臨時文字，使用加入邊緣字和raymode專用函式過濾文字
                          fullText;                                    // 不是在raymode下就直接顯示正常文字
-
+    // 結果整理好後發送到UI
     updateSourceText(textToUpdate);
   };
 
@@ -273,9 +299,10 @@ function executeSpeechRecognition() {
 }
 
 // 在 DOM 載入完成後初始化
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadLanguageConfig();
   loadKeywordRules();
   executeSpeechRecognition();
 });
 
-export { keywordRules, chunkSizeMap };
+export { keywordRules, generateRayModeRules };
