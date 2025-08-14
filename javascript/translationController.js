@@ -105,7 +105,7 @@ async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl, seq
     throw new Error('請求資料過長，請縮短文字內容');
   }
 
-  console.debug('[DEBUG] [Translation] 發送 GET 請求:', url);
+  // console.debug('[DEBUG] [Translation] 發送 GET 請求:', url);
 
   const response = await timeout(fetch(url, { method: 'GET', mode: 'cors' }), 10000); // 10 秒超時
 
@@ -114,7 +114,7 @@ async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl, seq
   }
 
   const data = await response.json();
-  console.debug('[DEBUG] [Translation] 接收 GET 回應:', data);
+  // console.debug('[DEBUG] [Translation] 接收 GET 回應:', data);
   return data;
 }
 
@@ -159,7 +159,7 @@ async function updateTranslationUI(data, targetLangs, minDisplayTime, sequenceId
         sequenceId: data.sequenceId ?? sequenceId, // 使用後端返回的 sequenceId，若無則使用前端的
         timestamp: Date.now()
       });
-      console.debug('[DEBUG] [Translation] 緩衝區新增:', { lang, text: filteredText, minDisplayTime, sequenceId });
+      // console.debug('[DEBUG] [Translation] 緩衝區新增:', { lang, text: filteredText, minDisplayTime, sequenceId });
     }
   });
 }
@@ -189,7 +189,7 @@ function processDisplayBuffers() {
     displayBuffers[key] = displayBuffers[key].filter(item => now - item.timestamp < 10000);
     if (displayBuffers[key].length > 10) {
       displayBuffers[key] = displayBuffers[key].slice(-10);
-      console.debug('[DEBUG] [Translation] 緩衝區溢出，丟棄早期結果:', { key });
+      // console.debug('[DEBUG] [Translation] 緩衝區溢出，丟棄早期結果:', { key });
     }
 
     if (currentDisplays[key] && now - currentDisplays[key].startTime < currentDisplays[key].minDisplayTime * 1000) {
@@ -218,10 +218,10 @@ function processDisplayBuffers() {
       const chunkSize = getChunkSize(langSelect) || 40;
       if (next.text.length > chunkSize) {
         span.classList.add('multi-line');
-        console.debug('[DEBUG] [Translation] 應用縮小字體:', { lang: langSelect, length: next.text.length, chunkSize });
+        // console.debug('[DEBUG] [Translation] 應用縮小字體:', { lang: langSelect, length: next.text.length, chunkSize });
       } else {
         span.classList.remove('multi-line');
-        console.debug('[DEBUG] [Translation] 移除縮小字體:', { lang: langSelect, length: next.text.length, chunkSize });
+        // console.debug('[DEBUG] [Translation] 移除縮小字體:', { lang: langSelect, length: next.text.length, chunkSize });
       }
       console.info('[INFO] [Translation] 更新翻譯文字:', { lang: langSelect, text: next.text, sequenceId: next.sequenceId });
     }
@@ -232,14 +232,14 @@ function processDisplayBuffers() {
 // 公開的翻譯請求函數
 async function sendTranslationRequest(text, sourceLang, browser) {
   if (activeRequests >= maxConcurrent) {
-    console.debug('[DEBUG] [Translation] 達到並發上限，延遲重試');
+    // console.debug('[DEBUG] [Translation] 達到並發上限，延遲重試');
     setTimeout(() => sendTranslationRequest(text, sourceLang, browser), 100);
     return;
   }
 
   activeRequests++;
   const sequenceId = sequenceCounter++;
-  console.debug('[DEBUG] [Translation] 發送請求:', { text, sourceLang, browser, sequenceId });
+  // console.debug('[DEBUG] [Translation] 發送請求:', { text, sourceLang, browser, sequenceId });
 
   try {
     const serviceUrl = document.getElementById('translation-link').value;
@@ -250,7 +250,7 @@ async function sendTranslationRequest(text, sourceLang, browser) {
     ].filter(lang => lang && lang !== 'none').map(lang => getTargetCodeById(lang));
 
     if (targetLangs.length === 0) {
-      console.debug('[DEBUG] [Translation] 無目標語言，跳過翻譯');
+      // console.debug('[DEBUG] [Translation] 無目標語言，跳過翻譯');
       return;
     }
 
@@ -259,7 +259,7 @@ async function sendTranslationRequest(text, sourceLang, browser) {
       ? 0 
       : rules.find(rule => text.length <= rule.maxLength).time;
 
-    console.debug('[DEBUG] [Translation] 計算顯示時間:', { sourceLang, textLength: text.length, minDisplayTime });
+    // console.debug('[DEBUG] [Translation] 計算顯示時間:', { sourceLang, textLength: text.length, minDisplayTime });
 
     const data = await processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, '', sequenceId);
     if (data) {
@@ -282,7 +282,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentDisplays.target1 = null;
     currentDisplays.target2 = null;
     currentDisplays.target3 = null;
-    console.debug('[DEBUG] [Translation] 重置 sequenceCounter 和 currentDisplays');
+    // console.debug('[DEBUG] [Translation] 重置 sequenceCounter 和 currentDisplays');
   }, 3600000); // 1 小時
 });
 
