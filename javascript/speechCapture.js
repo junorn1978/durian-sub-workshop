@@ -1,3 +1,4 @@
+// speechCapture.js
 import { loadLanguageConfig, getChunkSize, getTargetCodeById } from './config.js';
 import { sendTranslationRequest } from './translationController.js';
 
@@ -15,6 +16,8 @@ const RESTART_DELAY = 150;
 
 // 關鍵字規則表
 let keywordRules = [];
+// ray-mode下的關鍵字規則
+const cachedRules = new Map();
 
 // 初始化時載入關鍵字替換對應表
 async function loadKeywordRules() {
@@ -24,28 +27,21 @@ async function loadKeywordRules() {
     
     keywordRules = await response.json();
     console.info('[INFO] [TextProcessing] 關鍵字規則載入成功:');
+    
+    const uniqueLangs = [...new Set(keywordRules.map(rule => rule.lang))];
+    uniqueLangs.forEach(lang => {
+      cachedRules.set(lang, keywordRules
+        .filter(rule => rule.lang === lang)
+        .map(rule => ({ source: new RegExp(rule.source, 'ig'), target: rule.target })));
+    });
   } catch (error) {
     console.error('[ERROR] [TextProcessing] 載入關鍵字規則失敗:', error);
   }
 }
 
-// 判斷瀏覽器是edge還是chrome還是其他
-// 使用邏輯不同所以只能先辨識
-function recognitionBrowser() {
-  const userAgent = navigator.userAgent || '';
-  return userAgent.includes('Edg/') ? 'Edge' :
-         userAgent.includes('Chrome/') ? 'Chrome' : 'Unknown';
-}
-
 // 專為RayMode生成關鍵字過濾規則
 function generateRayModeRules(sourceLang) {
-  const cachedRules = new Map();
-  if (!cachedRules.has(sourceLang)) {
-    cachedRules.set(sourceLang, keywordRules
-      .filter(rule => rule.lang === sourceLang)
-      .map(rule => ({ source: new RegExp(rule.source, 'ig'), target: rule.target })));
-  }
-  return cachedRules.get(sourceLang);
+  return cachedRules.get(sourceLang) || [];
 }
 
 // 專為RayMode過濾文字，僅移除標點符號並應用關鍵字替換
@@ -62,6 +58,14 @@ function filterRayModeText(text, sourceLang) {
   });
   
   return result;
+}
+
+// 判斷瀏覽器是edge還是chrome還是其他
+// 使用邏輯不同所以只能先辨識
+function recognitionBrowser() {
+  const userAgent = navigator.userAgent || '';
+  return userAgent.includes('Edg/') ? 'Edge' :
+         userAgent.includes('Chrome/') ? 'Chrome' : 'Unknown';
 }
 
 function executeSpeechRecognition() {
@@ -181,7 +185,6 @@ function executeSpeechRecognition() {
         sourceText.style.display = 'inline-block';
         sourceText.offsetHeight;
         sourceText.style.display = '';
-        //console.debug('[DEBUG] [SpeechRecognition] 更新 sourceText 內容:', text);
       });
     }
   }
@@ -269,7 +272,8 @@ function executeSpeechRecognition() {
     const textToUpdate = isRayModeActive ?                            // 是否在raymode
                          (hasFinalResult ? processText(fullText) :    // 在raymode並且是最終文字，使用raymode專用函式過濾文字
                          formatAlignedText(processText(fullText))) :  // 在raymode並且是臨時文字，使用加入邊緣字和raymode專用函式過濾文字
-                         fullText;                                    // 不是在raymode下就直接顯示正常文字
+                         (hasFinalResult ? fullText :                 // 不是raymode最終結果時顯示一般文字
+                         formatAlignedText(fullText));                // 不是在raymode下就加入邊緣字和一般顯示
     // 結果整理好後發送到UI
     updateSourceText(textToUpdate);
   };
