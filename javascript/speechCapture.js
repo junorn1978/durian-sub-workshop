@@ -1,6 +1,5 @@
-// speechCapture.js
 import { loadLanguageConfig, getChunkSize, getTargetCodeById } from './config.js';
-import { sendTranslationRequest } from './translationController.js';
+import { sendTranslationRequest, preloadTranslationModels } from './translationController.js';
 
 // 語音辨識控制器
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -16,7 +15,6 @@ const RESTART_DELAY = 150;
 
 // 關鍵字規則表
 let keywordRules = [];
-// ray-mode下的關鍵字規則
 const cachedRules = new Map();
 
 // 初始化時載入關鍵字替換對應表
@@ -60,17 +58,81 @@ function filterRayModeText(text, sourceLang) {
   return result;
 }
 
-// 判斷瀏覽器是edge還是chrome還是其他
-// 使用邏輯不同所以只能先辨識
+// 判斷瀏覽器類型並檢查 Translator API 可用性
 function recognitionBrowser() {
   const userAgent = navigator.userAgent || '';
-  return userAgent.includes('Edg/') ? 'Edge' :
-         userAgent.includes('Chrome/') ? 'Chrome' : 'Unknown';
+  let browser = 'Unknown';
+  let supportsTranslatorAPI = false;
+
+  if (userAgent.includes('Edg/')) {
+    browser = 'Edge';
+  } else if (userAgent.includes('Chrome/')) {
+    browser = 'Chrome';
+    supportsTranslatorAPI = 'Translator' in self;
+  } else {
+    console.warn('[WARN] [SpeechRecognition] 未檢測到 Chrome 或 Edge 瀏覽器:', userAgent);
+  }
+
+  console.debug('[DEBUG] [SpeechRecognition] 瀏覽器檢測:', { browser, supportsTranslatorAPI, userAgent });
+  return { browser, supportsTranslatorAPI };
+}
+
+// 更新原始文字到 DOM
+function updateSourceText(text) {
+  const sourceText = document.getElementById('source-text');
+  if (sourceText && text.trim().length !== 0 && sourceText.textContent !== text) {
+    requestAnimationFrame(() => {
+      sourceText.textContent = text;
+      sourceText.dataset.stroke = text;
+      sourceText.style.display = 'inline-block';
+      sourceText.offsetHeight;
+      sourceText.style.display = '';
+    });
+  }
+}
+
+// 監聽 local-translation-api 狀態變化
+function monitorLocalTranslationAPI() {
+  const localTranslationButton = document.getElementById('local-translation-api');
+  if (!localTranslationButton) {
+    console.debug('[DEBUG] [SpeechRecognition] 未找到 local-translation-api 元素');
+    return;
+  }
+
+  const checkAndPreload = () => {
+    const sourceLang = document.getElementById('source-language')?.value || 'ja-JP';
+    const targetLangs = [
+      document.getElementById('target1-language')?.value,
+      document.getElementById('target2-language')?.value,
+      document.getElementById('target3-language')?.value
+    ].filter(lang => lang && lang !== 'none').map(lang => getTargetCodeById(lang));
+
+    if (localTranslationButton.classList.contains('active') && targetLangs.length > 0) {
+      console.debug('[DEBUG] [SpeechRecognition] 檢測到 local-translation-api 啟用，開始預下載模型:', { sourceLang, targetLangs });
+      preloadTranslationModels(sourceLang, targetLangs, updateSourceText);
+    } else {
+      console.debug('[DEBUG] [SpeechRecognition] local-translation-api 未啟用或無目標語言');
+    }
+  };
+
+  localTranslationButton.addEventListener('click', () => {
+    setTimeout(checkAndPreload, 0); // 確保 classList 更新後執行
+  });
+
+  // 初始檢查
+  checkAndPreload();
+
+  // 監聽語言選擇變化
+  ['source-language', 'target1-language', 'target2-language', 'target3-language'].forEach(id => {
+    const select = document.getElementById(id);
+    if (select) {
+      select.addEventListener('change', checkAndPreload);
+    }
+  });
 }
 
 function executeSpeechRecognition() {
-
-  const browser = recognitionBrowser();
+  const { browser, supportsTranslatorAPI } = recognitionBrowser();
 
   // 確認瀏覽器支援
   if (!SpeechRecognition || browser === 'Unknown') {
@@ -82,7 +144,7 @@ function executeSpeechRecognition() {
   // 設置語音辨識參數
   recognition.lang = 'ja-JP';
   recognition.interimResults = true;
-  recognition.continuous = browser === 'Edge'; // 依照瀏覽器類型決定要true(edge)還是false(Chrome)
+  recognition.continuous = browser === 'Edge';
   recognition.maxAlternatives = 1;
 
   const startButton = document.getElementById('start-recording');
@@ -139,9 +201,6 @@ function executeSpeechRecognition() {
   }
 
   // 專為乙夏れい配信客製化的模式（れいーモード）
-  // 主要處理以下狀況
-  // 1. 處理經常錯誤的語音辨識結果，以及盡量避免部分有心人士因為錯誤的機器翻譯而進行惡意攻擊
-  // 2. 讓語音擷取結果盡可能保持在一行的程度，避免語音擷取結果過度占用版面
   function processText(text) {
     if (!text || text.trim() === '' || text.trim() === 'っ') {
       console.info("[INFO] [SpeechRecognition] 跳過無效文字：", { original: text });
@@ -166,32 +225,15 @@ function executeSpeechRecognition() {
     return result;
   }
 
-  // 這一段是利用音符符號來識別翻譯發送的訊號，當音符消失時，最終結果產生並發送翻譯請求
+  // 利用音符符號識別翻譯發送訊號
   function formatAlignedText(baseText) {
     const alignment = document.querySelector('input[name="alignment"]:checked')?.value || 'left';
     if (alignment === 'center') return `🎼️${baseText}🎼`;
     if (alignment === 'right') return `🎼${baseText}`;
-    return `${baseText}🎼`; // 預設為 left
-  }
-
-  // 更新原始文字到 DOM
-  // 這一段AI是建議這樣可能太過度更新DOM，會造成系統負擔
-  // 但這邊實際測試的結果不這樣做的話反而會出現整個瀏覽器卡住的狀態，所以保持，之後有碰到問題在考慮要怎麼修改。
-  function updateSourceText(text) {
-    if (text.trim().length !== 0 && sourceText.textContent !== text) {
-      requestAnimationFrame(() => {
-        sourceText.textContent = text;
-        sourceText.dataset.stroke = text;
-        sourceText.style.display = 'inline-block';
-        sourceText.offsetHeight;
-        sourceText.style.display = '';
-      });
-    }
+    return `${baseText}🎼`;
   }
 
   // 清空所有文字顯示元素
-  // 這一段只有用在按下開始錄音的時候會將範例文字先清空而已，其他地方沒有使用到
-  // 原本是想有沒有需要和上面的函式合併，但AI建議不要這樣做，所以就另外生成了
   function clearAllTextElements() {
     requestAnimationFrame(() => {
       [sourceText, targetText1, targetText2, targetText3].forEach(element => {
@@ -239,8 +281,6 @@ function executeSpeechRecognition() {
     interimTranscript = '';
     finalTranscript = '';
 
-    // 參考Chrome web speech api的demo網頁的寫法，大概...
-    // 完全由瀏覽器的api來判斷什麼時候要產出結果並且發送翻譯.
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const transcript = event.results[i][0].transcript;
       console.debug('[DEBUG] [SpeechRecognition] 擷取結果:', transcript, 'isFinal:', event.results[i].isFinal);
@@ -252,34 +292,28 @@ function executeSpeechRecognition() {
       }
     }
 
-    // 判斷raymode有沒有開啟
     const rayModeButton = document.getElementById('raymode');
     const isRayModeActive = rayModeButton?.classList.contains('active') || false;
-    
-    // 旗標值最終結果產生時先發送翻譯
+    const isLocalTranslationActive = document.getElementById('local-translation-api')?.classList.contains('active') || false;
+
     if (hasFinalResult) {
       console.info('[INFO] [SpeechRecognition] 最終結果:', finalTranscript.trim(), '字數', finalTranscript.trim().length);
       const sourceLang = document.getElementById("source-language")?.value || "ja-JP";
       const sendTranslationRequestText = isRayModeActive ?
                                         filterRayModeText(finalTranscript.trim(), sourceLang) :
                                         finalTranscript.trim();
-      sendTranslationRequest(sendTranslationRequestText, recognition.lang, browser);
+      sendTranslationRequest(sendTranslationRequestText, recognition.lang, { browser, supportsTranslatorAPI }, isLocalTranslationActive);
     }
 
-    // fullText 還沒有最終結果前由 interimTranscript 提供顯示文字
-    //          最終結果產生後則由 finalTranscript 提供顯示文字
     const fullText = finalTranscript + interimTranscript;
-    const textToUpdate = isRayModeActive ?                            // 是否在raymode
-                         (hasFinalResult ? processText(fullText) :    // 在raymode並且是最終文字，使用raymode專用函式過濾文字
-                         formatAlignedText(processText(fullText))) :  // 在raymode並且是臨時文字，使用加入邊緣字和raymode專用函式過濾文字
-                         (hasFinalResult ? fullText :                 // 不是raymode最終結果時顯示一般文字
-                         formatAlignedText(fullText));                // 不是在raymode下就加入邊緣字和一般顯示
-    // 結果整理好後發送到UI
+    const textToUpdate = isRayModeActive ?
+                         (hasFinalResult ? processText(fullText) :
+                         formatAlignedText(processText(fullText))) :
+                         (hasFinalResult ? fullText :
+                         formatAlignedText(fullText));
     updateSourceText(textToUpdate);
   };
 
-  // 這個是沒有比對到最終結果但卻重新開始了onresult事件的事件(可能)
-  // 這邊目前不清楚運作方式，先嘗試加入一些代碼看這邊產生事件的時候可能的狀況
   recognition.onnomatch = (event) => {
     console.warn('[WARN] [SpeechRecognition] 無語音匹配結果', {
       finalTranscript: finalTranscript,
@@ -287,14 +321,11 @@ function executeSpeechRecognition() {
     });
   };
 
-  // 辨識結束後的動作
-  // 這邊Chrome是使用一次一句的方式擷取，所以會頻繁產生onend事件
   recognition.onend = () => {
     console.debug('[DEBUG] [SpeechRecognition] 產生onend事件 最終文字字數: ', finalTranscript.trim().length);
     autoRestartRecognition();
   };
 
-  // 錯誤處理
   recognition.onerror = (event) => {
     console.error('[ERROR] [SpeechRecognition] 錯誤:', event.error);
     console.warn('[WARN] [SpeechRecognition]，嘗試重新啟動');
@@ -307,6 +338,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadLanguageConfig();
   loadKeywordRules();
   executeSpeechRecognition();
+  monitorLocalTranslationAPI();
 });
 
-export { keywordRules, generateRayModeRules };
+export { keywordRules, generateRayModeRules, updateSourceText };

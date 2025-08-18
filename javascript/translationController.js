@@ -1,5 +1,5 @@
 import { keywordRules } from './speechCapture.js';
-import { loadLanguageConfig, getChunkSize, getDisplayTimeRules, getTargetCodeById } from './config.js';
+import { loadLanguageConfig, getChunkSize, getDisplayTimeRules, getTargetCodeById, getTargetCodeForTranslator } from './config.js';
 
 // 全局序列號計數器
 let sequenceCounter = 0;
@@ -35,6 +35,164 @@ function filterTextWithKeywords(text, targetLang) {
     result = result.replace(rule.source, rule.target);
   });
   return result;
+}
+
+// 更新status-panel的訊息用
+function updateStatusDisplay(text) {
+  const statusDisplay = document.getElementById('status-display');
+  if (statusDisplay && statusDisplay.textContent !== text) {
+    requestAnimationFrame(() => {
+      statusDisplay.textContent = text;
+      statusDisplay.dataset.stroke = text;
+      statusDisplay.style.display = 'inline-block';
+      statusDisplay.offsetHeight;
+      statusDisplay.style.display = '';
+    });
+  }
+}
+
+// 確保語言模型已載入
+async function ensureModelLoaded(sourceLanguage, targetLanguage, updateSourceText) {
+  try {
+    console.debug('[DEBUG] [Translation] 檢查語言模型可用性:', { sourceLanguage, targetLanguage });
+    const availability = await Translator.availability({ sourceLanguage, targetLanguage });
+    if (availability === 'available') {
+      console.info('[INFO] [Translation] 語言模型已準備好:', { sourceLanguage, targetLanguage });
+      return true;
+    }
+    if (availability !== 'downloadable') {
+      console.error('[ERROR] [Translation] 語言模型不可下載:', { sourceLanguage, targetLanguage, availability });
+      return false;
+    }
+
+    updateStatusDisplay(`正在下載翻譯模型 (${sourceLanguage} -> ${targetLanguage})...`);
+    await Translator.create({
+      sourceLanguage,
+      targetLanguage,
+      monitor(m) {
+        m.addEventListener('downloadprogress', (e) => {
+          const progress = Math.round(e.loaded * 100);
+          console.debug('[DEBUG] [Translation] 模型下載進度:', { sourceLanguage, targetLanguage, progress });
+          updateStatusDisplay(`正在下載翻譯模型 (${sourceLanguage} -> ${targetLanguage}): ${progress}%`);
+        });
+      }
+    });
+    console.info('[INFO] [Translation] 語言模型下載完成:', { sourceLanguage, targetLanguage });
+    updateStatusDisplay(`翻譯模型 (${sourceLanguage} -> ${targetLanguage}) 下載完畢`);
+    setTimeout(() => updateStatusDisplay(''), 5000); // 修改為 5 秒清空
+    return true;
+  } catch (error) {
+    console.error('[ERROR] [Translation] 語言模型下載失敗:', { sourceLanguage, targetLanguage, error: error.message });
+    updateStatusDisplay('無法載入翻譯模型，將使用遠端服務');
+    setTimeout(() => updateStatusDisplay(''), 5000); // 修改為 5 秒清空
+    return false;
+  }
+}
+
+// 使用 Chrome Translator API 進行翻譯（加入斷句、分批與組合邏輯，針對日語）
+async function sendLocalTranslation(text, targetLangs, sourceLang, updateSourceText) {
+  if (!text || text.trim() === '' || text.trim() === 'っ') {
+    console.debug('[DEBUG] [Translation] 無效文字，跳過翻譯:', text);
+    return null;
+  }
+
+  const translations = new Array(targetLangs.length).fill('');
+  let allAvailable = true;
+
+  // 斷句邏輯：針對日語，以半形空格分割，按每批約30字分組
+  function splitTextIntoBatches(text) {
+    const words = text.split(/ +/); // 以半形空格分割
+    const batches = [];
+    let currentBatch = [];
+    let currentLength = 0;
+    const batchSize = 30; // 日語每批目標字數
+
+    words.forEach(word => {
+      if (currentLength + word.length > batchSize && currentBatch.length > 0) {
+        batches.push(currentBatch.join(' '));
+        currentBatch = [];
+        currentLength = 0;
+      }
+      currentBatch.push(word);
+      currentLength += word.length;
+    });
+
+    if (currentBatch.length > 0) {
+      batches.push(currentBatch.join(' '));
+    }
+
+    console.debug('[DEBUG] [Translation] 斷句結果:', { batches, totalBatches: batches.length });
+    return batches;
+  }
+
+  for (let i = 0; i < targetLangs.length; i++) {
+    const sourceLanguage = getTargetCodeForTranslator(sourceLang);
+    const targetLanguage = getTargetCodeForTranslator(targetLangs[i]);
+    try {
+      const isAvailable = await ensureModelLoaded(sourceLanguage, targetLanguage, updateSourceText);
+      if (!isAvailable) {
+        console.error('[ERROR] [Translation] 語言對不可用:', { sourceLanguage, targetLanguage });
+        allAvailable = false;
+        continue;
+      }
+
+      const translator = await Translator.create({ sourceLanguage, targetLanguage });
+      const batches = splitTextIntoBatches(text);
+      const batchTranslations = await Promise.all(batches.map(async (batch, batchIndex) => {
+        try {
+          const result = await translator.translate(batch); // 使用非流式翻譯
+          console.debug('[DEBUG] [Translation] 分批翻譯結果:', { batchIndex, batch, result });
+          return result;
+        } catch (error) {
+          console.error('[ERROR] [Translation] 分批翻譯失敗:', { batchIndex, batch, error: error.message });
+          return ''; // 失敗時返回空字串，避免中斷
+        }
+      }));
+
+      // 組合翻譯結果，保留半形空格
+      const fullTranslation = batchTranslations.join(' ');
+      translations[i] = fullTranslation;
+      console.info('[INFO] [Translation] 組合翻譯完成:', { sourceLanguage, targetLanguage, result: fullTranslation });
+
+      // 更新UI使用組合結果
+      await updateTranslationUI(
+        { translations: translations.slice(0, i + 1), sequenceId: sequenceCounter },
+        [targetLanguage],
+        0.5, // 使用較短顯示時間
+        sequenceCounter
+      );
+      
+      // 釋放AI占用的記憶體空間
+      translator.destroy();
+    } catch (error) {
+      console.error('[ERROR] [Translation] 翻譯失敗:', { sourceLanguage, targetLanguage, error: error.message });
+      allAvailable = false;
+    }
+  }
+
+  if (!allAvailable) {
+    updateSourceText('本地翻譯不可用，將使用遠端服務');
+    setTimeout(() => updateSourceText(''), 2000);
+    return null;
+  }
+
+  return { translations, sequenceId: sequenceCounter };
+}
+
+// 預下載語言模型
+async function preloadTranslationModels(sourceLang, targetLangs, updateSourceText) {
+  if (!('Translator' in self)) {
+    console.debug('[DEBUG] [Translation] Translator API 不支援');
+    updateStatusDisplay('本地翻譯不支援，將使用遠端服務');
+    setTimeout(() => updateStatusDisplay(''), 5000);
+    return;
+  }
+
+  for (const targetLang of targetLangs) {
+    const sourceLanguage = getTargetCodeForTranslator(sourceLang);
+    const targetLanguage = getTargetCodeForTranslator(targetLang);
+    await ensureModelLoaded(sourceLanguage, targetLanguage, updateSourceText);
+  }
 }
 
 // 發送翻譯請求的核心邏輯（POST 方式）
@@ -105,8 +263,6 @@ async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl, seq
     throw new Error('請求資料過長，請縮短文字內容');
   }
 
-  // console.debug('[DEBUG] [Translation] 發送 GET 請求:', url);
-
   const response = await timeout(fetch(url, { method: 'GET', mode: 'cors' }), 10000); // 10 秒超時
 
   if (!response.ok) {
@@ -114,7 +270,6 @@ async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl, seq
   }
 
   const data = await response.json();
-  // console.debug('[DEBUG] [Translation] 接收 GET 回應:', data);
   return data;
 }
 
@@ -159,7 +314,6 @@ async function updateTranslationUI(data, targetLangs, minDisplayTime, sequenceId
         sequenceId: data.sequenceId ?? sequenceId, // 使用後端返回的 sequenceId，若無則使用前端的
         timestamp: Date.now()
       });
-      // console.debug('[DEBUG] [Translation] 緩衝區新增:', { lang, text: filteredText, minDisplayTime, sequenceId });
     }
   });
 }
@@ -189,7 +343,6 @@ function processDisplayBuffers() {
     displayBuffers[key] = displayBuffers[key].filter(item => now - item.timestamp < 10000);
     if (displayBuffers[key].length > 10) {
       displayBuffers[key] = displayBuffers[key].slice(-10);
-      // console.debug('[DEBUG] [Translation] 緩衝區溢出，丟棄早期結果:', { key });
     }
 
     if (currentDisplays[key] && now - currentDisplays[key].startTime < currentDisplays[key].minDisplayTime * 1000) {
@@ -218,10 +371,8 @@ function processDisplayBuffers() {
       const chunkSize = getChunkSize(langSelect) || 40;
       if (next.text.length > chunkSize) {
         span.classList.add('multi-line');
-        // console.debug('[DEBUG] [Translation] 應用縮小字體:', { lang: langSelect, length: next.text.length, chunkSize });
       } else {
         span.classList.remove('multi-line');
-        // console.debug('[DEBUG] [Translation] 移除縮小字體:', { lang: langSelect, length: next.text.length, chunkSize });
       }
       console.info('[INFO] [Translation] 更新翻譯文字:', { lang: langSelect, text: next.text, sequenceId: next.sequenceId });
     }
@@ -230,16 +381,16 @@ function processDisplayBuffers() {
 }
 
 // 公開的翻譯請求函數
-async function sendTranslationRequest(text, sourceLang, browser) {
+async function sendTranslationRequest(text, sourceLang, browserInfo, isLocalTranslationActive) {
   if (activeRequests >= maxConcurrent) {
-    // console.debug('[DEBUG] [Translation] 達到並發上限，延遲重試');
-    setTimeout(() => sendTranslationRequest(text, sourceLang, browser), 100);
+    console.debug('[DEBUG] [Translation] 達到並發上限，延遲重試');
+    setTimeout(() => sendTranslationRequest(text, sourceLang, browserInfo, isLocalTranslationActive), 100);
     return;
   }
 
   activeRequests++;
   const sequenceId = sequenceCounter++;
-  // console.debug('[DEBUG] [Translation] 發送請求:', { text, sourceLang, browser, sequenceId });
+  console.debug('[DEBUG] [Translation] 發送請求:', { text, sourceLang, browser: browserInfo.browser, sequenceId });
 
   try {
     const serviceUrl = document.getElementById('translation-link').value;
@@ -250,7 +401,7 @@ async function sendTranslationRequest(text, sourceLang, browser) {
     ].filter(lang => lang && lang !== 'none').map(lang => getTargetCodeById(lang));
 
     if (targetLangs.length === 0) {
-      // console.debug('[DEBUG] [Translation] 無目標語言，跳過翻譯');
+      console.debug('[DEBUG] [Translation] 無目標語言，跳過翻譯');
       return;
     }
 
@@ -259,9 +410,28 @@ async function sendTranslationRequest(text, sourceLang, browser) {
       ? 0 
       : rules.find(rule => text.length <= rule.maxLength).time;
 
-    // console.debug('[DEBUG] [Translation] 計算顯示時間:', { sourceLang, textLength: text.length, minDisplayTime });
+    console.debug('[DEBUG] [Translation] 計算顯示時間:', { sourceLang, textLength: text.length, minDisplayTime });
 
-    const data = await processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, '', sequenceId);
+    let data;
+    if (isLocalTranslationActive && browserInfo.supportsTranslatorAPI) {
+      data = await sendLocalTranslation(text, targetLangs, sourceLang, (text) => {
+        const sourceText = document.getElementById('source-text');
+        if (sourceText && text.trim().length !== 0 && sourceText.textContent !== text) {
+          requestAnimationFrame(() => {
+            sourceText.textContent = text;
+            sourceText.dataset.stroke = text;
+            sourceText.style.display = 'inline-block';
+            sourceText.offsetHeight;
+            sourceText.style.display = '';
+          });
+        }
+      });
+    }
+
+    if (!data) {
+      data = await processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, '', sequenceId);
+    }
+
     if (data) {
       await updateTranslationUI(data, targetLangs, minDisplayTime, sequenceId);
     }
@@ -278,12 +448,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   requestAnimationFrame(processDisplayBuffers);
   setInterval(() => {
     sequenceCounter = 0;
-    // 重置 currentDisplays 的 sequenceId
     currentDisplays.target1 = null;
     currentDisplays.target2 = null;
     currentDisplays.target3 = null;
-    // console.debug('[DEBUG] [Translation] 重置 sequenceCounter 和 currentDisplays');
+    console.debug('[DEBUG] [Translation] 重置 sequenceCounter 和 currentDisplays');
   }, 3600000); // 1 小時
 });
 
-export { sendTranslationRequest, processTranslationUrl };
+export { sendTranslationRequest, processTranslationUrl, preloadTranslationModels };

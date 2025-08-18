@@ -27,6 +27,19 @@
       "commentLangCode": "zh-TW"
     },
     {
+      "id": "zh-HK",
+      "label": "中国語(香港)",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 33,
+      "displayTimeRules": [
+        { "maxLength": 20, "time": 1 },
+        { "maxLength": 40, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "zh-HK"
+    },
+    {
       "id": "en-US",
       "label": "英語",
       "asSource": true,

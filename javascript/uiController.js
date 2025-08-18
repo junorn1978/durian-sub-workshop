@@ -56,7 +56,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     special: [
       { id: 'display-panel-color', type: 'body-color', css: '--body-background', desc: 'Body background color' },
       { id: 'translation-link', type: 'text', desc: 'Translation link' },
-      { id: 'raymode', type: 'toggle', key: 'raymode-active', desc: 'Raymode active state' }
+      { id: 'raymode', type: 'toggle', key: 'raymode-active', desc: 'Raymode active state' },
+      { id: 'local-translation-api', type: 'toggle', key: 'local-translation-api-active', desc: 'local-translation-api state' }
     ],
 
     // 面板對應

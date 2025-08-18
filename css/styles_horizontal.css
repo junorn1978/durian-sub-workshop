@@ -43,10 +43,11 @@ body {
     width: 100%;
     min-width: 1200px;
     min-height: 280px;
+    border-top: 4px solid #ddd3ff;
 }
 
 #display-panel {
-    height: 60%;
+    height: 55%;
     display: flex;
     flex-direction: column;
     padding: 20px;
@@ -56,6 +57,34 @@ body {
     background-color: transparent;
     min-height: 100px; /* 確保佈局穩定 */
     user-select: none; /* 不可選取文字 */
+    border-bottom: 4px solid #e5b3ff;
+}
+
+#status-panel {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    height: 5%;
+    background-color: #fddcff;
+    padding: 0 20px 0 20px;
+    align-items: center;
+    user-select: none; /* 不可選取文字 */
+    justify-content: space-between;
+    gap: 5px;
+}
+
+.status-info {
+    display: flex;
+    width: 90%;
+    height: 90%;
+    text-align: left; /* 讓文字靠左對齊 */
+    align-items: center;
+    color: #6d1313;
+}
+
+.stutus-button {
+    margin-left: auto; /* 將按鈕推到最右邊 */
+    margin-right: 15px;
 }
 
 #recorder-panel {
@@ -413,7 +442,7 @@ body {
     background-color: #CCCCCC;
 }
 
-.menu-button, .menu2-button, .menu3-button, .options-button, .comment1-button {
+.menu-button, .menu2-button, .menu3-button, .options-button, .comment1-button, .stutus-button {
     width: 100px;
     height: 25px;
     border-radius: 25px;
@@ -426,16 +455,20 @@ body {
     font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
 }
 
-.menu-button:hover, .menu2-button:hover, .menu3-button:hover, .options-button:hover, .comment1-button:hover {
+.options-button {
+    margin-bottom: 5px;
+}
+
+.menu-button:hover, .menu2-button:hover, .menu3-button:hover, .options-button:hover, .comment1-button:hover, .stutus-button:hover {
     background-color: #E0E0E0;
 }
 
-.menu-button.active, .menu2-button.active, .menu3-button.active {
+.menu-button.active, .menu2-button.active, .menu3-button.active, .options-button.active, .stutus-button.active {
     border: 2px solid #000000;
     background-color: #D28BC4;
 }
 
-.options-button:active, .comment1-button:active {
+.options-button:active, .comment1-button:active, .stutus-button:active {
     border: 2px solid #007BFF;
     background-color: #d28bc4;
 }

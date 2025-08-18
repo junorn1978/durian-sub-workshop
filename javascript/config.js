@@ -32,6 +32,12 @@ function getChunkSize(id) {
   return (getLangById(id)?.chunkSize) ?? _config.defaults.chunkSize;
 }
 
+function getTargetCodeForTranslator(id) {
+  if (!_config) throw new Error('config 尚未載入');
+  const code = _config.targetCodeMap[id] || id;
+  return code === 'zh-TW' ? 'zh-Hant' : code;
+}
+
 function getDisplayTimeRules(id) {
   if (!_config) throw new Error('config 尚未載入');
   return (getLangById(id)?.displayTimeRules) ?? _config.defaults.displayTimeRules;
@@ -43,5 +49,6 @@ export {
   getLangById,
   getTargetCodeById,
   getChunkSize,
-  getDisplayTimeRules
+  getDisplayTimeRules,
+  getTargetCodeForTranslator
 };
