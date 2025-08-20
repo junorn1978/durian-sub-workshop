@@ -1,5 +1,7 @@
 import { processTranslationUrl } from './translationController.js';
 import { loadLanguageConfig, getAllLanguages } from './config.js';
+import { updateSourceText, sendTranslationRequest } from './speechCapture.js';
+import { setupTextInputTranslation } from './textInputController.js';
 
 document.addEventListener('DOMContentLoaded', async function() {
   
@@ -72,11 +74,24 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
   };
 
+  // 瀏覽器檢查
+  const isEdge = navigator.userAgent.includes('Edg/');
+  if (isEdge) {
+    console.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
+    document.getElementById('status-display').textContent = '現在のところ、New APIはEdgeに対応しておりません。ご了承ください。';
+    const apiButton = document.getElementById('local-translation-api');
+    if (apiButton) {
+      apiButton.disabled = true;
+      apiButton.classList.remove('active');
+      localStorage.removeItem('local-translation-api-active');
+    }
+  }
+
   // 通用的 localStorage 操作
   const Storage = {
     save: (key, value, desc) => {
       localStorage.setItem(key, value);
-      // console.debug('[DEBUG] [UIController]', `${desc} 已儲存至 localStorage: ${value}`);
+      console.debug('[DEBUG] [UIController]', `${desc} 已儲存至 localStorage: ${value}`);
     },
     
     load: (key, defaultValue = null) => {
@@ -274,6 +289,11 @@ document.addEventListener('DOMContentLoaded', async function() {
       
       'toggle': {
         load(element) {
+          if (isEdge && config.id === 'local-translation-api') {
+            element.classList.remove('active');
+            Storage.save(config.key, 'false', config.desc);
+            return;
+          }
           const saved = Storage.load(config.key) === 'true';
           element.classList.toggle('active', saved);
         },
@@ -281,6 +301,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         setupListener(element) {
           element.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (isEdge && config.id === 'local-translation-api') {
+              console.debug('[DEBUG] [UIController]', 'Edge 瀏覽器下禁止啟用本地端 API');
+              return;
+            }
             element.classList.toggle('active');
             const isActive = element.classList.contains('active');
             Storage.save(config.key, isActive.toString(), config.desc);
@@ -338,7 +362,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         select.appendChild(option);
       });
 
-      console.debug(`[DEBUG] [UIController] 已填充 ${config.id} 選單，使用 id 作為 value`);
+      console.debug('[DEBUG] [UIController]', `已填充 ${config.id} 選單，使用 id 作為 value`);
     });
   };
   
@@ -433,42 +457,16 @@ document.addEventListener('DOMContentLoaded', async function() {
         Object.values(handlers).flat().forEach(handler => {
           if (handler.reset) handler.reset();
         });
-      });
-    }
-  };
 
-  // 翻譯留言功能
-  const setupTranslationComment = () => {
-    const translationButton = document.getElementById('translation1');
-    const commentInput = document.getElementById('comment-input');
-
-    if (translationButton && commentInput) {
-      translationButton.addEventListener('click', async () => {
-        const text = commentInput.value.trim();
-        const sourceLang = document.querySelector('input[name="comment-lang"]:checked')?.value;
-        
-        if (!text || !sourceLang) {
-          const translationComm = document.getElementById('translation-comm');
-          if (translationComm) translationComm.textContent = 'Please enter text and select a language.';
-          return;
-        }
-
-        const serviceUrl = document.getElementById('translation-link')?.value;
-
-        try {
-          const data = await processTranslationUrl(text, [sourceLang], 'AUTO', serviceUrl, '');
-          if (data?.translations?.[0]) {
-            const translationComm = document.getElementById('translation-comm');
-            if (translationComm) {
-              const result = data.translations[0];
-              translationComm.textContent = result;
-              translationComm.dataset.stroke = result;
-            }
+        // 確保 Edge 瀏覽器重置後仍禁用
+        if (isEdge) {
+          const apiButton = document.getElementById('local-translation-api');
+          if (apiButton) {
+            apiButton.disabled = true;
+            apiButton.classList.remove('active');
+            localStorage.removeItem('local-translation-api-active');
+            console.debug('[DEBUG] [UIController]', '重置後確保 Edge 瀏覽器本地端 API 禁用');
           }
-        } catch (error) {
-          console.error('[ERROR] [UIController]', '翻譯失敗:', error.message);
-          const translationComm = document.getElementById('translation-comm');
-          if (translationComm) translationComm.textContent = 'Translation failed';
         }
       });
     }
@@ -479,5 +477,5 @@ document.addEventListener('DOMContentLoaded', async function() {
   const handlers = initializeSettings();
   setupPanelSwitching();
   setupResetButton(handlers);
-  setupTranslationComment();
+  setupTextInputTranslation();
 });

@@ -341,4 +341,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   monitorLocalTranslationAPI();
 });
 
-export { keywordRules, generateRayModeRules, updateSourceText };
+export { keywordRules, generateRayModeRules, updateSourceText, sendTranslationRequest};

@@ -14,23 +14,23 @@
             <!--- 顯示項目 1 內容可在此添加 --->
             ハムハム字幕アトリエ
         </div>
-        <div id="target-text-1" data-stroke="開発者：[乙夏れいのファン ジュノーン use Grok3]">
-            <!--- 顯示項目 2 內容可在此添加 開発者：[乙夏れいのファン ジュノーン use Grok3]--->
-            開発者：[乙夏れいのファン ジュノーン use Grok3]
+        <div id="target-text-1" data-stroke="開発者：乙夏れいファン・ジュノーン（Grok 使用）">
+            <!--- 顯示項目 2 內容可在此添加 --->
+            開発者：乙夏れいファン・ジュノーン（Grok 使用）
         </div>
-        <div id="target-text-2" data-stroke="2025.08.09">
+        <div id="target-text-2" data-stroke="2025.08.18">
             <!--- 顯示項目 3 內容可在此添加 --->
-            2025.08.09
+            2025.08.18
         </div>
-        <div id="target-text-3" data-stroke="機械翻訳の利用は参考程度に留めて">
+        <div id="target-text-3" data-stroke="自動翻訳によるもので、正確性は保証できません。ご了承ください。">
             <!--- 顯示項目 4 內容可在此添加 --->
-            機械翻訳の利用は参考程度に留めて
+            自動翻訳によるもので、正確性は保証できません。ご了承ください。
         </div>
     </div>
 
     <div id="status-panel">
         <div class="status-info" id="status-display">
-          Chrome の New Translator API についてですが、現時点では Edge にはまだ対応しておりません。ご了承いただけますと幸いです。
+          このNew APIは公開直後のため、実際の利用で判明する問題がまだ多く残っています。特別な必要がない限り、ご利用は推奨いたしません →
         </div>
         <button class="stutus-button" id="local-translation-api">NEW API</button>
     </div>
@@ -204,7 +204,11 @@
             <!--- 留言版翻譯用(不一定能用因為不知道訊息從哪來) --->
             <div id="comment-translation">
                 <div id="comment1">
-                    <button class="comment1-button" id="translation1">翻訳</button>
+                    <div>
+                        <button class="comment1-button" id="translation1">翻訳</button>
+                        <button class="comment1-button" id="translation2">字幕發送</button>
+                        ←10秒間残ります
+                    </div>
                     <div style="display: flex; gap: 5px;">
                         <input type="radio" name="comment-lang" value="ja-JP"> 日本語</input>
                         <input type="radio" name="comment-lang" value="en-US"> 英語</input>
@@ -215,7 +219,10 @@
                 </div>
                 <div id="comment2">
                     <div class="comment2-text" id="translation-title">翻訳結果:</div>
-                    <div class="comment2-text" id="translation-comm">Google翻訳のバックエンドを使用した翻訳はまだサポートされていません。</div>
+                    <div class="comment2-text" id="translation-comm">
+                      本機能は、AI翻訳（OpenAI API翻訳）をご利用の場合にのみ推奨されます。
+                      その他の翻訳方式（Chrome 内蔵翻訳、Google Apps Script 内蔵翻訳）では利点がないため、ご利用は不要です。
+                    </div>
                 </div>
             </div>
         </div>

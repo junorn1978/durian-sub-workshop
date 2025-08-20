@@ -65,7 +65,7 @@ async function ensureModelLoaded(sourceLanguage, targetLanguage, updateSourceTex
       return false;
     }
 
-    updateStatusDisplay(`正在下載翻譯模型 (${sourceLanguage} -> ${targetLanguage})...`);
+    updateStatusDisplay(`翻訳モデル（${sourceLanguage} → ${targetLanguage}）をダウンロード中…`);
     await Translator.create({
       sourceLanguage,
       targetLanguage,
@@ -73,17 +73,17 @@ async function ensureModelLoaded(sourceLanguage, targetLanguage, updateSourceTex
         m.addEventListener('downloadprogress', (e) => {
           const progress = Math.round(e.loaded * 100);
           console.debug('[DEBUG] [Translation] 模型下載進度:', { sourceLanguage, targetLanguage, progress });
-          updateStatusDisplay(`正在下載翻譯模型 (${sourceLanguage} -> ${targetLanguage}): ${progress}%`);
+          updateStatusDisplay(`翻訳モデル（${sourceLanguage} → ${targetLanguage}）をダウンロード中：${progress}%`);
         });
       }
     });
     console.info('[INFO] [Translation] 語言模型下載完成:', { sourceLanguage, targetLanguage });
-    updateStatusDisplay(`翻譯模型 (${sourceLanguage} -> ${targetLanguage}) 下載完畢`);
+    updateStatusDisplay(`翻訳モデル（${sourceLanguage} → ${targetLanguage}）のダウンロードが完了しました。`);
     setTimeout(() => updateStatusDisplay(''), 5000); // 修改為 5 秒清空
     return true;
   } catch (error) {
     console.error('[ERROR] [Translation] 語言模型下載失敗:', { sourceLanguage, targetLanguage, error: error.message });
-    updateStatusDisplay('無法載入翻譯模型，將使用遠端服務');
+    updateStatusDisplay('翻訳モデルを読み込めなかったため、リモートサービスを利用します。');
     setTimeout(() => updateStatusDisplay(''), 5000); // 修改為 5 秒清空
     return false;
   }
@@ -183,7 +183,7 @@ async function sendLocalTranslation(text, targetLangs, sourceLang, updateSourceT
 async function preloadTranslationModels(sourceLang, targetLangs, updateSourceText) {
   if (!('Translator' in self)) {
     console.debug('[DEBUG] [Translation] Translator API 不支援');
-    updateStatusDisplay('本地翻譯不支援，將使用遠端服務');
+    updateStatusDisplay('新しい Translator API はサポートされていないため、リモートサービスを利用します。');
     setTimeout(() => updateStatusDisplay(''), 5000);
     return;
   }
