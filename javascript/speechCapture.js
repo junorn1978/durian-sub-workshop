@@ -9,6 +9,11 @@ const recognition = new SpeechRecognition();
 let isRestartPending = false;
 let restartAttempts = 0;
 
+// 文字發送字幕使用的相關狀態
+let isPaused = false;    // 追蹤暫停狀態
+let pauseTimeout = null; // 儲存暫停計時器
+let isRecognitionActive = false;
+
 // 因為各種原因重新啟動語音擷取時的時間
 const MAX_RESTART_ATTEMPTS = 50;
 const RESTART_DELAY = 150;
@@ -36,6 +41,44 @@ async function loadKeywordRules() {
     console.error('[ERROR] [TextProcessing] 載入關鍵字規則失敗:', error);
   }
 }
+
+// 文字發送字幕使用、暫停語音辨識指定時間（毫秒）
+function pauseRecognition(duration) {
+  if (!recognition) {
+    console.error('[ERROR] [SpeechRecognition] 語音辨識物件未初始化');
+    return;
+  }
+
+  if (!isRecognitionActive) {
+    console.debug('[DEBUG] [SpeechRecognition] 語音辨識未啟動，忽略暫停請求');
+    return;
+  }
+  
+  isPaused = true;
+  recognition.stop();
+  console.info('[INFO] [SpeechRecognition] 語音辨識已暫停，持續時間:', duration);
+  
+  // 清除現有的暫停計時器（避免多重暫停）
+  if (pauseTimeout) {
+    clearTimeout(pauseTimeout);
+  }
+
+  // 設置延遲恢復
+  pauseTimeout = setTimeout(() => {
+      isPaused = false;
+      if (isRecognitionActive && !document.getElementById('stop-recording').disabled) {
+        try {
+          recognition.start();
+          console.info('[INFO] [SpeechRecognition] 語音辨識恢復');
+        } catch (error) {
+          console.error('[ERROR] [SpeechRecognition] 恢復語音辨識失敗:', error);
+          autoRestartRecognition();
+        }
+      } else {
+        console.debug('[DEBUG] [SpeechRecognition] 未恢復語音辨識，因為語音辨識未啟動或已手動停止');
+      }
+    }, duration);
+  }
 
 // 專為RayMode生成關鍵字過濾規則
 function generateRayModeRules(sourceLang) {
@@ -165,26 +208,33 @@ function executeSpeechRecognition() {
 
   // 自動重啟語音辨識
   function autoRestartRecognition(shouldRestart = true) {
-    if (!shouldRestart || stopButtonClicked || restartAttempts >= MAX_RESTART_ATTEMPTS) {
-      console.debug('[DEBUG] [SpeechRecognition] 自動重啟取消:', { shouldRestart, stopButtonClicked, restartAttempts });
-
+    if (!shouldRestart || isPaused || !isRecognitionActive || document.getElementById('stop-recording').disabled || restartAttempts >= MAX_RESTART_ATTEMPTS) {
+      console.debug('[DEBUG] [SpeechRecognition] 自動重啟取消:', { 
+        shouldRestart, 
+        isPaused, 
+        isRecognitionActive, 
+        stopButtonDisabled: document.getElementById('stop-recording').disabled, 
+        restartAttempts 
+      });
+  
       if (restartAttempts >= MAX_RESTART_ATTEMPTS) {
+        const sourceText = document.getElementById('source-text');
         sourceText.textContent = 'Failed to restart speech recognition. Please check your network or microphone.';
         sourceText.dataset.stroke = sourceText.textContent;
-        startButton.disabled = false;
-        stopButton.disabled = true;
+        document.getElementById('start-recording').disabled = false;
+        document.getElementById('stop-recording').disabled = true;
       }
       return;
     }
-
+  
     if (recognition) {
       console.debug('[DEBUG] [SpeechRecognition] 正在停止語音辨識');
       recognition.stop();
       isRestartPending = true;
     }
-
+  
     setTimeout(() => {
-      if (isRestartPending) {
+      if (isRestartPending && !isPaused && isRecognitionActive) {
         console.debug('[DEBUG] [SpeechRecognition] 準備自動重啟語音辨識');
         try {
           recognition.start();
@@ -257,6 +307,7 @@ function executeSpeechRecognition() {
     startButton.disabled = true;
     stopButton.disabled = false;
     stopButtonClicked = false;
+    isRecognitionActive = true;
 
     recognition.start();
     console.info('[INFO] [SpeechRecognition] 瀏覽器類型:', browser);
@@ -268,12 +319,76 @@ function executeSpeechRecognition() {
     startButton.disabled = false;
     stopButton.disabled = true;
     stopButtonClicked = true;
+    isRecognitionActive = false;
     recognition.stop();
     console.info('[INFO] [SpeechRecognition] 停止語音辨識 - recognition 狀態:', recognition);
   });
 
   let finalTranscript = '';
   let interimTranscript = '';
+
+  /**
+   * 對於無標點的日文語音辨識結果，根據文法規則智慧地添加標點符號。
+   * @param {string} text - 從語音辨識 API 收到的原始文字。
+   * @returns {string} - 添加了標點符號的處理後文字。
+   */
+  function addJapanesePunctuation(text) {
+    if (!text) return '';
+  
+    //const words = text.trim().split(/\s+/);
+    const words = text;
+    if (words.length === 0) return '';
+    if (words.length === 1) return words[0] ? words[0] + '。' : '';
+  
+    // 類別分類：依照語法功能分類，方便日後調整或擴充
+    const politeVerbEndings = [
+      'です', 'ます', 'ました', 'でした', 'ません',
+      'ください', 'します', 'させます', 'いたします',
+      'ございます', '存じます', '承知しました'
+    ];
+  
+    const conjunctions = [
+      'ので', 'から', 'けど', 'が', 'しかし', 'それで', 'それに', 'なのに'
+    ];
+  
+    const sentenceParticles = [
+      'ね', 'じゃん', 'っけ'
+    ];
+  
+    const endingAuxiliary = [
+      'でしょう', 'だろう', 'ある', 'ない',
+      'みたい', 'ようだ', 'らしい', 'そうだ', 'のです'
+    ];
+  
+    // 最終觸發詞集合（展開）
+    const punctuationTriggers = [
+      ...politeVerbEndings,
+      ...conjunctions,
+      ...sentenceParticles,
+      ...endingAuxiliary
+    ];
+  
+    // 進行標點加上
+    let result = words[0];
+    for (let i = 1; i < words.length; i++) {
+      const prevWord = words[i - 1];
+      const needsPunctuation = punctuationTriggers.some(trigger => prevWord.endsWith(trigger));
+  
+      if (needsPunctuation) {
+        result += '、' + words[i];
+      } else {
+        result += words[i]; // 無斷句的話直接合併
+      }
+    }
+  
+    // 清除結尾頓號 + 加上句點
+    if (result.endsWith('、')) {
+      result = result.slice(0, -1);
+    }
+    result += '。';
+  
+    return result;
+  }
 
   // 語音辨識結果事件處理
   recognition.onresult = (event) => {
@@ -283,7 +398,7 @@ function executeSpeechRecognition() {
 
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const transcript = event.results[i][0].transcript;
-      console.debug('[DEBUG] [SpeechRecognition] 擷取結果:', transcript, 'isFinal:', event.results[i].isFinal);
+      //console.debug('[DEBUG] [SpeechRecognition] 擷取結果:', transcript, 'isFinal:', event.results[i].isFinal);
       if (event.results[i].isFinal) {
         finalTranscript += event.results[i][0].transcript;
         hasFinalResult = true;
@@ -299,18 +414,25 @@ function executeSpeechRecognition() {
     if (hasFinalResult) {
       console.info('[INFO] [SpeechRecognition] 最終結果:', finalTranscript.trim(), '字數', finalTranscript.trim().length);
       const sourceLang = document.getElementById("source-language")?.value || "ja-JP";
-      const sendTranslationRequestText = isRayModeActive ?
-                                        filterRayModeText(finalTranscript.trim(), sourceLang) :
-                                        finalTranscript.trim();
+      let sendTranslationRequestText = finalTranscript.trim();
+
+      if (isRayModeActive) {
+        sendTranslationRequestText = filterRayModeText(sendTranslationRequestText, sourceLang);
+      }
+      if (isLocalTranslationActive && browser === 'Chrome' && sourceLang === 'ja-JP') {
+        //sendTranslationRequestText = addJapanesePunctuation(sendTranslationRequestText.replace(/\s/g, '、'));
+        sendTranslationRequestText = sendTranslationRequestText.replace(/\s/g, '、');
+      }
+
       sendTranslationRequest(sendTranslationRequestText, recognition.lang, { browser, supportsTranslatorAPI }, isLocalTranslationActive);
     }
 
     const fullText = finalTranscript + interimTranscript;
-    const textToUpdate = isRayModeActive ?
-                         (hasFinalResult ? processText(fullText) :
-                         formatAlignedText(processText(fullText))) :
-                         (hasFinalResult ? fullText :
-                         formatAlignedText(fullText));
+    const textToUpdate = isRayModeActive ? 
+                         (hasFinalResult ? processText(fullText) :    // raymode+最終結果 = 走raymode相關函式過濾文字
+                         formatAlignedText(processText(fullText))) :  // raymode+臨時結果 = 走raymode相關函式+音符顯示
+                         (hasFinalResult ? fullText :                 // 一般模式+最終結果 = 直接顯示文字
+                         formatAlignedText(fullText));                // 一般模式+臨時結果 = 顯示文字+音符顯示
     updateSourceText(textToUpdate);
   };
 
@@ -341,4 +463,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   monitorLocalTranslationAPI();
 });
 
-export { keywordRules, generateRayModeRules, updateSourceText, sendTranslationRequest};
+export { keywordRules, generateRayModeRules, updateSourceText, sendTranslationRequest, pauseRecognition };

@@ -444,6 +444,21 @@ document.addEventListener('DOMContentLoaded', async function() {
         translationLink.style.display = isActive ? 'none' : 'inline-block';
       });
     }
+    
+    const minimizeButton = document.getElementById('control-panel-minimize');
+    if (minimizeButton) {
+      minimizeButton.addEventListener('click', () => {
+        minimizeButton.classList.toggle('active');
+        const controlPanel = document.getElementById('control-panel');
+        const displayPanel = document.getElementById('display-panel');
+        if (controlPanel && displayPanel) {
+          const isMinimized = minimizeButton.classList.contains('active');
+          controlPanel.style.display = isMinimized ? 'none' : 'flex';
+          displayPanel.style.setProperty('--display-panel-height', isMinimized ? '95%' : '55%');
+          console.debug('[DEBUG] [UIController]', `控制面板${isMinimized ? '隱藏' : '顯示'}，display-panel高度設為${isMinimized ? '95%' : '55%'}`);
+        }
+      });
+    }
   };
 
   // 重置所有設定

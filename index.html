@@ -18,9 +18,9 @@
             <!--- 顯示項目 2 內容可在此添加 --->
             開発者：乙夏れいファン・ジュノーン（Grok 使用）
         </div>
-        <div id="target-text-2" data-stroke="2025.08.18">
+        <div id="target-text-2" data-stroke="2025.08.25">
             <!--- 顯示項目 3 內容可在此添加 --->
-            2025.08.18
+            2025.08.25
         </div>
         <div id="target-text-3" data-stroke="自動翻訳によるもので、正確性は保証できません。ご了承ください。">
             <!--- 顯示項目 4 內容可在此添加 --->
@@ -29,10 +29,11 @@
     </div>
 
     <div id="status-panel">
-        <div class="status-info" id="status-display">
-          このNew APIは公開直後のため、実際の利用で判明する問題がまだ多く残っています。特別な必要がない限り、ご利用は推奨いたしません →
-        </div>
         <button class="stutus-button" id="local-translation-api">NEW API</button>
+        <div class="status-info" id="status-display">
+          ←このNew APIは実際の利用で判明する問題がまだ多く残っています。特別な必要がない限り、ご利用は推奨いたしません
+        </div>
+        <button class="stutus-button" id="control-panel-minimize">最小化</button>
     </div>
     <div id="control-panel">
         <div id="recorder-panel">
@@ -61,14 +62,10 @@
 
             <!--- 軟體宣告 --->
             <div id="usage-guide">
-                <p>このソフトウェアは、乙夏れい様のファンが乙夏れいのために作成したものです。</p>
-                配信中に複数の言語を頻繁に使う場合、ブラウザの仕様上、音声認識がうまくいかず、誤認識が起こる可能性があります。<br>
-                誤解やトラブルを避けるためにも、事前にファンの皆さんにご案内されることをおすすめします。<br><br>
-                また、本ソフトで使用している翻訳機能は、OpenAIのAPIを通じて翻訳を行っており、Google翻訳よりも精度はやや高いものの、完全に正確な翻訳とは言えません。<br>
-                その点についてもご理解いただけますと幸いです。<br><br>
-                なお、OpenAIのAPIは文字単位で課金が発生するため、翻訳を使用する際は、海外のファンにご自身の発言を伝える必要性や優先度を考慮したうえで、ご利用をご検討ください。<br><br>
-                3時間程度の配信であれば、GPT-4o miniモデルを使用した場合の費用は約0.2～0.3ドル程度、GPT-4oモデルを使用した場合は約4ドル程度となります。<br>
-                通常はGPT-4o miniモデルで十分対応可能ですので、特別に重要な内容を海外ファンに伝える必要がある場合を除き、miniモデルの使用を推奨いたします。<br><br>
+                <p>このハムハム字幕アトリエソフトウェアは、乙夏れい様のファンが乙夏れいのために作成したものです。</p>
+                <div>
+                  使い方は<a href="https://www.google.com" target="_blank" title="使い方の説明ページを開きます">こちら</a>をご覧ください
+                </div>
             </div>
 
             <!--- 顯示字型的相關設定 --->
@@ -191,13 +188,15 @@
                             <input type="radio" name="overflow" value="shrink">2行</input>
                         </div>
                     </div>
-                    <div style="height: 150px; overflow-y:auto;">
-                        <br>
-                        表示設定を行っているのは、翻訳後のテキストが多すぎて、最初の言語が他の言語の表示を圧迫しないようにするためです。<br><br>
-                        ただし、表示行数を固定すると、文字数が多い場合に内容がすべて表示されないことがあります。ご希望の表示に合わせて調整をお願いいたします。<br><br>
-                        2行表示の場合、文字数が一定を超えると自動的にフォントサイズが小さくなります。<br><br>
-                        スペースに限りがあるため、このような対応となっております。ご理解いただけますと幸いです。
-                    </div>
+                      <pre>
+この設定は、翻訳後のテキストが長すぎて言語が他の言語の表示を圧迫しないようにするためのものです。
+
+ただし、表示行数を固定すると、文字数が多い場合に内容がすべて表示されないことがあります。ご利用環境やご希望の表示に合わせて調整してください。
+
+2行表示の場合、文字数が一定を超えると自動的にフォントサイズが縮小されます。
+
+表示スペースに限りがあるため、このような仕様となっております。ご理解いただければ幸いです。
+                      </pre>
                 </div>
             </div>
 
@@ -207,12 +206,12 @@
                     <div>
                         <button class="comment1-button" id="translation1">翻訳</button>
                         <button class="comment1-button" id="translation2">字幕發送</button>
-                        ←10秒間残ります
+                        ←翻訳は10秒間残ります
                     </div>
                     <div style="display: flex; gap: 5px;">
-                        <input type="radio" name="comment-lang" value="ja-JP"> 日本語</input>
-                        <input type="radio" name="comment-lang" value="en-US"> 英語</input>
-                        <input type="radio" name="comment-lang" value="es-ES"> スペイン語</input>
+                        <input type="radio" name="comment-lang" value="ja"> 日本語</input>
+                        <input type="radio" name="comment-lang" value="en"> 英語</input>
+                        <input type="radio" name="comment-lang" value="es"> スペイン語</input>
                         <input type="radio" name="comment-lang" value="zh-TW"> 中国語（台湾）</input>
                     </div>
                     <textarea id="comment-input" placeholder="翻訳するテキストを入力してください。"></textarea>
@@ -220,8 +219,7 @@
                 <div id="comment2">
                     <div class="comment2-text" id="translation-title">翻訳結果:</div>
                     <div class="comment2-text" id="translation-comm">
-                      本機能は、AI翻訳（OpenAI API翻訳）をご利用の場合にのみ推奨されます。
-                      その他の翻訳方式（Chrome 内蔵翻訳、Google Apps Script 内蔵翻訳）では利点がないため、ご利用は不要です。
+                        左側の翻訳ボタンを押すと、翻訳結果がここに表示されます。字幕送信ボタンを押すと原文の上に表示され、その後は翻訳結果に基づいて翻訳表示が行われます。
                     </div>
                 </div>
             </div>

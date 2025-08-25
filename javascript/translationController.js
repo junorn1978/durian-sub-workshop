@@ -1,10 +1,17 @@
+// translationController.js
 import { keywordRules } from './speechCapture.js';
 import { loadLanguageConfig, getChunkSize, getDisplayTimeRules, getTargetCodeById, getTargetCodeForTranslator } from './config.js';
+
+// Chrome Translator API用參數
+const translatorCache = new Map();
 
 // 全局序列號計數器
 let sequenceCounter = 0;
 const maxConcurrent = 5; // 最大並發請求數
 let activeRequests = 0; // 當前活動請求數
+let bufferCheckInterval = null; // 用於追蹤 setInterval
+let lastLogTime = 0;
+const LOG_THROTTLE_MS = 1000; // 日誌節流，每 1000ms 記錄一次
 
 // 顯示緩衝區與當前顯示狀態
 const displayBuffers = { target1: [], target2: [], target3: [] };
@@ -38,12 +45,22 @@ function filterTextWithKeywords(text, targetLang) {
 }
 
 // 更新status-panel的訊息用
-function updateStatusDisplay(text) {
+function updateStatusDisplay(text, details = null) {
   const statusDisplay = document.getElementById('status-display');
-  if (statusDisplay && statusDisplay.textContent !== text) {
+  let displayText = text;
+  
+  // 如果有 details 物件，格式化為字串
+  if (details) {
+    const detailStrings = Object.entries(details)
+      .map(([key, value]) => `${key}=${value}`)
+      .join(', ');
+    displayText = `${text} ${detailStrings}`;
+  }
+
+  if (statusDisplay && statusDisplay.textContent !== displayText) {
     requestAnimationFrame(() => {
-      statusDisplay.textContent = text;
-      statusDisplay.dataset.stroke = text;
+      statusDisplay.textContent = displayText;
+      statusDisplay.dataset.stroke = displayText;
       statusDisplay.style.display = 'inline-block';
       statusDisplay.offsetHeight;
       statusDisplay.style.display = '';
@@ -99,35 +116,11 @@ async function sendLocalTranslation(text, targetLangs, sourceLang, updateSourceT
   const translations = new Array(targetLangs.length).fill('');
   let allAvailable = true;
 
-  // 斷句邏輯：針對日語，以半形空格分割，按每批約30字分組
-  function splitTextIntoBatches(text) {
-    const words = text.split(/ +/); // 以半形空格分割
-    const batches = [];
-    let currentBatch = [];
-    let currentLength = 0;
-    const batchSize = 30; // 日語每批目標字數
-
-    words.forEach(word => {
-      if (currentLength + word.length > batchSize && currentBatch.length > 0) {
-        batches.push(currentBatch.join(' '));
-        currentBatch = [];
-        currentLength = 0;
-      }
-      currentBatch.push(word);
-      currentLength += word.length;
-    });
-
-    if (currentBatch.length > 0) {
-      batches.push(currentBatch.join(' '));
-    }
-
-    console.debug('[DEBUG] [Translation] 斷句結果:', { batches, totalBatches: batches.length });
-    return batches;
-  }
-
   for (let i = 0; i < targetLangs.length; i++) {
     const sourceLanguage = getTargetCodeForTranslator(sourceLang);
     const targetLanguage = getTargetCodeForTranslator(targetLangs[i]);
+    const cacheKey = `${sourceLanguage}-${targetLanguage}`;
+
     try {
       const isAvailable = await ensureModelLoaded(sourceLanguage, targetLanguage, updateSourceText);
       if (!isAvailable) {
@@ -136,36 +129,37 @@ async function sendLocalTranslation(text, targetLangs, sourceLang, updateSourceT
         continue;
       }
 
-      const translator = await Translator.create({ sourceLanguage, targetLanguage });
-      const batches = splitTextIntoBatches(text);
-      const batchTranslations = await Promise.all(batches.map(async (batch, batchIndex) => {
-        try {
-          const result = await translator.translate(batch); // 使用非流式翻譯
-          console.debug('[DEBUG] [Translation] 分批翻譯結果:', { batchIndex, batch, result });
-          return result;
-        } catch (error) {
-          console.error('[ERROR] [Translation] 分批翻譯失敗:', { batchIndex, batch, error: error.message });
-          return ''; // 失敗時返回空字串，避免中斷
-        }
-      }));
+      // 檢查快取中是否已有 Translator 物件
+      let translator = translatorCache.get(cacheKey);
+      if (!translator) {
+        translator = await Translator.create({ sourceLanguage, targetLanguage });
+        translatorCache.set(cacheKey, translator);
+        console.debug('[DEBUG] [Translation] 創建並快取 Translator:', { cacheKey });
+      } else {
+        console.debug('[DEBUG] [Translation] 重用快取中的 Translator:', { cacheKey });
+      }
 
-      // 組合翻譯結果，保留半形空格
-      const fullTranslation = batchTranslations.join(' ');
-      translations[i] = fullTranslation;
-      console.info('[INFO] [Translation] 組合翻譯完成:', { sourceLanguage, targetLanguage, result: fullTranslation });
+      try {
+        const result = await translator.translate(text); // 直接翻譯整段文字
+        console.debug('[DEBUG] [Translation] 翻譯結果:', { text, result });
+        translations[i] = result;
+        console.info('[INFO] [Translation] 翻譯完成:', { sourceLanguage, targetLanguage, result });
 
-      // 更新UI使用組合結果
-      await updateTranslationUI(
-        { translations: translations.slice(0, i + 1), sequenceId: sequenceCounter },
-        [targetLanguage],
-        0.5, // 使用較短顯示時間
-        sequenceCounter
-      );
-      
-      // 釋放AI占用的記憶體空間
-      translator.destroy();
+        // 更新 UI 使用翻譯結果
+        await updateTranslationUI(
+          { translations: translations.slice(0, i + 1), sequenceId: sequenceCounter },
+          [targetLanguage],
+          0.5, // 使用較短顯示時間
+          sequenceCounter
+        );
+      } catch (error) {
+        console.error('[ERROR] [Translation] 翻譯失敗:', { text, error: error.message });
+        updateStatusDisplay('翻訳エラー:', { error: error.message });
+        setTimeout(() => updateStatusDisplay(''), 5000);
+        translations[i] = ''; // 失敗時返回空字串
+      }
     } catch (error) {
-      console.error('[ERROR] [Translation] 翻譯失敗:', { sourceLanguage, targetLanguage, error: error.message });
+      console.error('[ERROR] [Translation] 翻譯初始化失敗:', { sourceLanguage, targetLanguage, error: error.message });
       allAvailable = false;
     }
   }
@@ -302,20 +296,46 @@ async function updateTranslationUI(data, targetLangs, minDisplayTime, sequenceId
   };
   const isRayModeActive = document.getElementById('raymode')?.classList.contains('active') || false;
 
+  console.debug('[DEBUG] [Translation] updateTranslationUI 開始:', { 
+    data: data, 
+    targetLangs: targetLangs, 
+    sequenceId: sequenceId, 
+    translations: data?.translations 
+  });
+
   targetLangs.forEach((lang, index) => {
     const span = spans[`target${index + 1}`];
     const langSelect = document.getElementById(`target${index + 1}-language`)?.value;
-    if (span && data.translations && data.translations[index]) {
+    if (span && data?.translations && data.translations[index]) {
       const filteredText = isRayModeActive ? filterTextWithKeywords(data.translations[index], lang) : data.translations[index];
       
       displayBuffers[`target${index + 1}`].push({
         text: filteredText,
         minDisplayTime,
-        sequenceId: data.sequenceId ?? sequenceId, // 使用後端返回的 sequenceId，若無則使用前端的
+        sequenceId: data.sequenceId ?? sequenceId,
         timestamp: Date.now()
+      });
+      console.debug('[DEBUG] [Translation] 推入 displayBuffers:', { 
+        target: `target${index + 1}`, 
+        text: filteredText, 
+        sequenceId: data.sequenceId ?? sequenceId 
+      });
+    } else {
+      console.warn('[WARN] [Translation] 無法推入 displayBuffers:', { 
+        spanExists: !!span, 
+        translationExists: !!data?.translations?.[index], 
+        index, 
+        data: data 
       });
     }
   });
+
+  // 立即檢查緩衝區並啟動定時器
+  processDisplayBuffers();
+  if (!bufferCheckInterval) {
+    bufferCheckInterval = setInterval(processDisplayBuffers, 500);
+    console.debug('[DEBUG] [Translation] 啟動緩衝區監控，間隔 500ms');
+  }
 }
 
 // 處理顯示緩衝區
@@ -327,57 +347,102 @@ function processDisplayBuffers() {
     target3: document.getElementById('target-text-3')
   };
 
+  const hasData = ['target1', 'target2', 'target3'].some(key => displayBuffers[key].length > 0);
+  if (!hasData) {
+    if (now - lastLogTime >= LOG_THROTTLE_MS) {
+      console.debug('[DEBUG] [Translation] processDisplayBuffers 無數據');
+      lastLogTime = now;
+    }
+    if (bufferCheckInterval) {
+      clearInterval(bufferCheckInterval);
+      bufferCheckInterval = null;
+      console.debug('[DEBUG] [Translation] 停止緩衝區監控，無數據');
+    }
+    return;
+  }
+
+  if (now - lastLogTime >= LOG_THROTTLE_MS) {
+    console.debug('[DEBUG] [Translation] processDisplayBuffers 執行:', { 
+      buffers: Object.keys(displayBuffers).map(key => ({ key, length: displayBuffers[key].length })) 
+    });
+    lastLogTime = now;
+  }
+
   ['target1', 'target2', 'target3'].forEach(key => {
     const span = spans[key];
-    if (!span || displayBuffers[key].length === 0) return;
-
-    // 按 sequenceId 排序，若無 sequenceId 則按 timestamp
-    displayBuffers[key].sort((a, b) => {
-      if (a.sequenceId === undefined || b.sequenceId === undefined) {
-        return a.timestamp - b.timestamp;
+    if (!span || displayBuffers[key].length === 0) {
+      if (now - lastLogTime >= LOG_THROTTLE_MS) {
+        console.debug('[DEBUG] [Translation] 跳過處理:', { 
+          key, 
+          spanExists: !!span, 
+          bufferLength: displayBuffers[key].length 
+        });
+        lastLogTime = now;
       }
-      return a.sequenceId - b.sequenceId;
-    });
-
-    // 清理過舊的項目（超過 10 秒）
-    displayBuffers[key] = displayBuffers[key].filter(item => now - item.timestamp < 10000);
-    if (displayBuffers[key].length > 10) {
-      displayBuffers[key] = displayBuffers[key].slice(-10);
+      return;
     }
 
-    if (currentDisplays[key] && now - currentDisplays[key].startTime < currentDisplays[key].minDisplayTime * 1000) {
-      return; // 未達 minDisplayTime
-    }
+    try {
+      displayBuffers[key].sort((a, b) => {
+        if (a.sequenceId === undefined || b.sequenceId === undefined) {
+          return a.timestamp - b.timestamp;
+        }
+        return a.sequenceId - b.sequenceId;
+      });
 
-    // 獲取最後顯示的 sequenceId，初始為 -1
-    const lastSequenceId = currentDisplays[key]?.sequenceId ?? -1;
+      displayBuffers[key] = displayBuffers[key].filter(item => now - item.timestamp < 10000);
+      if (displayBuffers[key].length > 10) {
+        displayBuffers[key] = displayBuffers[key].slice(-10);
+      }
 
-    // 查找 sequenceId > lastSequenceId 的最小項目
-    const nextIndex = displayBuffers[key].findIndex(item => item.sequenceId > lastSequenceId);
-    if (nextIndex !== -1) {
-      const next = displayBuffers[key].splice(nextIndex, 1)[0]; // 取出匹配項目
-      currentDisplays[key] = {
-        text: next.text,
-        startTime: now,
-        minDisplayTime: next.minDisplayTime,
-        sequenceId: next.sequenceId
-      };
-      span.textContent = next.text;
-      span.dataset.stroke = next.text;
-      span.style.display = 'inline-block';
-      span.offsetHeight;
-      span.style.display = '';
-      const langSelect = document.getElementById(`${key}-language`)?.value;
-      const chunkSize = getChunkSize(langSelect) || 40;
-      if (next.text.length > chunkSize) {
-        span.classList.add('multi-line');
+      if (currentDisplays[key] && now - currentDisplays[key].startTime < currentDisplays[key].minDisplayTime * 1000) {
+        if (now - lastLogTime >= LOG_THROTTLE_MS) {
+          console.debug('[DEBUG] [Translation] 未達 minDisplayTime，跳過:', { 
+            key, 
+            currentDisplay: currentDisplays[key] 
+          });
+          lastLogTime = now;
+        }
+        return;
+      }
+
+      const lastSequenceId = currentDisplays[key]?.sequenceId ?? -1;
+      const nextIndex = displayBuffers[key].findIndex(item => item.sequenceId > lastSequenceId);
+      if (nextIndex !== -1) {
+        const next = displayBuffers[key].splice(nextIndex, 1)[0];
+        currentDisplays[key] = {
+          text: next.text,
+          startTime: now,
+          minDisplayTime: next.minDisplayTime,
+          sequenceId: next.sequenceId
+        };
+        span.textContent = next.text;
+        span.dataset.stroke = next.text;
+        span.style.display = 'inline-block';
+        span.offsetHeight;
+        span.style.display = '';
+        const langSelect = document.getElementById(`${key}-language`)?.value;
+        const chunkSize = getChunkSize(langSelect) || 40;
+        if (next.text.length > chunkSize) {
+          span.classList.add('multi-line');
+        } else {
+          span.classList.remove('multi-line');
+        }
+        console.info('[INFO] [Translation] 更新翻譯文字:', { 
+          lang: langSelect, 
+          text: next.text, 
+          sequenceId: next.sequenceId 
+        });
       } else {
-        span.classList.remove('multi-line');
+        if (now - lastLogTime >= LOG_THROTTLE_MS) {
+          console.debug('[DEBUG] [Translation] 無新結果可顯示:', { key, lastSequenceId });
+          lastLogTime = now;
+        }
       }
-      console.info('[INFO] [Translation] 更新翻譯文字:', { lang: langSelect, text: next.text, sequenceId: next.sequenceId });
+    } catch (error) {
+      console.error('[ERROR] [Translation] processDisplayBuffers 錯誤:', { key, error: error.message });
     }
   });
-  requestAnimationFrame(processDisplayBuffers);
 }
 
 // 公開的翻譯請求函數
@@ -432,27 +497,35 @@ async function sendTranslationRequest(text, sourceLang, browserInfo, isLocalTran
       data = await processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, '', sequenceId);
     }
 
+    console.debug('[DEBUG] [Translation] 翻譯結果數據:', { data, sequenceId });
+
     if (data) {
       await updateTranslationUI(data, targetLangs, minDisplayTime, sequenceId);
+    } else {
+      console.warn('[WARN] [Translation] 無有效翻譯結果:', { text, sequenceId });
     }
   } catch (error) {
     console.error('[ERROR] [Translation] 翻譯失敗:', { sequenceId, error: error.message });
+    updateStatusDisplay('翻訳エラー:', { sequenceId, error: error.message });
+    setTimeout(() => updateStatusDisplay(''), 5000);
   } finally {
     activeRequests--;
   }
 }
 
 // 啟動顯示緩衝區處理並定期重置 sequenceCounter
-document.addEventListener('DOMContentLoaded', async () => {
-  await loadLanguageConfig();
-  requestAnimationFrame(processDisplayBuffers);
-  setInterval(() => {
-    sequenceCounter = 0;
-    currentDisplays.target1 = null;
-    currentDisplays.target2 = null;
-    currentDisplays.target3 = null;
-    console.debug('[DEBUG] [Translation] 重置 sequenceCounter 和 currentDisplays');
-  }, 3600000); // 1 小時
+window.addEventListener('beforeunload', () => {
+  translatorCache.forEach((translator, cacheKey) => {
+    translator.destroy();
+    console.debug('[DEBUG] [Translation] 清理 Translator 物件:', { cacheKey });
+  });
+  translatorCache.clear();
+  console.debug('[DEBUG] [Translation] 清理 translatorCache');
+  if (bufferCheckInterval) {
+    clearInterval(bufferCheckInterval);
+    bufferCheckInterval = null;
+    console.debug('[DEBUG] [Translation] 清理 bufferCheckInterval');
+  }
 });
 
-export { sendTranslationRequest, processTranslationUrl, preloadTranslationModels };
+export { sendTranslationRequest, processTranslationUrl, preloadTranslationModels, sendLocalTranslation, updateStatusDisplay, ensureModelLoaded };
