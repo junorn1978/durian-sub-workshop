@@ -7,7 +7,7 @@ import { getTargetCodeForTranslator } from './config.js';
 async function handleLocalTranslationComment(text, sourceLang, targetLang) {
   if (!text || !sourceLang || !targetLang) {
     const translationComm = document.getElementById('translation-comm');
-    if (translationComm) translationComm.textContent = '請輸入文字並選擇來源與目標語言';
+    if (translationComm) translationComm.textContent = '文字を入力し、翻訳元と言語を選択してください。';
     console.info('[INFO] [TextInputController] 跳過無效輸入:', { text, sourceLang, targetLang });
     return;
   }
@@ -40,7 +40,7 @@ async function handleLocalTranslationComment(text, sourceLang, targetLang) {
     console.error('[ERROR] [TextInputController] 本機翻譯失敗:', error.message);
     const translationComm = document.getElementById('translation-comm');
     if (translationComm) translationComm.textContent = '翻譯失敗';
-    updateStatusDisplay('本機翻譯失敗，請檢查模型或網路');
+    updateStatusDisplay('ローカル翻訳に失敗しました。モデルまたはネットワークを確認してください。');
     setTimeout(() => updateStatusDisplay(''), 5000);
   }
 }
@@ -49,13 +49,13 @@ async function handleLocalTranslationComment(text, sourceLang, targetLang) {
 async function handleTranslationComment(text, sourceLang, targetLang, serviceUrl, browserInfo, isLocalTranslationActive) {
   if (!text || !sourceLang || !targetLang) {
     const translationComm = document.getElementById('translation-comm');
-    if (translationComm) translationComm.textContent = '請輸入文字並選擇來源與目標語言';
+    if (translationComm) translationComm.textContent = '文字を入力し、翻訳元と言語を選択してください。';
     console.info('[INFO] [TextInputController] 跳過無效輸入:', { text, sourceLang, targetLang });
     return;
   }
 
   if (sourceLang === targetLang) {
-    updateStatusDisplay('來源語言與目標語言相同，無法翻譯');
+    updateStatusDisplay('翻訳元と言語が同じため、翻訳できません。');
     setTimeout(() => updateStatusDisplay(''), 5000);
     console.info('[INFO] [TextInputController] 來源與目標語言相同，跳過翻譯:', { text, sourceLang, targetLang });
     return;
@@ -83,16 +83,16 @@ async function handleTranslationComment(text, sourceLang, targetLang, serviceUrl
     console.error('[ERROR] [TextInputController] translation1 翻譯失敗:', error.message);
     const translationComm = document.getElementById('translation-comm');
     if (translationComm) translationComm.textContent = '翻譯失敗';
-    updateStatusDisplay('翻譯失敗，請檢查服務連線或本機模型');
+    updateStatusDisplay('翻訳に失敗しました。サービスへの接続またはローカルモデルを確認してください。');
     setTimeout(() => updateStatusDisplay(''), 5000);
   }
 }
 
 // 處理 translation2 的翻譯留言邏輯
 async function handleTranslationCommentWithSourceUpdate(text, sourceLang, isLocalTranslationActive, browserInfo) {
-  if (!text || !sourceLang) {
+  if (!text) {
     const translationComm = document.getElementById('translation-comm');
-    if (translationComm) translationComm.textContent = '請輸入文字並選擇語言';
+    if (translationComm) translationComm.textContent = '文字を入力してください。';
     console.info('[INFO] [TextInputController] 跳過無效輸入:', { text, sourceLang });
     return;
   }
@@ -111,7 +111,7 @@ async function handleTranslationCommentWithSourceUpdate(text, sourceLang, isLoca
   } catch (error) {
     console.error('[ERROR] [TextInputController] translation2 翻譯失敗:', error.message);
     const translationComm = document.getElementById('translation-comm');
-    if (translationComm) translationComm.textContent = '翻譯失敗';
+    if (translationComm) translationComm.textContent = '翻訳失敗';
   }
 }
 

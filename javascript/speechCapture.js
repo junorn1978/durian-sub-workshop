@@ -329,64 +329,41 @@ function executeSpeechRecognition() {
 
   /**
    * 對於無標點的日文語音辨識結果，根據文法規則智慧地添加標點符號。
-   * @param {string} text - 從語音辨識 API 收到的原始文字。
+   * @param {string} text - 從語音辨識 API 收到的原始文字，已將空格替換為「、」。
    * @returns {string} - 添加了標點符號的處理後文字。
    */
   function addJapanesePunctuation(text) {
     if (!text) return '';
   
-    //const words = text.trim().split(/\s+/);
-    const words = text;
-    if (words.length === 0) return '';
-    if (words.length === 1) return words[0] ? words[0] + '。' : '';
-  
-    // 類別分類：依照語法功能分類，方便日後調整或擴充
-    const politeVerbEndings = [
-      'です', 'ます', 'ました', 'でした', 'ません',
+    // 定義結尾詞應使用句號的規則
+    const sentenceEndings = [
+      'です', 'ですね', 'ですよ', 'ます', 'ますよ', 'ました', 'ましょう', 'でした', 'ません',
       'ください', 'します', 'させます', 'いたします',
-      'ございます', '存じます', '承知しました'
-    ];
-  
-    const conjunctions = [
-      'ので', 'から', 'けど', 'が', 'しかし', 'それで', 'それに', 'なのに'
-    ];
-  
-    const sentenceParticles = [
-      'ね', 'じゃん', 'っけ'
-    ];
-  
-    const endingAuxiliary = [
+      'ございます', '存じます', '承知しました',
       'でしょう', 'だろう', 'ある', 'ない',
       'みたい', 'ようだ', 'らしい', 'そうだ', 'のです'
     ];
   
-    // 最終觸發詞集合（展開）
-    const punctuationTriggers = [
-      ...politeVerbEndings,
-      ...conjunctions,
-      ...sentenceParticles,
-      ...endingAuxiliary
-    ];
+    // 定義應使用「～」的詞
+    const tildeWords = ['あの', 'えっと', 'うーん'];
   
-    // 進行標點加上
-    let result = words[0];
-    for (let i = 1; i < words.length; i++) {
-      const prevWord = words[i - 1];
-      const needsPunctuation = punctuationTriggers.some(trigger => prevWord.endsWith(trigger));
+    // 建立正則表達式，將結尾詞後的「、」替換為「。」
+    const sentenceEndRegex = new RegExp(`(${sentenceEndings.join('|')})、`, 'g');
+    let result = text.replace(sentenceEndRegex, '$1。');
   
-      if (needsPunctuation) {
-        result += '、' + words[i];
-      } else {
-        result += words[i]; // 無斷句的話直接合併
-      }
+    // 將特定詞後的「、」替換為「～」
+    const tildeRegex = new RegExp(`(${tildeWords.join('|')})、`, 'g');
+    result = result.replace(tildeRegex, '$1～');
+  
+    // 添加句號
+      result = result + '。';
+  
+    // 如果結尾已經是句號或波浪號，保持不變
+    if (!result.endsWith('。') && !result.endsWith('～')) {
+      result += '。';
     }
   
-    // 清除結尾頓號 + 加上句點
-    if (result.endsWith('、')) {
-      result = result.slice(0, -1);
-    }
-    result += '。';
-  
+    console.debug('[DEBUG] [TextProcessing] 標點處理結果:', { original: text, processed: result });
     return result;
   }
 
@@ -420,8 +397,9 @@ function executeSpeechRecognition() {
         sendTranslationRequestText = filterRayModeText(sendTranslationRequestText, sourceLang);
       }
       if (isLocalTranslationActive && browser === 'Chrome' && sourceLang === 'ja-JP') {
-        //sendTranslationRequestText = addJapanesePunctuation(sendTranslationRequestText.replace(/\s/g, '、'));
-        sendTranslationRequestText = sendTranslationRequestText.replace(/\s/g, '、');
+        sendTranslationRequestText = addJapanesePunctuation(sendTranslationRequestText.replace(/\s/g, '、'));
+        console.debug('[DEBUG] [SpeechRecognition] 標點符號整理結果:', sendTranslationRequestText, '字數', sendTranslationRequestText.length);
+        //sendTranslationRequestText = sendTranslationRequestText.replace(/\s/g, '、');
       }
 
       sendTranslationRequest(sendTranslationRequestText, recognition.lang, { browser, supportsTranslatorAPI }, isLocalTranslationActive);

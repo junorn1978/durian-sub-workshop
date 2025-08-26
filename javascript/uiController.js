@@ -4,6 +4,13 @@ import { updateSourceText, sendTranslationRequest } from './speechCapture.js';
 import { setupTextInputTranslation } from './textInputController.js';
 
 document.addEventListener('DOMContentLoaded', async function() {
+  // 五秒後清除狀態顯示
+  setTimeout(() => {
+    const statusDisplay = document.getElementById('status-display');
+    if (statusDisplay) {
+      statusDisplay.textContent = '';
+    }
+  }, 7000);
   
   // 統一的設定配置
   const CONFIG = {
