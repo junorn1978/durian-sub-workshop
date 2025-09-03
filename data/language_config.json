@@ -1,0 +1,139 @@
+{
+  "languages": [
+    {
+      "id": "ja-JP",
+      "label": "日本語",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 35,
+      "displayTimeRules": [
+        { "maxLength": 20, "time": 1 },
+        { "maxLength": 40, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "ja-JP"
+    },
+    {
+      "id": "zh-TW",
+      "label": "中国語(台湾)",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 33,
+      "displayTimeRules": [
+        { "maxLength": 20, "time": 1 },
+        { "maxLength": 40, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "zh-TW"
+    },
+    {
+      "id": "zh-HK",
+      "label": "中国語(香港)",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 33,
+      "displayTimeRules": [
+        { "maxLength": 20, "time": 1 },
+        { "maxLength": 40, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "zh-HK"
+    },
+    {
+      "id": "en-US",
+      "label": "英語",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 80,
+      "displayTimeRules": [
+        { "maxLength": 30, "time": 1 },
+        { "maxLength": 70, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "en-US"
+    },
+    {
+      "id": "es-ES",
+      "label": "スペイン語",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 80,
+      "displayTimeRules": [
+        { "maxLength": 30, "time": 1 },
+        { "maxLength": 70, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "es-ES"
+    },
+    {
+      "id": "id-ID",
+      "label": "インドネシア語",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 80,
+      "displayTimeRules": [
+        { "maxLength": 30, "time": 1 },
+        { "maxLength": 70, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "id-ID"
+    },
+    {
+      "id": "ko-KR",
+      "label": "韓国語",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 80,
+      "displayTimeRules": [
+        { "maxLength": 20, "time": 1 },
+        { "maxLength": 40, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "ko-KR"
+    },
+    {
+      "id": "th-TH",
+      "label": "タイ語",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 80,
+      "displayTimeRules": [
+        { "maxLength": 30, "time": 1 },
+        { "maxLength": 70, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "th-TH"
+    },
+    {
+      "id": "vi-VN",
+      "label": "ベトナム語",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 80,
+      "displayTimeRules": [
+        { "maxLength": 30, "time": 1 },
+        { "maxLength": 70, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "vi-VN"
+    }
+  ],
+  "targetCodeMap": {
+    "ja-JP": "ja",
+    "zh-TW": "zh-TW",
+    "en-US": "en",
+    "es-ES": "es",
+    "id-ID": "id",
+    "ko-KR": "ko",
+    "th-TH": "th",
+    "vi-VN": "vi"
+  },
+  "defaults": {
+    "chunkSize": 40,
+    "displayTimeRules": [
+      { "maxLength": 30, "time": 1 },
+      { "maxLength": 70, "time": 2 },
+      { "maxLength": 1e9, "time": 3 }
+    ]
+  }
+}

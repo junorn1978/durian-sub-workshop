@@ -10,6 +10,6 @@ start chrome.exe --app="http://localhost:8081/index.html" --window-size=1280,720
 --disable-features=CalculateNativeWinOcclusion ^
 --user-data-dir="%translate_DIR%" ^
 --disable-extensions ^
---disable-gpu ^
+rem --disable-gpu ^
 --disable-default-apps
 exit /b

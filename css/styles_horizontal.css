@@ -14,6 +14,7 @@
     --text-align: center;
     --body-background: #00FF00;
     --overflow-height: 26.4px; /* font-size * 1.2，僅用於 JavaScript */
+    --display-panel-height: 55%;
 }
 
 *, *::before, *::after {
@@ -32,6 +33,62 @@ body {
     overflow-y: hidden;
 }
 
+/* 字幕顯示處相關設定 */
+#display-panel {
+    height: var(--display-panel-height);
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    gap: 5px;
+    margin: 0 auto;
+    width: 100%;
+    background-color: transparent;
+    min-height: 200px; /* 確保佈局穩定 */
+    user-select: none; /* 不可選取文字 */
+    border-bottom: 4px solid #e5b3ff;
+}
+/* 以上為字幕顯示處相關設定 */
+
+.grid-options-container {
+  display: grid;
+  grid-template-columns: auto auto; /* 兩列，自動調整寬度以模擬 Flexbox */
+  grid-template-row: auto auto; /* 兩行，自動調整寬度以模擬 Flexbox */
+  width: 100%; /* 占滿父容器寬度 */
+  height:100%;
+  gap: 10px; /* 模擬 Flexbox 的間距 */
+}
+
+/* 狀態攔相關設定 */
+#status-panel {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    height: 5%;
+    min-height: 30px;
+    background-color: #fddcff;
+    padding: 0 20px 0 20px;
+    align-items: center;
+    /* user-select: none; 不可選取文字 */
+    justify-content: space-between;
+    gap: 5px;
+    z-index: 2;
+}
+.status-info {
+    display: flex;
+    width: 80%;
+    height: 90%;
+    text-align: left; /* 讓文字靠左對齊 */
+    align-items: center;
+    color: #6d1313;
+}
+.status-button {
+    margin-left: auto; /* 將按鈕推到最右邊 */
+    margin-right: 15px;
+}
+/* 以上為狀態攔相關設定 */
+
+
+/* 控制面板相關設定 */
 #control-panel {
     height: 40%;
     background-color: #FFF2DE;
@@ -43,20 +100,41 @@ body {
     width: 100%;
     min-width: 1200px;
     min-height: 280px;
+    border-top: 4px solid #ddd3ff;
+    z-index: 2;
 }
-
-#display-panel {
-    height: 60%;
+/* === 選單相關 === */
+.menu-panel {
     display: flex;
-    flex-direction: column;
-    padding: 20px;
-    gap: 5px;
-    margin: 0 auto;
+    flex-direction: row;
+    align-items: center;
+    border-radius: 10px;
     width: 100%;
-    background-color: transparent;
-    min-height: 100px; /* 確保佈局穩定 */
-    user-select: none; /* 不可選取文字 */
+    height: 50px;
+    background-color: #C7EFFF;
 }
+#menu {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    border-radius: 10px;
+    background-color: #C7EFFF;
+    padding: 0 5px;
+}
+.menu-button, .menu2-button, .menu3-button {
+    width: 100px;
+    height: 25px;
+    border-radius: 25px;
+    border: 2px solid #8B4513;
+    background-color: #D8BFD1;
+    color: #333;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
+}
+/* =============== */
 
 #recorder-panel {
     width: 300px;
@@ -77,25 +155,7 @@ body {
     gap: 5px;
 }
 
-.menu-panel {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    border-radius: 10px;
-    width: 100%;
-    height: 50px;
-    background-color: #C7EFFF;
-}
-
-#menu {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 10px;
-    border-radius: 10px;
-    background-color: #C7EFFF;
-    padding: 0 5px;
-}
+/* 以上為控制面板相關設定 */
 
 #translation-link {
     display: none;
@@ -139,6 +199,7 @@ body {
     padding: 5px;
     width: 100%;
     height: 100%;
+    overflow-y: auto;
 }
 
 #other-settings-panel, #subtitle-settings-panel {
@@ -162,11 +223,16 @@ body {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 5px;
     padding: 5px;
     border-radius: 5px;
     background-color: #F8E6F0;
     width: 50%;
+    height:100%;
+}
+
+#lang-setting, #color-setting, #size-setting, 
+#comment1 {
+    gap: 5px;
 }
 
 #lang-setting, #color-setting, #size-setting, #subtitle-style {
@@ -179,21 +245,25 @@ body {
     flex-direction: row;
 }
 
-#option1, #option2 {
+#option1, #option2, #option3 {
     display: flex;
     flex-direction: column;
-    width: 50%;
+    /* width: 50%; */
     gap: 10px;
 }
-
-.option2-1, .option2-2 {
+.option2-1-style {
+    display: flex;
+    flex-direction: column;
+}
+#option3 {
     display: flex;
     flex-direction: row;
 }
 
-.option2-3 {
+.option2-1, .option2-2, .subtitle1{
     display: flex;
     flex-direction: row;
+    width: max-content;
 }
 
 #comment1, #translation1 {
@@ -413,7 +483,7 @@ body {
     background-color: #CCCCCC;
 }
 
-.menu-button, .menu2-button, .menu3-button, .options-button, .comment1-button {
+.options-button, .comment1-button, .status-button, .minimenu-button {
     width: 100px;
     height: 25px;
     border-radius: 25px;
@@ -426,18 +496,29 @@ body {
     font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
 }
 
-.menu-button:hover, .menu2-button:hover, .menu3-button:hover, .options-button:hover, .comment1-button:hover {
+.options-button {
+    margin-bottom: 5px;
+}
+
+.minimenu-button:hover, menu-button:hover, .menu2-button:hover, .menu3-button:hover, .options-button:hover, .comment1-button:hover, .status-button:hover {
     background-color: #E0E0E0;
 }
 
-.menu-button.active, .menu2-button.active, .menu3-button.active {
+.minimenu-button.active, .menu-button.active, .menu2-button.active, .menu3-button.active, .options-button.active, .status-button.active {
     border: 2px solid #000000;
     background-color: #D28BC4;
 }
 
-.options-button:active, .comment1-button:active {
+.options-button:active, .comment1-button:active, .status-button:active {
     border: 2px solid #007BFF;
     background-color: #d28bc4;
+}
+
+.minimenu-button:disabled, .menu-button:disabled, .status-button:disabled {
+    background-color: #CCCCCC;
+    color: #666;
+    cursor: not-allowed;
+    opacity: 0.6;
 }
 
 .alignment {
@@ -452,4 +533,18 @@ body {
 
 #display-panel-color {
     width: 150px;
+}
+
+pre {
+    width: 100%;
+    max-width: 100%; /* 防止超出父容器 */
+    box-sizing: border-box; /* 包含邊框和內邊距 */
+    white-space: pre-wrap; /* 允許文字自動換行 */
+    overflow-x: hidden; /* 隱藏水平溢出 */
+    overflow-y: auto; /* 允許垂直滾動 */
+    height: 80%; /* 適應父容器高度 */
+    max-height: 85%; /* 防止超出父容器 */
+    padding: 0px;
+    margin: 10px 0px;
+    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
 }

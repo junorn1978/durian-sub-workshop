@@ -1,6 +1,16 @@
 import { processTranslationUrl } from './translationController.js';
+import { loadLanguageConfig, getAllLanguages } from './config.js';
+import { updateSourceText, sendTranslationRequest } from './speechCapture.js';
+import { setupTextInputTranslation } from './textInputController.js';
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+  // 五秒後清除狀態顯示
+  setTimeout(() => {
+    const statusDisplay = document.getElementById('status-display');
+    if (statusDisplay) {
+      statusDisplay.textContent = '';
+    }
+  }, 7000);
   
   // 統一的設定配置
   const CONFIG = {
@@ -55,7 +65,9 @@ document.addEventListener('DOMContentLoaded', function() {
     special: [
       { id: 'display-panel-color', type: 'body-color', css: '--body-background', desc: 'Body background color' },
       { id: 'translation-link', type: 'text', desc: 'Translation link' },
-      { id: 'raymode', type: 'toggle', key: 'raymode-active', desc: 'Raymode active state' }
+      { id: 'raymode', type: 'toggle', key: 'raymode-active', desc: 'Raymode active state' },
+      { id: 'local-translation-api', type: 'toggle', key: 'local-translation-api-active', desc: 'local-translation-api state' },
+      { id: 'control-panel-minimize', type: 'toggle', key: 'control-panel-minimized', desc: 'Control panel minimized state' }
     ],
 
     // 面板對應
@@ -70,11 +82,24 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   };
 
+  // 瀏覽器檢查
+  const isEdge = navigator.userAgent.includes('Edg/');
+  if (isEdge) {
+    console.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
+    document.getElementById('status-display').textContent = '現在のところ、New APIはEdgeに対応しておりません。ご了承ください。';
+    const apiButton = document.getElementById('local-translation-api');
+    if (apiButton) {
+      apiButton.disabled = true;
+      apiButton.classList.remove('active');
+      localStorage.removeItem('local-translation-api-active');
+    }
+  }
+
   // 通用的 localStorage 操作
   const Storage = {
     save: (key, value, desc) => {
       localStorage.setItem(key, value);
-      // console.debug('[DEBUG] [UIController]', `${desc} 已儲存至 localStorage: ${value}`);
+      console.debug('[DEBUG] [UIController]', `${desc} 已儲存至 localStorage: ${value}`);
     },
     
     load: (key, defaultValue = null) => {
@@ -177,53 +202,44 @@ document.addEventListener('DOMContentLoaded', function() {
     load() {
       const saved = Storage.load(config.key, config.default);
       const radio = document.querySelector(`input[name="${config.name}"][value="${saved}"]`);
-      
-      if (!radio) return;
-      
-      radio.checked = true;
-      this.apply(saved);
-    },
-
-    apply(value) {
-      const applyToTargets = (fn) => {
-        config.targets.forEach(targetId => {
-          const element = document.getElementById(targetId);
-          if (element) fn(element, value);
-        });
-      };
-
-      if (config.css) {
-        applyToTargets((element, val) => element.style.setProperty(config.css, val));
-        return;
-      }
-      
-      if (config.name === 'overflow') {
-        applyToTargets((element, val) => {
-          element.classList.remove('overflow-normal', 'overflow-shrink', 'overflow-truncate');
-          element.classList.add(`overflow-${val}`);
-        });
+      if (radio) {
+        radio.checked = true;
+        this.save(saved);
       }
     },
-
+    
     setupListener() {
-      const radios = document.querySelectorAll(`input[name="${config.name}"]`);
-      radios.forEach(radio => {
+      document.querySelectorAll(`input[name="${config.name}"]`).forEach(radio => {
         radio.addEventListener('change', (e) => {
-          if (!e.target.checked) return;
-          
-          this.apply(e.target.value);
-          Storage.save(config.key, e.target.value, config.desc);
+          if (e.target.checked) {
+            this.save(e.target.value);
+          }
         });
       });
     },
-
+    
+    save(value) {
+      Storage.save(config.key, value, config.desc);
+      config.targets.forEach(targetId => {
+        const target = document.getElementById(targetId);
+        if (target) {
+          if (config.css) {
+            target.style.setProperty(config.css, value);
+          }
+          if (config.name === 'overflow') {
+            target.classList.remove('overflow-normal', 'overflow-truncate', 'overflow-shrink');
+            target.classList.add(`overflow-${value}`);
+          }
+        }
+      });
+    },
+    
     reset() {
-      const radio = document.querySelector(`input[name="${config.name}"][value="${config.default}"]`);
-      if (!radio) return;
-      
-      radio.checked = true;
-      this.apply(config.default);
-      Storage.save(config.key, config.default, config.desc);
+      const defaultRadio = document.querySelector(`input[name="${config.name}"][value="${config.default}"]`);
+      if (defaultRadio) {
+        defaultRadio.checked = true;
+        this.save(config.default);
+      }
     }
   });
 
@@ -272,22 +288,80 @@ document.addEventListener('DOMContentLoaded', function() {
       
       'toggle': {
         load(element) {
+          if (isEdge && config.id === 'local-translation-api') {
+            element.classList.remove('active');
+            Storage.save(config.key, 'false', config.desc);
+            return;
+          }
           const saved = Storage.load(config.key) === 'true';
           element.classList.toggle('active', saved);
+          if (config.id === 'control-panel-minimize') {
+            const controlPanel = document.getElementById('control-panel');
+            const displayPanel = document.getElementById('display-panel');
+            const miniStart = document.getElementById('mini-start-recording');
+            const miniStop = document.getElementById('mini-stop-recording');
+            const startButton = document.getElementById('start-recording');
+            const stopButton = document.getElementById('stop-recording');
+            if (controlPanel && displayPanel && miniStart && miniStop && startButton && stopButton) {
+              controlPanel.style.display = saved ? 'none' : 'flex';
+              displayPanel.style.setProperty('--display-panel-height', saved ? '95%' : '55%');
+              miniStart.style.display = saved ? 'inline-block' : 'none';
+              miniStop.style.display = saved ? 'inline-block' : 'none';
+              miniStart.disabled = startButton.disabled;
+              miniStop.disabled = stopButton.disabled;
+            }
+          }
         },
         
         setupListener(element) {
           element.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (isEdge && config.id === 'local-translation-api') {
+              console.debug('[DEBUG] [UIController]', 'Edge 瀏覽器下禁止啟用本地端 API');
+              return;
+            }
             element.classList.toggle('active');
             const isActive = element.classList.contains('active');
             Storage.save(config.key, isActive.toString(), config.desc);
+            if (config.id === 'control-panel-minimize') {
+              const controlPanel = document.getElementById('control-panel');
+              const displayPanel = document.getElementById('display-panel');
+              const miniStart = document.getElementById('mini-start-recording');
+              const miniStop = document.getElementById('mini-stop-recording');
+              const startButton = document.getElementById('start-recording');
+              const stopButton = document.getElementById('stop-recording');
+              if (controlPanel && displayPanel && miniStart && miniStop && startButton && stopButton) {
+                controlPanel.style.display = isActive ? 'none' : 'flex';
+                displayPanel.style.setProperty('--display-panel-height', isActive ? '95%' : '55%');
+                miniStart.style.display = isActive ? 'inline-block' : 'none';
+                miniStop.style.display = isActive ? 'inline-block' : 'none';
+                miniStart.disabled = startButton.disabled;
+                miniStop.disabled = stopButton.disabled;
+                console.debug('[DEBUG] [UIController]', `控制面板${isActive ? '隱藏' : '顯示'}，mini 按鈕顯示狀態: ${miniStart.style.display}`);
+              }
+            }
           });
         },
         
         reset(element) {
           element.classList.remove('active');
           Storage.save(config.key, 'false', config.desc);
+          if (config.id === 'control-panel-minimize') {
+            const controlPanel = document.getElementById('control-panel');
+            const displayPanel = document.getElementById('display-panel');
+            const miniStart = document.getElementById('mini-start-recording');
+            const miniStop = document.getElementById('mini-stop-recording');
+            const startButton = document.getElementById('start-recording');
+            const stopButton = document.getElementById('stop-recording');
+            if (controlPanel && displayPanel && miniStart && miniStop && startButton && stopButton) {
+              controlPanel.style.display = 'flex';
+              displayPanel.style.setProperty('--display-panel-height', '55%');
+              miniStart.style.display = 'none';
+              miniStop.style.display = 'none';
+              miniStart.disabled = startButton.disabled;
+              miniStop.disabled = stopButton.disabled;
+            }
+          }
         }
       }
     };
@@ -315,8 +389,36 @@ document.addEventListener('DOMContentLoaded', function() {
     };
   };
 
+  // 動態填充語言選單
+  const populateLanguageSelects = () => {
+    CONFIG.languages.forEach(config => {
+      const select = document.getElementById(config.id);
+      if (!select) return;
+
+      // 清空現有選項
+      select.innerHTML = config.id === 'source-language'
+        ? '<option value="">言語を選択</option>'
+        : '<option value="none">翻訳しない</option>';
+
+      // 從 getAllLanguages 獲取語言列表
+      const role = config.id === 'source-language' ? 'source' : 'target';
+      const languages = getAllLanguages(role);
+      languages.forEach(lang => {
+        const option = document.createElement('option');
+        option.value = lang.id; // 使用完整 id (如 "ja-JP")
+        option.textContent = lang.label; // 使用 label 作為顯示文字
+        select.appendChild(option);
+      });
+
+      console.debug('[DEBUG] [UIController]', `已填充 ${config.id} 選單，使用 id 作為 value`);
+    });
+  };
+  
   // 初始化所有設定
   const initializeSettings = () => {
+    // 填充語言選單
+    populateLanguageSelects();
+    
     // 樣式設定
     const styleHandlers = CONFIG.styles.map(config => {
       const handler = createSettingHandler(config);
@@ -403,50 +505,63 @@ document.addEventListener('DOMContentLoaded', function() {
         Object.values(handlers).flat().forEach(handler => {
           if (handler.reset) handler.reset();
         });
-      });
-    }
-  };
 
-  // 翻譯留言功能
-  const setupTranslationComment = () => {
-    const translationButton = document.getElementById('translation1');
-    const commentInput = document.getElementById('comment-input');
-
-    if (translationButton && commentInput) {
-      translationButton.addEventListener('click', async () => {
-        const text = commentInput.value.trim();
-        const sourceLang = document.querySelector('input[name="comment-lang"]:checked')?.value;
-        
-        if (!text || !sourceLang) {
-          const translationComm = document.getElementById('translation-comm');
-          if (translationComm) translationComm.textContent = 'Please enter text and select a language.';
-          return;
-        }
-
-        const serviceUrl = document.getElementById('translation-link')?.value;
-
-        try {
-          const data = await processTranslationUrl(text, [sourceLang], 'AUTO', serviceUrl, '');
-          if (data?.translations?.[0]) {
-            const translationComm = document.getElementById('translation-comm');
-            if (translationComm) {
-              const result = data.translations[0];
-              translationComm.textContent = result;
-              translationComm.dataset.stroke = result;
-            }
+        // 確保 Edge 瀏覽器重置後仍禁用
+        if (isEdge) {
+          const apiButton = document.getElementById('local-translation-api');
+          if (apiButton) {
+            apiButton.disabled = true;
+            apiButton.classList.remove('active');
+            localStorage.removeItem('local-translation-api-active');
+            console.debug('[DEBUG] [UIController]', '重置後確保 Edge 瀏覽器本地端 API 禁用');
           }
-        } catch (error) {
-          console.error('[ERROR] [UIController]', '翻譯失敗:', error.message);
-          const translationComm = document.getElementById('translation-comm');
-          if (translationComm) translationComm.textContent = 'Translation failed';
         }
       });
     }
   };
 
   // 主初始化
+  await loadLanguageConfig();
   const handlers = initializeSettings();
   setupPanelSwitching();
   setupResetButton(handlers);
-  setupTranslationComment();
+  setupTextInputTranslation();
+
+  // 新增 mini 按鈕相關邏輯
+  const miniStart = document.getElementById('mini-start-recording');
+  const miniStop = document.getElementById('mini-stop-recording');
+  const startButton = document.getElementById('start-recording');
+  const stopButton = document.getElementById('stop-recording');
+  
+  if (miniStart && miniStop && startButton && stopButton) {
+    // 初始化 MutationObserver 監聽 disabled 屬性變化
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach(mutation => {
+        if (mutation.attributeName === 'disabled') {
+          miniStart.disabled = startButton.disabled;
+          miniStop.disabled = stopButton.disabled;
+          console.debug('[DEBUG] [UIController]', '同步 mini 按鈕狀態:', {
+            miniStartDisabled: miniStart.disabled,
+            miniStopDisabled: miniStop.disabled
+          });
+        }
+      });
+    });
+
+    // 設置觀察器，監聽 startButton 和 stopButton 的 disabled 屬性
+    observer.observe(startButton, { attributes: true });
+    observer.observe(stopButton, { attributes: true });
+
+    // 綁定 mini 按鈕點擊事件
+    miniStart.addEventListener('click', () => {
+      startButton.click();
+      console.debug('[DEBUG] [UIController]', '模擬點擊 start-recording');
+    });
+    miniStop.addEventListener('click', () => {
+      stopButton.click();
+      console.debug('[DEBUG] [UIController]', '模擬點擊 stop-recording');
+    });
+  } else {
+    console.error('[ERROR] [UIController]', '無法找到 mini-start-recording, mini-stop-recording, start-recording 或 stop-recording 元素');
+  }
 });
