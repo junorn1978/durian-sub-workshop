@@ -24,7 +24,7 @@ function getLangById(id) {
 
 function getTargetCodeById(id) {
   if (!_config) throw new Error('config 尚未載入');
-  return _config.targetCodeMap[id] || id; // fallback
+  return _config.targetCodeMap[id] || id;
 }
 
 function getChunkSize(id) {
@@ -43,6 +43,24 @@ function getDisplayTimeRules(id) {
   return (getLangById(id)?.displayTimeRules) ?? _config.defaults.displayTimeRules;
 }
 
+function getPromptApiCode(id) {
+  if (!_config) throw new Error('config 尚未載入');
+  const lang = getLangById(id);
+  if (!lang?.promptApiCode) {
+    console.warn('[WARN] [Translation] 未找到 promptApiCode，使用 targetCodeMap:', { id });
+  }
+  return lang?.promptApiCode || _config.targetCodeMap[id] || id;
+}
+
+function getLanguageModelApiCode(id) {
+  if (!_config) throw new Error('config 尚未載入');
+  const lang = getLangById(id);
+  if (!lang?.languageModelApiCode) {
+    console.warn('[WARN] [Translation] 未找到 languageModelApiCode，使用 targetCodeMap:', { id });
+  }
+  return lang?.languageModelApiCode || _config.targetCodeMap[id] || id;
+}
+
 export {
   loadLanguageConfig,
   getAllLanguages,
@@ -50,5 +68,7 @@ export {
   getTargetCodeById,
   getChunkSize,
   getDisplayTimeRules,
-  getTargetCodeForTranslator
+  getTargetCodeForTranslator,
+  getPromptApiCode,
+  getLanguageModelApiCode
 };

@@ -1,3 +1,8 @@
+<!--
+This software uses kuromoji.js (Japanese morphological analyzer),
+© Atilika Inc. and contributors, licensed under the Apache License 2.0.
+-->
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -18,9 +23,9 @@
             <!--- 顯示項目 2 內容可在此添加 --->
             開発者：乙夏れいファン・ジュノーン（Grok 使用）
         </div>
-        <div id="target-text-2" data-stroke="2025.08.26">
+        <div id="target-text-2" data-stroke="2025.09.19">
             <!--- 顯示項目 3 內容可在此添加 --->
-            2025.08.26
+            2025.09.19
         </div>
         <div id="target-text-3" data-stroke="自動翻訳によるもので、正確性は保証できません。ご了承ください。">
             <!--- 顯示項目 4 內容可在此添加 --->
@@ -29,11 +34,13 @@
     </div>
 
     <div id="status-panel">
-        <button class="stutus-button" id="local-translation-api">NEW API</button>
+        <button class="minimenu-button" id="control-panel-minimize">最小化</button>
+        <button id="mini-start-recording" class="minimenu-button" style="display: none;">錄音開始</button>
+        <button id="mini-stop-recording" class="minimenu-button" style="display: none;">錄音停止</button>
         <div class="status-info" id="status-display">
-          ←この機能は現在テスト段階であり、ご利用は可能ですが、動作を保証するものではありません。
+          【注意】 NEW APIとPrompt API機能は現在テストであり、ご利用は可能ですが、動作を保証するものではありません。
         </div>
-        <button class="stutus-button" id="control-panel-minimize">最小化</button>
+
     </div>
     <div id="control-panel">
         <div id="recorder-panel">
@@ -51,21 +58,22 @@
                     <button class="menu-button" id="target2">翻訳言語2</button>
                     <button class="menu-button" id="target3">翻訳言語3</button>
                     <button class="menu-button" id="options">その他</button>
-                    <button class="menu-button" id="comment">コメント翻訳</button>
-                    
+
                     <input type="text" class="t-link" placeholder="翻訳アプリ用のリンク（必須）" id="translation-link" value="" >
-                    <div style="width: 80px;"></div> <!--- 空元素單純切割用 --->
+                    <!--- <div c="layout_only" style="width: 80px;"></div> 空元素單純切割用 --->
                     <button class="menu2-button" id="apilink">翻訳リンク</button>
+                    <button class="status-button" id="local-translation-api">NEW API</button>
+                    <button class="status-button" id="local-prompt-api">Prompt API</button>
                     <button class="menu3-button" id="raymode">れいーモード</button>
                 </div>
             </div>
 
             <!--- 軟體宣告 --->
             <div id="usage-guide">
-                <p>この「ハムハム字幕アトリエ」は、<a href="https://www.youtube.com/@OtsukaRay" target="_blank" title="Otsuka Ray ch.乙夏れい">乙夏れい</a>様のファン・ジュノーンが乙夏れい様のために作成したものです。</p>
-                <div>
-                  使い方は<a href="https://junorn1978.github.io/HamHam-Subtitle-docs/" target="_blank" title="使い方の説明ページを開きます">こちら</a>をご覧ください（順次更新中）
-                </div>
+                <p>この「ハムハム字幕アトリエ」は、<a href="http://lit.link/otsukaray" target="_blank" title="Otsuka Ray ch.乙夏れい">乙夏れい</a>様のファン・ジュノーンが乙夏れい様のために作成したものです。</p>
+                <p>kuromoji.js（<a href="https://github.com/takuyaa/kuromoji.js">GitHub</a>）を使用しています。<br>
+                著作権 © 2010-2014 Atilika Inc. およびコントリビューター。<br>
+                ライセンス：Apache License 2.0（<a href="LICENSE-2.0.txt">ライセンス</a>）。</p>
             </div>
 
             <!--- 顯示字型的相關設定 --->
@@ -160,29 +168,32 @@
 
             <!--- 其他選項的相關設定 --->
             <div id="options-panel">
-                <div id="other-options">
-                    <div id="option1">
-                        <button class="options-button" id="reset-settings">初始化</button>
-                    </div>
-                    <div id="option2">
-                        <div class="option2-1">
-                            <label for="text-align">横位置：</label>
-                            <div class="alignment">
-                                <input id="text-align" type="radio" name="alignment" value="left">左</input>
-                                <input id="text-align" type="radio" name="alignment" value="center">中央</input>
-                                <input id="text-align" type="radio" name="alignment" value="right">右</input>
+                <div id="other-options" style="flex-direction: column;">
+                    <div class="grid-options-container">
+                    <!--- <div style="display:flex; flex-direction: row; width:100%;"> --->
+                        <div id="option2">
+                            <div class="option2-1">
+                                横位置：
+                                <div class="alignment" id="text-align">
+                                    <input type="radio" name="alignment" value="left">左</input>
+                                    <input type="radio" name="alignment" value="center">中央</input>
+                                    <input type="radio" name="alignment" value="right">右</input>
+                                </div>
+                            </div>
+                            <div class="option2-2">
+                                <label for="display-panel-color">背景色：</label>
+                                <input type="color" id="display-panel-color" value="#00FF00">
                             </div>
                         </div>
-                        <div class="option2-2">
-                            <label for="display-panel-color">背景色：</label>
-                            <input type="color" id="display-panel-color" value="#00FF00">
+                        <div id="option1">
+                            <button class="options-button" id="reset-settings">初始化</button>
                         </div>
                     </div>
                 </div>
                 <div id="subtitle-style">
-                    <div class="option2-3">
-                        <label for="overflow">単一言語行数制限設定：</label>
-                        <div class="overflow-options">
+                    <div class="subtitle1">
+                        単一言語行数制限設定：
+                        <div class="overflow-options" id="overflow-layout">
                             <input type="radio" name="overflow" value="normal">制限なし</input>
                             <input type="radio" name="overflow" value="truncate">1行</input>
                             <input type="radio" name="overflow" value="shrink">2行</input>
@@ -225,7 +236,11 @@
             </div>
         </div>
     </div>
-    
+
+    <!-- 先讓前端知道字典在哪裡 -->
+    <script>window.KUROMOJI_DIC_PATH = '/dict/';</script>
+    <!-- 以非模組方式載入，暴露全域 window.kuromoji -->
+    <script src="/javascript/kuromoji.js"></script>
     <script type="module" src="javascript/uiController.js"></script>
     <script type="module" src="javascript/speechCapture.js"></script>
 </body>
