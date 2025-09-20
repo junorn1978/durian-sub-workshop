@@ -2,6 +2,7 @@ import { processTranslationUrl } from './translationController.js';
 import { loadLanguageConfig, getAllLanguages } from './config.js';
 import { updateSourceText, sendTranslationRequest } from './speechCapture.js';
 import { setupPromptModelDownload } from './promptTranslationService.js';
+import { setupLanguagePackButton } from './languagePackManager.js';
 
 document.addEventListener('DOMContentLoaded', async function() {
   // 7秒後清除狀態顯示
@@ -549,6 +550,8 @@ document.addEventListener('DOMContentLoaded', async function() {
   const handlers = initializeSettings();
   setupPanelSwitching();
   setupResetButton(handlers);
+  
+  await setupLanguagePackButton('source-language', updateSourceText);
 
   // 新增 mini 按鈕相關邏輯
   const miniStart = document.getElementById('mini-start-recording');
@@ -588,5 +591,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     console.error('[ERROR] [UIController]', '無法找到 mini-start-recording, mini-stop-recording, start-recording 或 stop-recording 元素');
   }
 
+  console.debug('[DEBUG] [UIController]', '正在調用 setupPromptModelDownload');
   setupPromptModelDownload();
 });

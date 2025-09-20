@@ -33,6 +33,7 @@
         <button id="mini-start-recording" class="minimenu-button" style="display: none;">錄音開始</button>
         <button id="mini-stop-recording" class="minimenu-button" style="display: none;">錄音停止</button>
         <button id="prompt-api-download" class="minimenu-button" style="display: none;">Download</button>
+        <button id="download-language-pack" class="minimenu-button" style="display: none;">下載語言包</button>
         <div class="status-info" id="status-display">
           【注意】 NEW APIとPrompt API機能は現在テストであり、ご利用は可能ですが、動作を保証するものではありません。
         </div>
@@ -59,7 +60,7 @@
                     <!--- <div c="layout_only" style="width: 80px;"></div> 空元素單純切割用 --->
                     <button class="menu2-button" id="apilink">翻訳リンク</button>
                     <button class="status-button" id="local-translation-api">NEW API</button>
-                    <button class="status-button" id="local-prompt-api">Prompt API</button>
+                    <button class="status-button" id="local-prompt-api" disabled>Prompt API</button>
                     <button class="menu3-button" id="raymode">れいーモード</button>
                 </div>
             </div>
@@ -231,11 +232,8 @@
         </div>
     </div>
 
-    <!-- 先讓前端知道字典在哪裡 -->
-    <script>window.KUROMOJI_DIC_PATH = '/dict/';</script>
-    <!-- 以非模組方式載入，暴露全域 window.kuromoji -->
-    <script src="/javascript/kuromoji.js"></script>
     <script type="module" src="javascript/uiController.js"></script>
     <script type="module" src="javascript/speechCapture.js"></script>
+    <script type="module" src="javascript/uiController.js"></script>
 </body>
 </html>

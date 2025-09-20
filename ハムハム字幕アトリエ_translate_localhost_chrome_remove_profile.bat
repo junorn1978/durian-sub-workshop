@@ -4,7 +4,7 @@ setlocal enabledelayedexpansion
 set "PORT=8081"
 set "translate_DIR=%USERPROFILE%\junorn_1978_translate"
 
-:: ÀË¬d 8081 ¬O§_¦³µ{¦¡¦b LISTENING
+:: ï¿½Ë¬d 8081 ï¿½Oï¿½_ï¿½ï¿½ï¿½{ï¿½ï¿½ï¿½b LISTENING
 set "PID="
 for /f "tokens=5" %%P in ('
   netstat -ano ^| findstr /R /C:":%PORT%" ^| findstr LISTENING
@@ -14,13 +14,13 @@ if defined PID (
   echo "[INFO] The port %PORT% is already in use (PID=%PID%), skipping the launch of the Python HTTP server."
 ) else (
   echo "[INFO] The port %PORT% is available, launching the Python HTTP server..."
-  :: ¥¿½Tªº start ¥Îªk¡G²Ä¤@­Ó¤Þ¸¹¬Oµøµ¡¼ÐÃD¡A¯dªÅ§Y¥i
+  :: ï¿½ï¿½ï¿½Tï¿½ï¿½ start ï¿½Îªkï¿½Gï¿½Ä¤@ï¿½Ó¤Þ¸ï¿½ï¿½Oï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Dï¿½Aï¿½dï¿½Å§Yï¿½i
   start "" python -m http.server %PORT%
-  :: µ¥ 1 ¬íÅý¦øªA¾¹°_¨Ó¡]¥i½Õ¾ã/¥i¬Ù²¤¡^
+  :: ï¿½ï¿½ 1 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½_ï¿½Ó¡]ï¿½iï¿½Õ¾ï¿½/ï¿½iï¿½Ù²ï¿½ï¿½^
   timeout /t 1 /nobreak >nul
 )
 
-:: ¥ý§R°£·Ç³Æ¨Ï¥ÎªÌ¸ê®Æ§¨¦b«Ø¥ß¨Ã¶}±Ò Chrome À³¥Îµøµ¡
+:: ï¿½ï¿½ï¿½Rï¿½ï¿½ï¿½Ç³Æ¨Ï¥ÎªÌ¸ï¿½Æ§ï¿½ï¿½bï¿½Ø¥ß¨Ã¶}ï¿½ï¿½ Chrome ï¿½ï¿½ï¿½Îµï¿½ï¿½ï¿½
 rmdir /S /Q "%USERPROFILE%\junorn_1978_translate"
 if not exist "%translate_DIR%" mkdir "%translate_DIR%"
 

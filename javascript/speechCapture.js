@@ -132,9 +132,9 @@ function updateSourceText(text) {
     requestAnimationFrame(() => {
       sourceText.textContent = text;
       sourceText.dataset.stroke = text;
-      sourceText.style.display = 'inline-block';
-      sourceText.offsetHeight;
-      sourceText.style.display = '';
+      //sourceText.style.display = 'inline-block';
+      //sourceText.offsetHeight;
+      //sourceText.style.display = '';
     });
   }
 }
@@ -186,8 +186,9 @@ function clearWatchdogInterval() {
   }
 }
 
-// 啟動看門狗檢查
+// 啟動看門狗檢查，暫時先不使用。
 function startWatchdog() {
+  return;
   const { browser } = recognitionBrowser();
   if (browser !== 'Chrome') {
     console.debug('[DEBUG] [SpeechRecognition] Edge 環境不啟動看門狗');
@@ -232,7 +233,6 @@ function initializeSpeechRecognition() {
 
   newRecognition.onresult = (event) => {
     lastResultTime = Date.now();
-    console.debug('[DEBUG] [SpeechRecognition] onresult 事件觸發，更新看門狗時間戳');
 
     let hasFinalResult = false;
     interimTranscript = '';

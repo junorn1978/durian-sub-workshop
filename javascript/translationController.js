@@ -1,4 +1,3 @@
-// translationController.js
 import { keywordRules } from './speechCapture.js';
 import { loadLanguageConfig, getChunkSize, getDisplayTimeRules, getTargetCodeById, getTargetCodeForTranslator } from './config.js';
 import { sendLocalTranslation } from './translatorApiService.js';
@@ -51,7 +50,6 @@ function updateStatusDisplay(text, details = null) {
   const statusDisplay = document.getElementById('status-display');
   let displayText = text;
   
-  // 如果有 details 物件，格式化為字串
   if (details) {
     const detailStrings = Object.entries(details)
       .map(([key, value]) => `${key}=${value}`)
@@ -72,7 +70,7 @@ function updateStatusDisplay(text, details = null) {
 
 // 發送翻譯請求的核心邏輯（POST 方式）
 async function sendTranslation(text, targetLangs, serviceUrl, serviceKey, sequenceId) {
-  if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。'　) {
+  if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。' ) {
     console.debug('[DEBUG] [Translation] 無效文字，跳過翻譯:', text);
     return null;
   }
@@ -109,7 +107,7 @@ async function sendTranslation(text, targetLangs, serviceUrl, serviceKey, sequen
     method: 'POST',
     headers,
     body: JSON.stringify(payload)
-  }), 10000); // 10 秒超時
+  }), 10000);
 
   if (!response.ok) {
     throw new Error(`翻譯請求失敗: ${response.status} - ${await response.text()}`);
@@ -138,7 +136,7 @@ async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl, seq
     throw new Error('請求資料過長，請縮短文字內容');
   }
 
-  const response = await timeout(fetch(url, { method: 'GET', mode: 'cors' }), 10000); // 10 秒超時
+  const response = await timeout(fetch(url, { method: 'GET', mode: 'cors' }), 10000);
 
   if (!response.ok) {
     throw new Error(`翻譯請求失敗: ${response.status} - ${await response.text()}`);
@@ -211,7 +209,6 @@ async function updateTranslationUI(data, targetLangs, minDisplayTime, sequenceId
     }
   });
 
-  // 立即檢查緩衝區並啟動定時器
   processDisplayBuffers();
   if (!bufferCheckInterval) {
     bufferCheckInterval = setInterval(processDisplayBuffers, 500);
@@ -330,19 +327,15 @@ function processDisplayBuffers() {
 async function sendTranslationRequest(text, sourceLang, browserInfo, isLocalTranslationActive) {
   if (activeRequests >= maxConcurrent) {
     console.debug('[DEBUG] [Translation] 達到並發上限，清空緩衝區並重試');
-    // 清空所有顯示緩衝區
     ['target1', 'target2', 'target3'].forEach(key => {
       displayBuffers[key] = [];
       console.debug('[DEBUG] [Translation] 已清空緩衝區:', { key });
     });
-    // 立即發送新的翻譯請求
     return sendTranslationRequest(text, sourceLang, browserInfo, isLocalTranslationActive);
   }
 
   activeRequests++;
   const sequenceId = sequenceCounter++;
-  console.info('[DEBUG] [Translation] activeRequests 遞增:', { activeRequests, sequenceId, timestamp: Date.now() });
-  console.debug('[DEBUG] [Translation] 發送請求:', { text, sourceLang, browser: browserInfo.browser, sequenceId });
 
   try {
     const serviceUrl = document.getElementById('translation-link').value;
@@ -369,18 +362,26 @@ async function sendTranslationRequest(text, sourceLang, browserInfo, isLocalTran
     const isPromptApiActive = promptApiButton?.classList.contains('active') || false;
 
     if (isPromptApiActive && 'LanguageModel' in self) {
-      data = await sendPromptTranslation(text, targetLangs, sourceLang, (text) => {
-        const sourceText = document.getElementById('source-text');
-        if (sourceText && text.trim().length !== 0 && sourceText.textContent !== text) {
-          requestAnimationFrame(() => {
-            sourceText.textContent = text;
-            sourceText.dataset.stroke = text;
-            sourceText.style.display = 'inline-block';
-            sourceText.offsetHeight;
-            sourceText.style.display = '';
-          });
-        }
-      });
+      console.debug('[DEBUG] [Translation] 執行 Prompt API 翻譯:', { sequenceId });
+      try {
+        data = await sendPromptTranslation(text, targetLangs, sourceLang, (text) => {
+          const sourceText = document.getElementById('source-text');
+          if (sourceText && text.trim().length !== 0 && sourceText.textContent !== text) {
+            requestAnimationFrame(() => {
+              sourceText.textContent = text;
+              sourceText.dataset.stroke = text;
+              sourceText.style.display = 'inline-block';
+              sourceText.offsetHeight;
+              sourceText.style.display = '';
+            });
+          }
+        });
+      } catch (error) {
+        console.error('[ERROR] [Translation] Prompt API 翻譯失敗:', { sequenceId, error: error.message });
+        updateStatusDisplay('翻訳エラー:', { sequenceId, error: error.message });
+        setTimeout(() => updateStatusDisplay(''), 5000);
+        throw error;
+      }
     } else if (isLocalTranslationActive && browserInfo.supportsTranslatorAPI) {
       data = await sendLocalTranslation(text, targetLangs, sourceLang, (text) => {
         const sourceText = document.getElementById('source-text');
@@ -394,9 +395,7 @@ async function sendTranslationRequest(text, sourceLang, browserInfo, isLocalTran
           });
         }
       });
-    }
-
-    if (!data) {
+    } else {
       data = await processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, '', sequenceId);
     }
 
@@ -413,7 +412,6 @@ async function sendTranslationRequest(text, sourceLang, browserInfo, isLocalTran
     setTimeout(() => updateStatusDisplay(''), 5000);
   } finally {
     activeRequests--;
-    console.info('[DEBUG] [Translation] activeRequests 遞減:', { activeRequests, sequenceId, timestamp: Date.now });
   }
 }
 
