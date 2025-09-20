@@ -2,42 +2,6 @@ import { loadLanguageConfig, getChunkSize, getTargetCodeById } from './config.js
 import { sendTranslationRequest } from './translationController.js';
 import { preloadTranslationModels } from './translatorApiService.js';
 
-// =======================
-// kuromoji 預載（單例）
-// =======================
-let __jpTokenizer = null;
-let __jpTokenizerPromise = null;
-
-/** 在頁面載入時預先把 kuromoji tokenizer 建好並留在記憶體 */
-async function preloadJapaneseTokenizer() {
-  if (__jpTokenizer || __jpTokenizerPromise) return __jpTokenizerPromise;
-
-  __jpTokenizerPromise = (async () => {
-    try {
-      const kuromoji = window.kuromoji;
-      if (!kuromoji) {
-        throw new Error('kuromoji.js 尚未載入（請確認 index.html 先以非模組 <script src> 載入 build/kuromoji.js）');
-      }
-      const dicPath = window.KUROMOJI_DIC_PATH || '/dict/';
-
-      __jpTokenizer = await new Promise((resolve, reject) => {
-        kuromoji.builder({ dicPath }).build((err, t) => (err ? reject(err) : resolve(t)));
-      });
-
-      console.info('[INFO] [Punctuation] kuromoji tokenizer 預載完成');
-      return __jpTokenizer;
-    } catch (e) {
-      console.error('[ERROR] [Punctuation] kuromoji 預載失敗：', e);
-      __jpTokenizer = null;
-      return null;
-    } finally {
-      __jpTokenizerPromise = null;
-    }
-  })();
-
-  return __jpTokenizerPromise;
-}
-
 // 語音辨識控制器
 let recognition = null;
 
@@ -224,6 +188,12 @@ function clearWatchdogInterval() {
 
 // 啟動看門狗檢查
 function startWatchdog() {
+  const { browser } = recognitionBrowser();
+  if (browser !== 'Chrome') {
+    console.debug('[DEBUG] [SpeechRecognition] Edge 環境不啟動看門狗');
+    return;
+  }
+
   if (!recognition) {
     console.debug('[DEBUG] [SpeechRecognition] 未啟動看門狗，因 recognition 未初始化');
     return;
@@ -291,7 +261,7 @@ function initializeSpeechRecognition() {
         sendTranslationRequestText = filterRayModeText(sendTranslationRequestText, sourceLang);
       }
       if (isLocalTranslationActive && browser === 'Chrome' && sourceLang === 'ja-JP') {
-        sendTranslationRequestText = addJapanesePunctuation(sendTranslationRequestText);
+        sendTranslationRequestText = sendTranslationRequestText.replace(/\s/g, "");
         console.debug('[DEBUG] [SpeechRecognition] 標點符號整理結果:', sendTranslationRequestText, '字數', sendTranslationRequestText.length);
       }
 
@@ -432,216 +402,6 @@ function clearAllTextElements() {
   });
 }
 
-/**
- * 二階段日文標點注入（kuromoji 版，穩健＋輕量）
- * - 以空格為「軟邊界」提示，但不當成硬切
- * - 先合併容易被切碎的片語/名詞複合，再以高把握規則補入「、」「。」等
- * 依賴：全域 __jpTokenizer (kuromoji tokenizer)
- */
-function addJapanesePunctuation(text) {
-  if (text == null) return '';
-  const s = String(text);
-
-  const tokenizer = (typeof __jpTokenizer !== 'undefined') ? __jpTokenizer : null;
-  if (!tokenizer) {
-    const hadExclaim = /[!！]\s*$/.test(s);
-    const hadQuestion = /[?？]\s*$/.test(s);
-    const bare = s.replace(/[、。~～]/g, '').replace(/\s+/g, '');
-    if (/[。！？!?]$/.test(bare)) return bare;
-    if (hadQuestion) return bare + '？';
-    if (hadExclaim) return bare + '！';
-    return bare + '。';
-  }
-
-  const hadExclaim = /[!！]\s*$/.test(s);
-  const hadQuestion = /[?？]\s*$/.test(s);
-
-  const raw = s.replace(/[、。~～]/g, '');
-  const softBoundAfter = [];
-  {
-    let cleanChars = [];
-    let i = 0;
-    while (i < raw.length) {
-      const ch = raw[i];
-      if (ch === ' ') {
-        if (cleanChars.length > 0) softBoundAfter[cleanChars.length - 1] = true;
-        i++;
-        continue;
-      }
-      cleanChars.push(ch);
-      if (softBoundAfter[cleanChars.length - 1] == null) softBoundAfter[cleanChars.length - 1] = false;
-      i++;
-    }
-  }
-  const clean = raw.replace(/\s+/g, '');
-
-  let tokens = tokenizer.tokenize(clean);
-
-  function mergeNumberCounters(ts) {
-    const out = [];
-    for (let i = 0; i < ts.length; i++) {
-      const t = ts[i], n = ts[i+1];
-      if (n &&
-          t.pos === '名詞' && t.pos_detail_1 === '数' &&
-          n.pos === '名詞' && n.pos_detail_1 === '接尾' && /助数詞/.test(n.pos_detail_2 || '')) {
-        const merged = { ...t, surface_form: t.surface_form + n.surface_form, basic_form: t.surface_form + n.surface_form };
-        out.push(merged);
-        i++;
-      } else {
-        out.push(t);
-      }
-    }
-    return out;
-  }
-
-  function mergeKatakanaRuns(ts) {
-    const out = [];
-    for (let i = 0; i < ts.length; i++) {
-      const t = ts[i];
-      if (/^[ァ-ンー]+$/.test(t.surface_form)) {
-        let buf = t.surface_form;
-        let j = i + 1;
-        while (ts[j] && /^[ァ-ンー]+$/.test(ts[j].surface_form)) {
-          buf += ts[j].surface_form;
-          j++;
-        }
-        out.push({ ...t, surface_form: buf, basic_form: buf });
-        i = j - 1;
-      } else {
-        out.push(t);
-      }
-    }
-    return out;
-  }
-
-  function mergeNounBigrams(ts) {
-    const out = [];
-    for (let i = 0; i < ts.length; i++) {
-      const t = ts[i], n = ts[i+1];
-      const nounish = v => v && v.pos === '名詞' && v.pos_detail_1 !== '非自立';
-      if (nounish(t) && nounish(n)) {
-        const cat = t.surface_form + n.surface_form;
-        out.push({ ...t, surface_form: cat, basic_form: cat });
-        i++;
-      } else {
-        out.push(t);
-      }
-    }
-    return out;
-  }
-
-  function mergeCommonBigrams(ts) {
-    const rules = [
-      ['だっ','た','だった'],
-      ['し','て','して'],
-      ['っ','て','って'],
-      ['て','ください','てください'],
-      ['の','で','ので'],
-      ['ん','で','んで'],
-      ['みたい','な','みたいな'],
-      ['と','か','とか'],
-    ];
-    const out = [];
-    for (let i = 0; i < ts.length; i++) {
-      const t = ts[i], n = ts[i+1];
-      if (n) {
-        const r = rules.find(([a,b]) => t.surface_form === a && n.surface_form === b);
-        if (r) {
-          const merged = { ...t, surface_form: r[2], basic_form: r[2] };
-          out.push(merged);
-          i++;
-          continue;
-        }
-        if (t.surface_form.endsWith('っ') && n.surface_form === 'て') {
-          const joined = t.surface_form.slice(0, -1) + 'って';
-          out.push({ ...t, surface_form: joined, basic_form: joined });
-          i++;
-          continue;
-        }
-      }
-      out.push(t);
-    }
-    return out;
-  }
-
-  tokens = mergeNumberCounters(tokens);
-  tokens = mergeKatakanaRuns(tokens);
-  tokens = mergeNounBigrams(tokens);
-  tokens = mergeCommonBigrams(tokens);
-
-  const spans = [];
-  {
-    let cursor = 0;
-    for (const t of tokens) {
-      const len = t.surface_form.length;
-      spans.push({ t, start: cursor, end: cursor + len });
-      cursor += len;
-    }
-  }
-
-  const conjHeads = new Set(['ので','から','けど','けれど','けれども','し','ても','でも','んで']);
-  const maxCommasPerSentence = 3;
-
-  function isInsideNPBoundary(prevTok, nextTok) {
-    if (!prevTok || !nextTok) return false;
-    if (prevTok.pos === '名詞' && nextTok.pos === '助詞') return true;
-    if (prevTok.surface_form === 'みたい' && nextTok.surface_form === 'な') return true;
-    return false;
-  }
-
-  function blocksCommaAfterTeForm(prevTok, nextTok) {
-    if (!prevTok || !nextTok) return false;
-    const endsWithTeJoin = /(?:して|って)$/.test(prevTok.surface_form);
-    return endsWithTeJoin && (nextTok.pos === '動詞' || nextTok.pos === '助動詞');
-  }
-
-  function tokenEndsAtSoftBoundary(spanIndex) {
-    const span = spans[spanIndex];
-    const lastCharIdx = span.end - 1;
-    return softBoundAfter[lastCharIdx] === true;
-  }
-
-  let out = '';
-  let commas = 0;
-
-  for (let i = 0; i < spans.length; i++) {
-    const cur = spans[i].t;
-    const nxt = (i + 1 < spans.length) ? spans[i + 1].t : null;
-    out += cur.surface_form;
-
-    if (!nxt) continue;
-
-    if (nxt.pos === '助詞') {
-      const nextSurface = nxt.surface_form;
-      const nextIsConj = conjHeads.has(nextSurface) || nxt.pos_detail_1 === '接続助詞';
-
-      if (nextIsConj &&
-          !isInsideNPBoundary(cur, nxt) &&
-          !blocksCommaAfterTeForm(cur, nxt) &&
-          commas < maxCommasPerSentence) {
-        const softBias = tokenEndsAtSoftBoundary(i);
-        if (softBias || (cur.pos !== '名詞' || nxt.pos_detail_1 === '接続助詞')) {
-          if (!/[、。]$/.test(out)) {
-            out += '、';
-            commas++;
-          }
-        }
-      }
-    }
-  }
-
-  if (!/[。！？!?]$/.test(out)) {
-    if (hadQuestion) out += '？';
-    else if (hadExclaim) out += '！';
-    else out += '。';
-  }
-
-  return out
-    .replace(/、、+/g, '、')
-    .replace(/。。+/g, '。')
-    .replace(/、。/g, '。');
-}
-
 function executeSpeechRecognition() {
   const { browser, supportsTranslatorAPI } = recognitionBrowser();
 
@@ -733,7 +493,6 @@ function executeSpeechRecognition() {
 
 // 在 DOM 載入完成後初始化
 document.addEventListener('DOMContentLoaded', async () => {
-  preloadJapaneseTokenizer().catch(console.error);
   await loadLanguageConfig();
   loadKeywordRules();
   executeSpeechRecognition();

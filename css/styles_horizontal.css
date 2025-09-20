@@ -69,17 +69,20 @@ body {
     padding: 0 20px 0 20px;
     align-items: center;
     /* user-select: none; 不可選取文字 */
-    justify-content: space-between;
+    /* justify-content: space-between; */
     gap: 5px;
     z-index: 2;
 }
 .status-info {
     display: flex;
-    width: 80%;
+    /* width: 80%; */
     height: 90%;
     text-align: left; /* 讓文字靠左對齊 */
     align-items: center;
     color: #6d1313;
+    white-space: nowrap; /* 防止文字換行 */
+    overflow: hidden; /* 隱藏超出部分 */
+    text-overflow: ellipsis; /* 超出時顯示省略號 */
 }
 .status-button {
     margin-left: auto; /* 將按鈕推到最右邊 */
@@ -485,6 +488,7 @@ body {
 
 .options-button, .comment1-button, .status-button, .minimenu-button {
     width: 100px;
+    min-width: 100px;
     height: 25px;
     border-radius: 25px;
     border: 2px solid #8B4513;

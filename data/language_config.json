@@ -27,11 +27,11 @@
         { "maxLength": 1e9, "time": 3 }
       ],
       "commentLangCode": "zh-TW",
-      "promptApiCode": "繁體中文",
+      "promptApiCode": "台灣國語",
       "languageModelApiCode": "zh-hant"
     },
     {
-      "id": "zh-HK",
+      "id": "yue",
       "label": "中国語(香港)",
       "asSource": true,
       "asTarget": true,
@@ -42,7 +42,7 @@
         { "maxLength": 1e9, "time": 3 }
       ],
       "commentLangCode": "zh-HK",
-      "promptApiCode": "繁體中文",
+      "promptApiCode": "廣東話",
       "languageModelApiCode": "zh-hant"
     },
     {

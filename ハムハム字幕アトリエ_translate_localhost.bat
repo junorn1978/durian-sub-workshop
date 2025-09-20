@@ -24,7 +24,7 @@ if defined PID (
 if not exist "%translate_DIR%" mkdir "%translate_DIR%"
 
 start "" msedge.exe ^
-  --app="http://localhost:%PORT%/index.html" --window-size=1280,720 ^
+  "http://localhost:%PORT%/index.html" --window-size=1280,720 ^
   --disable-features=CalculateNativeWinOcclusion ^
   --user-data-dir="%translate_DIR%" ^
   --disable-extensions ^

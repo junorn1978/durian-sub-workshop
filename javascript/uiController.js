@@ -1,9 +1,10 @@
 import { processTranslationUrl } from './translationController.js';
 import { loadLanguageConfig, getAllLanguages } from './config.js';
 import { updateSourceText, sendTranslationRequest } from './speechCapture.js';
+import { setupPromptModelDownload } from './promptTranslationService.js';
 
 document.addEventListener('DOMContentLoaded', async function() {
-  // 五秒後清除狀態顯示
+  // 7秒後清除狀態顯示
   setTimeout(() => {
     const statusDisplay = document.getElementById('status-display');
     if (statusDisplay) {
@@ -586,4 +587,6 @@ document.addEventListener('DOMContentLoaded', async function() {
   } else {
     console.error('[ERROR] [UIController]', '無法找到 mini-start-recording, mini-stop-recording, start-recording 或 stop-recording 元素');
   }
+
+  setupPromptModelDownload();
 });
