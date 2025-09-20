@@ -239,12 +239,14 @@ function processDisplayBuffers() {
     return;
   }
 
+  /*
   if (now - lastLogTime >= LOG_THROTTLE_MS) {
     console.debug('[DEBUG] [Translation] processDisplayBuffers 執行:', { 
       buffers: Object.keys(displayBuffers).map(key => ({ key, length: displayBuffers[key].length })) 
     });
     lastLogTime = now;
   }
+  */
 
   ['target1', 'target2', 'target3'].forEach(key => {
     const span = spans[key];
@@ -313,7 +315,7 @@ function processDisplayBuffers() {
         });
       } else {
         if (now - lastLogTime >= LOG_THROTTLE_MS) {
-          console.debug('[DEBUG] [Translation] 無新結果可顯示:', { key, lastSequenceId });
+          //console.debug('[DEBUG] [Translation] 無新結果可顯示:', { key, lastSequenceId });
           lastLogTime = now;
         }
       }
@@ -331,6 +333,7 @@ async function sendTranslationRequest(text, sourceLang, browserInfo, isLocalTran
       displayBuffers[key] = [];
       console.debug('[DEBUG] [Translation] 已清空緩衝區:', { key });
     });
+    activeRequests = 0;
     return sendTranslationRequest(text, sourceLang, browserInfo, isLocalTranslationActive);
   }
 
@@ -351,9 +354,11 @@ async function sendTranslationRequest(text, sourceLang, browserInfo, isLocalTran
     }
 
     const rules = getDisplayTimeRules(sourceLang) || getDisplayTimeRules('default');
-    const minDisplayTime = serviceUrl.startsWith('GAS://') 
-      ? 0 
-      : rules.find(rule => text.length <= rule.maxLength).time;
+    const isLocalTranslationActive = document.getElementById('local-translation-api')?.classList.contains('active') || false;
+    const promptApiActive = document.getElementById('local-prompt-api')?.classList.contains('active') || false;
+    const minDisplayTime = serviceUrl.startsWith('GAS://') || isLocalTranslationActive || promptApiActive
+    ? 0 
+    : rules.find(rule => text.length <= rule.maxLength).time;
 
     console.debug('[DEBUG] [Translation] 計算顯示時間:', { sourceLang, textLength: text.length, minDisplayTime });
 
@@ -370,9 +375,9 @@ async function sendTranslationRequest(text, sourceLang, browserInfo, isLocalTran
             requestAnimationFrame(() => {
               sourceText.textContent = text;
               sourceText.dataset.stroke = text;
-              sourceText.style.display = 'inline-block';
-              sourceText.offsetHeight;
-              sourceText.style.display = '';
+              //sourceText.style.display = 'inline-block';
+              //sourceText.offsetHeight;
+              //sourceText.style.display = '';
             });
           }
         });

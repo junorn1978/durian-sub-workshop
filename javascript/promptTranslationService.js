@@ -36,67 +36,63 @@ async function ensureModelLoaded(sourceLanguage, targetLanguage) {
 // 使用 Prompt API 進行翻譯
 async function sendPromptTranslation(text, targetLangs, sourceLang) {
   if (!text || text.trim() === '' || text.trim() === 'っ') {
-    console.debug('[DEBUG] [PromptAPI] 無效文字，跳過翻譯:', text);
+    console.debug('[DEBUG] [promptTranslationService.js]', '無效文字，跳過翻譯:', text);
     return null;
   }
 
   const translations = new Array(targetLangs.length).fill('');
-  let allAvailable = true;
-
-  // 為所有目標語言建立單一提示，要求 JSON 輸出
   const sourceLanguage = getPromptApiCode(sourceLang);
   const targetLanguages = targetLangs.map(lang => getPromptApiCode(lang));
   const cacheKey = `${sourceLanguage}-${targetLanguages.join('-')}`;
+  let hasErrors = false;
 
   try {
-    // 檢查模型可用性（以第一個語言為代表）
-    const isAvailable = await ensureModelLoaded(sourceLanguage, targetLanguages[0]);
-    if (!isAvailable) {
-      console.error('[ERROR] [PromptAPI] 語言對不可用:', { sourceLanguage, targetLanguages });
-      allAvailable = false;
-    } else {
+    // 為每個目標語言並行檢查模型可用性並進行翻譯
+    const translationPromises = targetLanguages.map(async (targetLang, index) => {
+      const isAvailable = await ensureModelLoaded(sourceLanguage, targetLang);
+      if (!isAvailable) {
+        console.error('[ERROR] [promptTranslationService.js]', '語言對不可用:', { sourceLanguage, targetLang });
+        hasErrors = true;
+        return ''; // 失敗時返回空字串
+      }
+
       // 每次請求都創建新工作階段
       const session = await LanguageModel.create({
         temperature: 0.2,
         topK: 1
       });
-      console.debug('[DEBUG] [PromptAPI] 創建新 LanguageModel 工作階段:', { cacheKey });
+      console.debug('[DEBUG] [promptTranslationService.js]', '創建新 LanguageModel 工作階段:', { cacheKey, targetLang });
 
-      // 建構提示，要求多語言翻譯並以 JSON 輸出
-      const promptText = `Translate this text from ${sourceLanguage} to ${targetLanguages.join(', ')}: "${text}". Output as JSON: {${targetLanguages.map(lang => `"${lang}": ""`).join(', ')}}`;
-      const schema = {
-        type: 'object',
-        properties: targetLanguages.reduce((acc, lang) => {
-          acc[lang] = { type: 'string' };
-          return acc;
-        }, {}),
-        required: targetLanguages
-      };
-
+      // 建構單一語言翻譯提示
+      const promptText = `Translate this text from ${sourceLanguage} to ${targetLang}: "${text}". Output the translation directly as a string.`;
       try {
-        const result = await session.prompt(promptText, { responseConstraint: schema });
-        console.info('[DEBUG] [PromptAPI] session.prompt 原始結果:', { result, promptText, text });
-        const parsedResult = JSON.parse(result);
-        targetLanguages.forEach((lang, index) => {
-          translations[index] = parsedResult[lang] || '';
-        });
-        console.debug('[DEBUG] [PromptAPI] 翻譯結果:', { text, translations });
-        console.info('[INFO] [PromptAPI] 翻譯完成:', { sourceLanguage, targetLanguages, translations });
+        const result = await session.prompt(promptText);
+        console.debug('[DEBUG] [promptTranslationService.js]', '單一語言翻譯結果:', { result, promptText, text, targetLang });
+        translations[index] = result.trim() || '';
+        console.info('[INFO] [promptTranslationService.js]', '單一語言翻譯完成:', { sourceLanguage, targetLang, translation: translations[index] });
       } catch (error) {
-        console.error('[ERROR] [PromptAPI] 翻譯失敗:', { text, error: error.message });
-        allAvailable = false;
+        console.error('[ERROR] [promptTranslationService.js]', '單一語言翻譯失敗:', { text, targetLang, error: error.message });
+        hasErrors = true;
+        translations[index] = ''; // 失敗時返回空字串
       } finally {
         // 銷毀工作階段
         session.destroy();
-        console.debug('[DEBUG] [PromptAPI] 銷毀 LanguageModel 工作階段:', { cacheKey });
+        console.debug('[DEBUG] [promptTranslationService.js]', '銷毀 LanguageModel 工作階段:', { cacheKey, targetLang });
       }
+    });
+
+    // 並行執行所有翻譯請求
+    await Promise.all(translationPromises);
+    console.debug('[DEBUG] [promptTranslationService.js]', '所有語言翻譯結果:', { text, translations });
+
+    if (hasErrors) {
+      console.warn('[WARN] [promptTranslationService.js]', '部分語言翻譯失敗，但返回可用結果:', { sourceLanguage, targetLanguages, translations });
+      // 可選：如果要求全成功才返回，則在此 return null；目前允許部分成功
+    } else {
+      console.info('[INFO] [promptTranslationService.js]', '所有語言翻譯完成:', { sourceLanguage, targetLanguages, translations });
     }
   } catch (error) {
-    console.error('[ERROR] [PromptAPI] 翻譯初始化失敗:', { sourceLanguage, targetLanguages, error: error.message });
-    allAvailable = false;
-  }
-
-  if (!allAvailable) {
+    console.error('[ERROR] [promptTranslationService.js]', '翻譯初始化失敗:', { sourceLanguage, targetLanguages, error: error.message });
     return null;
   }
 

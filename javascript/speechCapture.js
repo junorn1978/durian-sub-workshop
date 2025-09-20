@@ -46,45 +46,6 @@ async function loadKeywordRules() {
   }
 }
 
-// 文字發送字幕使用、暫停語音辨識指定時間（毫秒）
-function pauseRecognition(duration) {
-  if (!recognition) {
-    console.error('[ERROR] [SpeechRecognition] 語音辨識物件未初始化');
-    return;
-  }
-
-  if (!isRecognitionActive) {
-    console.debug('[DEBUG] [SpeechRecognition] 語音辨識未啟動，忽略暫停請求');
-    return;
-  }
-  
-  isPaused = true;
-  recognition.stop();
-  clearWatchdogInterval();
-  console.info('[INFO] [SpeechRecognition] 語音辨識已暫停，持續時間:', duration);
-  
-  if (pauseTimeout) {
-    clearTimeout(pauseTimeout);
-  }
-
-  pauseTimeout = setTimeout(() => {
-      isPaused = false;
-      if (isRecognitionActive && !document.getElementById('stop-recording').disabled) {
-        try {
-          recognition.start();
-          lastResultTime = Date.now();
-          startWatchdog();
-          console.info('[INFO] [SpeechRecognition] 語音辨識恢復');
-        } catch (error) {
-          console.error('[ERROR] [SpeechRecognition] 恢復語音辨識失敗:', error);
-          autoRestartRecognition();
-        }
-      } else {
-        console.debug('[DEBUG] [SpeechRecognition] 未恢復語音辨識，因為語音辨識未啟動或已手動停止');
-      }
-    }, duration);
-}
-
 // 專為RayMode生成關鍵字過濾規則
 function generateRayModeRules(sourceLang) {
   return cachedRules.get(sourceLang) || [];
@@ -227,6 +188,17 @@ function initializeSpeechRecognition() {
   newRecognition.interimResults = true;
   newRecognition.continuous = browser === 'Edge';
   newRecognition.maxAlternatives = 1;
+/*
+  newRecognition.phrases = [
+  { phrase: 'セーフ', boost: 6.0 },
+  { phrase: 'れいちゃん', boost: 7.0 },
+  { phrase: 'れいかちゃん', boost: 7.0 },
+  { phrase: 'レクシー', boost: 7.0 },
+  { phrase: 'Thank you', boost: 7.0 },
+  { phrase: 'センキュー', boost: 6.0 },
+  { phrase: '感じ', boost: 7.0 }
+];
+*/
 
   let finalTranscript = '';
   let interimTranscript = '';
@@ -245,6 +217,7 @@ function initializeSpeechRecognition() {
         hasFinalResult = true;
       } else {
         interimTranscript += transcript;
+        console.debug('[DEBUG] [SpeechRecognition] 臨時結果:', interimTranscript, '字數', finalTranscript.trim().length);
       }
     }
 
@@ -324,14 +297,6 @@ function autoRestartRecognition(shouldRestart = true) {
     console.debug('[DEBUG] [SpeechRecognition] 正在停止語音辨識');
     recognition.stop();
     isRestartPending = true;
-  }
-
-  recognition = initializeSpeechRecognition();
-  if (!recognition) {
-    console.error('[ERROR] [SpeechRecognition] 無法初始化新的 SpeechRecognition 物件');
-    restartAttempts++;
-    setTimeout(() => autoRestartRecognition(), RESTART_DELAY);
-    return;
   }
 
   setTimeout(() => {
@@ -433,7 +398,6 @@ function executeSpeechRecognition() {
   let stopButtonClicked = false;
 
   startButton.addEventListener('click', () => {
-    recognition = initializeSpeechRecognition();
     if (!recognition) {
       console.error('[ERROR] [SpeechRecognition] 無法初始化 SpeechRecognition');
       alert('無法啟動語音辨識，請檢查瀏覽器支援或麥克風設定。');
@@ -458,6 +422,10 @@ function executeSpeechRecognition() {
     isRecognitionActive = true;
 
     try {
+      recognition.options = {
+        langs: [selectedLang],
+        processLocally: true
+      };
       recognition.start();
       lastResultTime = Date.now();
       startWatchdog();
@@ -499,4 +467,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   monitorLocalTranslationAPI();
 });
 
-export { keywordRules, generateRayModeRules, updateSourceText, sendTranslationRequest, pauseRecognition };
+export { keywordRules, generateRayModeRules, updateSourceText, sendTranslationRequest };
