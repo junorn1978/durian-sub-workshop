@@ -86,18 +86,52 @@ function recognitionBrowser() {
   return { browser, supportsTranslatorAPI };
 }
 
+// 判斷是否為 Chrome 品牌
+function isChromeBrand() {
+  const brands = navigator.userAgentData?.brands?.map(b => b.brand) || [];
+  const edge = brands.some(b => /Edge|Microsoft\s?Edge/i.test(b)) || /Edg\//.test(navigator.userAgent);
+  const chrome = !edge && (brands.some(b => /Google Chrome|Chromium/i.test(b)) || /Chrome\//.test(navigator.userAgent));
+  return chrome;
+}
+
+// 超時包裝函式
+async function withTimeout(promise, ms = 1500) {
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error('probe-timeout')), ms))
+  ]);
+}
+
+// 決定 processLocally 的值
+async function decideProcessLocally(lang) {
+  if (!isChromeBrand()) return false;
+
+  // 實驗 API 防守
+  if (!('SpeechRecognition' in window) || !SpeechRecognition.available) return false;
+
+  try {
+    const status = await withTimeout(
+      SpeechRecognition.available({ langs: [lang], processLocally: true }),
+      1500 // 觀察窗只用於「偵測呼叫」本身，非你前面說的事件觀察
+    );
+    return status === 'available';
+  } catch (e) {
+    // probe-timeout / 任何錯誤 → 視為不可用
+    return false;
+  }
+}
+
 // 更新原始文字到 DOM
 function updateSourceText(text) {
-  const sourceText = document.getElementById('source-text');
-  if (sourceText && text.trim().length !== 0 && sourceText.textContent !== text) {
-    requestAnimationFrame(() => {
-      sourceText.textContent = text;
-      sourceText.dataset.stroke = text;
-      //sourceText.style.display = 'inline-block';
-      //sourceText.offsetHeight;
-      //sourceText.style.display = '';
-    });
-  }
+  const el = document.getElementById('source-text');
+  if (!el || !text || text.trim().length === 0) return;
+
+  if (el.textContent === text) return;
+
+  el.textContent = text;
+  el.dataset.stroke = text;
+
+  el.animate([{ opacity: 0.9 }, { opacity: 1 }], { duration: 120, fill: 'none' });
 }
 
 // 監聽 local-translation-api 狀態變化
@@ -187,6 +221,7 @@ function initializeSpeechRecognition() {
   newRecognition.lang = document.getElementById('source-language')?.value || 'ja-JP';
   newRecognition.interimResults = true;
   newRecognition.continuous = browser === 'Edge';
+  // newRecognition.continuous = 'true';
   newRecognition.maxAlternatives = 1;
 /*
   newRecognition.phrases = [
@@ -353,18 +388,16 @@ function formatAlignedText(baseText) {
 
 // 清空所有文字顯示元素
 function clearAllTextElements() {
-  requestAnimationFrame(() => {
-    [document.getElementById('source-text'), 
-     document.getElementById('target-text-1'), 
-     document.getElementById('target-text-2'), 
-     document.getElementById('target-text-3')].forEach(element => {
-      element.textContent = '';
-      element.dataset.stroke = '';
-      element.style.display = 'inline-block';
-      element.offsetHeight;
-      element.style.display = '';
-    });
-  });
+  const els = document.querySelectorAll('#source-text, #target-text-1, #target-text-2, #target-text-3');
+  for (const el of els) {
+    // 停止進行中的動畫
+    try { el.getAnimations?.().forEach(a => a.cancel()); } catch {}
+
+    // 清空文字與資料
+    el.textContent = '';
+    el.dataset.stroke = '';
+
+  }
 }
 
 function executeSpeechRecognition() {
@@ -397,7 +430,7 @@ function executeSpeechRecognition() {
 
   let stopButtonClicked = false;
 
-  startButton.addEventListener('click', () => {
+  startButton.addEventListener('click', async () => {  // 改為 async 以支援 await
     if (!recognition) {
       console.error('[ERROR] [SpeechRecognition] 無法初始化 SpeechRecognition');
       alert('無法啟動語音辨識，請檢查瀏覽器支援或麥克風設定。');
@@ -421,11 +454,24 @@ function executeSpeechRecognition() {
     stopButtonClicked = false;
     isRecognitionActive = true;
 
+    // 預設雲端
+    let procLocal = false;
+
+    // 只在 Chrome 嘗試偵測；Edge 或失敗都保持 false
     try {
-      recognition.options = {
-        langs: [selectedLang],
-        processLocally: true
-      };
+      procLocal = await decideProcessLocally(selectedLang);
+    } catch { procLocal = false; }
+
+    // 設定 options（守備：某些版本沒有 options）
+    try {
+      recognition.options = { langs:[selectedLang], processLocally: procLocal };
+    } catch { /* no-op */ }
+
+    recognition.continuous = !!procLocal;
+    
+    console.info('[INFO] [SpeechRecognition] 開始語音辨識 - processLocally=', procLocal);
+
+    try {
       recognition.start();
       lastResultTime = Date.now();
       startWatchdog();

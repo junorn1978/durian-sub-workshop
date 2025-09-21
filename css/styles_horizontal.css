@@ -453,6 +453,27 @@ body {
     font-size: var(--font-size-half);
 }
 
+.flash {
+  animation: fadeIn 120ms linear;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0.9; }
+  to { opacity: 1; }
+}
+
+/* 針對 dataset.stroke 的描邊效果 */
+[data-stroke]::after {
+  content: attr(data-stroke);
+  position: absolute;
+  animation: fadeInStroke 120ms linear;
+}
+
+@keyframes fadeInStroke {
+  from { text-shadow: 0 0 0 currentColor; }
+  to { text-shadow: 0 0 0px currentColor; }
+}
+
 #logo {
     height: 130px;
     object-fit: contain;

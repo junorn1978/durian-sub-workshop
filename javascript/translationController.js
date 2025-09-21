@@ -8,8 +8,6 @@ const translatorCache = new Map();
 
 // 全局序列號計數器
 let sequenceCounter = 0;
-const maxConcurrent = 5; // 最大並發請求數
-let activeRequests = 0; // 當前活動請求數
 let bufferCheckInterval = null; // 用於追蹤 setInterval
 let lastLogTime = 0;
 const LOG_THROTTLE_MS = 1000; // 日誌節流，每 1000ms 記錄一次
@@ -18,11 +16,49 @@ const LOG_THROTTLE_MS = 1000; // 日誌節流，每 1000ms 記錄一次
 const displayBuffers = { target1: [], target2: [], target3: [] };
 const currentDisplays = { target1: null, target2: null, target3: null };
 
-// 超時輔助函數
-const timeout = (promise, time) => Promise.race([
-  promise,
-  new Promise((_, reject) => setTimeout(() => reject(new Error('請求超時')), time))
-]);
+// 併發控制佇列
+const queue = [];
+let inFlight = 0;
+const MAX = 5; // 最大並發請求數
+
+async function fetchWithTimeout(input, init = {}, ms = 10000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(input, { ...init, signal: ctrl.signal });
+    return res;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// 佇列管理函數：將任務加入佇列
+function enqueue(task) {
+  return new Promise((resolve, reject) => {
+    queue.push({ task, resolve, reject });
+    pump();
+  });
+}
+
+// 佇列管理函數：處理佇列中的任務
+async function pump() {
+  if (inFlight >= MAX) return;
+  const next = queue.shift();
+  if (!next) return;
+
+  inFlight++;
+  try {
+    console.debug('[DEBUG] [Translation] 執行佇列任務:', { inFlight, queueLength: queue.length });
+    next.resolve(await next.task());
+  } catch (e) {
+    console.error('[ERROR] [Translation] 佇列任務失敗:', { error: e.message });
+    next.reject(e);
+  } finally {
+    inFlight--;
+    console.debug('[DEBUG] [Translation] 任務完成，繼續處理佇列:', { inFlight, queueLength: queue.length });
+    pump();
+  }
+}
 
 // 在使用れいーモード的時候進行翻譯後的文字過濾
 function filterTextWithKeywords(text, targetLang) {
@@ -58,12 +94,14 @@ function updateStatusDisplay(text, details = null) {
   }
 
   if (statusDisplay && statusDisplay.textContent !== displayText) {
+    statusDisplay.textContent = displayText;
+    statusDisplay.dataset.stroke = displayText;
+    // 移除舊動畫並觸發新動畫
+    statusDisplay.getAnimations?.().forEach(a => a.cancel());
+    statusDisplay.classList.remove('flash');
     requestAnimationFrame(() => {
-      statusDisplay.textContent = displayText;
-      statusDisplay.dataset.stroke = displayText;
-      statusDisplay.style.display = 'inline-block';
-      statusDisplay.offsetHeight;
-      statusDisplay.style.display = '';
+      statusDisplay.classList.add('flash');
+      console.debug('[DEBUG] [Translation] 更新 statusDisplay:', { text: displayText });
     });
   }
 }
@@ -103,11 +141,11 @@ async function sendTranslation(text, targetLangs, serviceUrl, serviceKey, sequen
 
   console.debug('[DEBUG] [Translation] 發送翻譯請求:', { text, targetLangs, sequenceId });
 
-  const response = await timeout(fetch(serviceUrl, {
+  const response = await fetchWithTimeout(serviceUrl, {
     method: 'POST',
     headers,
     body: JSON.stringify(payload)
-  }), 10000);
+  }, 10000);
 
   if (!response.ok) {
     throw new Error(`翻譯請求失敗: ${response.status} - ${await response.text()}`);
@@ -136,7 +174,7 @@ async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl, seq
     throw new Error('請求資料過長，請縮短文字內容');
   }
 
-  const response = await timeout(fetch(url, { method: 'GET', mode: 'cors' }), 10000);
+  const response = await fetchWithTimeout(url, { method: 'GET', mode: 'cors' }, 10000);
 
   if (!response.ok) {
     throw new Error(`翻譯請求失敗: ${response.status} - ${await response.text()}`);
@@ -239,15 +277,6 @@ function processDisplayBuffers() {
     return;
   }
 
-  /*
-  if (now - lastLogTime >= LOG_THROTTLE_MS) {
-    console.debug('[DEBUG] [Translation] processDisplayBuffers 執行:', { 
-      buffers: Object.keys(displayBuffers).map(key => ({ key, length: displayBuffers[key].length })) 
-    });
-    lastLogTime = now;
-  }
-  */
-
   ['target1', 'target2', 'target3'].forEach(key => {
     const span = spans[key];
     if (!span || displayBuffers[key].length === 0) {
@@ -298,9 +327,13 @@ function processDisplayBuffers() {
         };
         span.textContent = next.text;
         span.dataset.stroke = next.text;
-        span.style.display = 'inline-block';
-        span.offsetHeight;
-        span.style.display = '';
+        // 移除舊動畫並觸發新動畫
+        span.getAnimations?.().forEach(a => a.cancel());
+        span.classList.remove('flash');
+        requestAnimationFrame(() => {
+          span.classList.add('flash');
+          console.debug('[DEBUG] [Translation] 更新 target-text:', { target: key, text: next.text, sequenceId: next.sequenceId });
+        });
         const langSelect = document.getElementById(`${key}-language`)?.value;
         const chunkSize = getChunkSize(langSelect) || 40;
         if (next.text.length > chunkSize) {
@@ -315,7 +348,7 @@ function processDisplayBuffers() {
         });
       } else {
         if (now - lastLogTime >= LOG_THROTTLE_MS) {
-          //console.debug('[DEBUG] [Translation] 無新結果可顯示:', { key, lastSequenceId });
+          console.debug('[DEBUG] [Translation] 無新結果可顯示:', { key, lastSequenceId });
           lastLogTime = now;
         }
       }
@@ -327,97 +360,91 @@ function processDisplayBuffers() {
 
 // 公開的翻譯請求函數
 async function sendTranslationRequest(text, sourceLang, browserInfo, isLocalTranslationActive) {
-  if (activeRequests >= maxConcurrent) {
-    console.debug('[DEBUG] [Translation] 達到並發上限，清空緩衝區並重試');
-    ['target1', 'target2', 'target3'].forEach(key => {
-      displayBuffers[key] = [];
-      console.debug('[DEBUG] [Translation] 已清空緩衝區:', { key });
-    });
-    activeRequests = 0;
-    return sendTranslationRequest(text, sourceLang, browserInfo, isLocalTranslationActive);
-  }
+  return enqueue(async () => {
+    const sequenceId = sequenceCounter++;
 
-  activeRequests++;
-  const sequenceId = sequenceCounter++;
+    try {
+      const serviceUrl = document.getElementById('translation-link').value;
+      const targetLangs = [
+        document.getElementById('target1-language')?.value,
+        document.getElementById('target2-language')?.value,
+        document.getElementById('target3-language')?.value
+      ].filter(lang => lang && lang !== 'none').map(lang => getTargetCodeById(lang));
 
-  try {
-    const serviceUrl = document.getElementById('translation-link').value;
-    const targetLangs = [
-      document.getElementById('target1-language')?.value,
-      document.getElementById('target2-language')?.value,
-      document.getElementById('target3-language')?.value
-    ].filter(lang => lang && lang !== 'none').map(lang => getTargetCodeById(lang));
+      if (targetLangs.length === 0) {
+        console.debug('[DEBUG] [Translation] 無目標語言，跳過翻譯');
+        return;
+      }
 
-    if (targetLangs.length === 0) {
-      console.debug('[DEBUG] [Translation] 無目標語言，跳過翻譯');
-      return;
-    }
+      const rules = getDisplayTimeRules(sourceLang) || getDisplayTimeRules('default');
+      const isLocalTranslationActive = document.getElementById('local-translation-api')?.classList.contains('active') || false;
+      const promptApiActive = document.getElementById('local-prompt-api')?.classList.contains('active') || false;
+      const minDisplayTime = serviceUrl.startsWith('GAS://') || isLocalTranslationActive || promptApiActive
+        ? 0 
+        : rules.find(rule => text.length <= rule.maxLength).time;
 
-    const rules = getDisplayTimeRules(sourceLang) || getDisplayTimeRules('default');
-    const isLocalTranslationActive = document.getElementById('local-translation-api')?.classList.contains('active') || false;
-    const promptApiActive = document.getElementById('local-prompt-api')?.classList.contains('active') || false;
-    const minDisplayTime = serviceUrl.startsWith('GAS://') || isLocalTranslationActive || promptApiActive
-    ? 0 
-    : rules.find(rule => text.length <= rule.maxLength).time;
+      console.debug('[DEBUG] [Translation] 計算顯示時間:', { sourceLang, textLength: text.length, minDisplayTime });
 
-    console.debug('[DEBUG] [Translation] 計算顯示時間:', { sourceLang, textLength: text.length, minDisplayTime });
+      let data;
+      const promptApiButton = document.getElementById('local-prompt-api');
+      const isPromptApiActive = promptApiButton?.classList.contains('active') || false;
 
-    let data;
-    const promptApiButton = document.getElementById('local-prompt-api');
-    const isPromptApiActive = promptApiButton?.classList.contains('active') || false;
-
-    if (isPromptApiActive && 'LanguageModel' in self) {
-      console.debug('[DEBUG] [Translation] 執行 Prompt API 翻譯:', { sequenceId });
-      try {
-        data = await sendPromptTranslation(text, targetLangs, sourceLang, (text) => {
-          const sourceText = document.getElementById('source-text');
-          if (sourceText && text.trim().length !== 0 && sourceText.textContent !== text) {
-            requestAnimationFrame(() => {
+      if (isPromptApiActive && 'LanguageModel' in self) {
+        console.debug('[DEBUG] [Translation] 執行 Prompt API 翻譯:', { sequenceId });
+        try {
+          data = await sendPromptTranslation(text, targetLangs, sourceLang, (text) => {
+            const sourceText = document.getElementById('source-text');
+            if (sourceText && text.trim().length !== 0 && sourceText.textContent !== text) {
               sourceText.textContent = text;
               sourceText.dataset.stroke = text;
-              //sourceText.style.display = 'inline-block';
-              //sourceText.offsetHeight;
-              //sourceText.style.display = '';
+              // 移除舊動畫並觸發新動畫
+              sourceText.getAnimations?.().forEach(a => a.cancel());
+              sourceText.classList.remove('flash');
+              requestAnimationFrame(() => {
+                sourceText.classList.add('flash');
+                console.debug('[DEBUG] [Translation] 更新 source-text:', { text });
+              });
+            }
+          });
+        } catch (error) {
+          console.error('[ERROR] [Translation] Prompt API 翻譯失敗:', { sequenceId, error: error.message });
+          updateStatusDisplay('翻訳エラー:', { sequenceId, error: error.message });
+          setTimeout(() => updateStatusDisplay(''), 5000);
+          throw error;
+        }
+      } else if (isLocalTranslationActive && browserInfo.supportsTranslatorAPI) {
+        data = await sendLocalTranslation(text, targetLangs, sourceLang, (text) => {
+          const sourceText = document.getElementById('source-text');
+          if (sourceText && text.trim().length !== 0 && sourceText.textContent !== text) {
+            sourceText.textContent = text;
+            sourceText.dataset.stroke = text;
+            // 移除舊動畫並觸發新動畫
+            sourceText.getAnimations?.().forEach(a => a.cancel());
+            sourceText.classList.remove('flash');
+            requestAnimationFrame(() => {
+              sourceText.classList.add('flash');
+              console.debug('[DEBUG] [Translation] 更新 source-text:', { text });
             });
           }
         });
-      } catch (error) {
-        console.error('[ERROR] [Translation] Prompt API 翻譯失敗:', { sequenceId, error: error.message });
-        updateStatusDisplay('翻訳エラー:', { sequenceId, error: error.message });
-        setTimeout(() => updateStatusDisplay(''), 5000);
-        throw error;
+      } else {
+        data = await processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, '', sequenceId);
       }
-    } else if (isLocalTranslationActive && browserInfo.supportsTranslatorAPI) {
-      data = await sendLocalTranslation(text, targetLangs, sourceLang, (text) => {
-        const sourceText = document.getElementById('source-text');
-        if (sourceText && text.trim().length !== 0 && sourceText.textContent !== text) {
-          requestAnimationFrame(() => {
-            sourceText.textContent = text;
-            sourceText.dataset.stroke = text;
-            sourceText.style.display = 'inline-block';
-            sourceText.offsetHeight;
-            sourceText.style.display = '';
-          });
-        }
-      });
-    } else {
-      data = await processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, '', sequenceId);
-    }
 
-    console.debug('[DEBUG] [Translation] 翻譯結果數據:', { data, sequenceId });
+      console.debug('[DEBUG] [Translation] 翻譯結果數據:', { data, sequenceId });
 
-    if (data) {
-      await updateTranslationUI(data, targetLangs, minDisplayTime, sequenceId);
-    } else {
-      console.warn('[WARN] [Translation] 無有效翻譯結果:', { text, sequenceId });
+      if (data) {
+        await updateTranslationUI(data, targetLangs, minDisplayTime, sequenceId);
+      } else {
+        console.warn('[WARN] [Translation] 無有效翻譯結果:', { text, sequenceId });
+      }
+    } catch (error) {
+      console.error('[ERROR] [Translation] 翻譯失敗:', { sequenceId, error: error.message });
+      updateStatusDisplay('翻訳エラー:', { sequenceId, error: error.message });
+      setTimeout(() => updateStatusDisplay(''), 5000);
+      throw error;
     }
-  } catch (error) {
-    console.error('[ERROR] [Translation] 翻譯失敗:', { sequenceId, error: error.message });
-    updateStatusDisplay('翻訳エラー:', { sequenceId, error: error.message });
-    setTimeout(() => updateStatusDisplay(''), 5000);
-  } finally {
-    activeRequests--;
-  }
+  });
 }
 
 // 啟動顯示緩衝區處理並定期重置 sequenceCounter
@@ -433,6 +460,10 @@ window.addEventListener('beforeunload', () => {
     bufferCheckInterval = null;
     console.debug('[DEBUG] [Translation] 清理 bufferCheckInterval');
   }
+  // 清理佇列
+  queue.forEach(task => task.reject(new Error('頁面即將關閉，任務被取消')));
+  queue.length = 0;
+  console.debug('[DEBUG] [Translation] 清理佇列');
 });
 
 export { sendTranslationRequest, sequenceCounter, translatorCache, processTranslationUrl, updateStatusDisplay, updateTranslationUI };
