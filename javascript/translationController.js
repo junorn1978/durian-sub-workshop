@@ -101,7 +101,7 @@ function updateStatusDisplay(text, details = null) {
     statusDisplay.classList.remove('flash');
     requestAnimationFrame(() => {
       statusDisplay.classList.add('flash');
-      console.debug('[DEBUG] [Translation] 更新 statusDisplay:', { text: displayText });
+      //console.debug('[DEBUG] [Translation] 更新 statusDisplay:', { text: displayText });
     });
   }
 }
@@ -250,7 +250,7 @@ async function updateTranslationUI(data, targetLangs, minDisplayTime, sequenceId
   processDisplayBuffers();
   if (!bufferCheckInterval) {
     bufferCheckInterval = setInterval(processDisplayBuffers, 500);
-    console.debug('[DEBUG] [Translation] 啟動緩衝區監控，間隔 500ms');
+    //console.debug('[DEBUG] [Translation] 啟動緩衝區監控，間隔 500ms');
   }
 }
 
@@ -332,7 +332,7 @@ function processDisplayBuffers() {
         span.classList.remove('flash');
         requestAnimationFrame(() => {
           span.classList.add('flash');
-          console.debug('[DEBUG] [Translation] 更新 target-text:', { target: key, text: next.text, sequenceId: next.sequenceId });
+          //console.debug('[DEBUG] [Translation] 更新 target-text:', { target: key, text: next.text, sequenceId: next.sequenceId });
         });
         const langSelect = document.getElementById(`${key}-language`)?.value;
         const chunkSize = getChunkSize(langSelect) || 40;
@@ -348,7 +348,7 @@ function processDisplayBuffers() {
         });
       } else {
         if (now - lastLogTime >= LOG_THROTTLE_MS) {
-          console.debug('[DEBUG] [Translation] 無新結果可顯示:', { key, lastSequenceId });
+          //console.debug('[DEBUG] [Translation] 無新結果可顯示:', { key, lastSequenceId });
           lastLogTime = now;
         }
       }
@@ -377,10 +377,8 @@ async function sendTranslationRequest(text, sourceLang, browserInfo, isLocalTran
       }
 
       const rules = getDisplayTimeRules(sourceLang) || getDisplayTimeRules('default');
-      const isLocalTranslationActive = document.getElementById('local-translation-api')?.classList.contains('active') || false;
-      const promptApiActive = document.getElementById('local-prompt-api')?.classList.contains('active') || false;
-      const minDisplayTime = serviceUrl.startsWith('GAS://') || isLocalTranslationActive || promptApiActive
-        ? 0 
+      const minDisplayTime = serviceUrl.startsWith('GAS://') || isLocalTranslationActive || document.getElementById('local-prompt-api')?.classList.contains('active')
+        ? 0
         : rules.find(rule => text.length <= rule.maxLength).time;
 
       console.debug('[DEBUG] [Translation] 計算顯示時間:', { sourceLang, textLength: text.length, minDisplayTime });
@@ -397,12 +395,11 @@ async function sendTranslationRequest(text, sourceLang, browserInfo, isLocalTran
             if (sourceText && text.trim().length !== 0 && sourceText.textContent !== text) {
               sourceText.textContent = text;
               sourceText.dataset.stroke = text;
-              // 移除舊動畫並觸發新動畫
               sourceText.getAnimations?.().forEach(a => a.cancel());
               sourceText.classList.remove('flash');
               requestAnimationFrame(() => {
                 sourceText.classList.add('flash');
-                console.debug('[DEBUG] [Translation] 更新 source-text:', { text });
+                //console.debug('[DEBUG] [Translation] 更新 source-text:', { text });
               });
             }
           });
@@ -413,20 +410,8 @@ async function sendTranslationRequest(text, sourceLang, browserInfo, isLocalTran
           throw error;
         }
       } else if (isLocalTranslationActive && browserInfo.supportsTranslatorAPI) {
-        data = await sendLocalTranslation(text, targetLangs, sourceLang, (text) => {
-          const sourceText = document.getElementById('source-text');
-          if (sourceText && text.trim().length !== 0 && sourceText.textContent !== text) {
-            sourceText.textContent = text;
-            sourceText.dataset.stroke = text;
-            // 移除舊動畫並觸發新動畫
-            sourceText.getAnimations?.().forEach(a => a.cancel());
-            sourceText.classList.remove('flash');
-            requestAnimationFrame(() => {
-              sourceText.classList.add('flash');
-              console.debug('[DEBUG] [Translation] 更新 source-text:', { text });
-            });
-          }
-        });
+        console.debug('[DEBUG] [Translation] 執行本地翻譯:', { sequenceId });
+        data = await sendLocalTranslation(text, targetLangs, sourceLang); // 移除回調函數
       } else {
         data = await processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, '', sequenceId);
       }

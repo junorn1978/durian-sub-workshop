@@ -3,6 +3,7 @@ import { loadLanguageConfig, getAllLanguages } from './config.js';
 import { updateSourceText, sendTranslationRequest } from './speechCapture.js';
 import { setupPromptModelDownload } from './promptTranslationService.js';
 import { setupLanguagePackButton } from './languagePackManager.js';
+import { monitorLocalTranslationAPI } from './translatorApiService.js';
 
 document.addEventListener('DOMContentLoaded', async function() {
   // 7秒後清除狀態顯示
@@ -592,5 +593,7 @@ document.addEventListener('DOMContentLoaded', async function() {
   }
 
   console.debug('[DEBUG] [UIController]', '正在調用 setupPromptModelDownload');
+  
   setupPromptModelDownload();
+  monitorLocalTranslationAPI();
 });

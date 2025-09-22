@@ -1,8 +1,48 @@
+// translatorApiService.js
 import { getTargetCodeForTranslator } from './config.js';
 import { sequenceCounter, translatorCache, updateStatusDisplay, updateTranslationUI } from './translationController.js';
+import { getTargetCodeById } from './config.js';
+
+// 監聽 local-translation-api 狀態變化
+function monitorLocalTranslationAPI() {
+  const localTranslationButton = document.getElementById('local-translation-api');
+  if (!localTranslationButton) {
+    console.debug('[DEBUG] [Translator API] 未找到 local-translation-api 元素');
+    return;
+  }
+
+  const checkAndPreload = () => {
+    const sourceLang = document.getElementById('source-language')?.value || 'ja-JP';
+    const targetLangs = [
+      document.getElementById('target1-language')?.value,
+      document.getElementById('target2-language')?.value,
+      document.getElementById('target3-language')?.value
+    ].filter(lang => lang && lang !== 'none').map(lang => getTargetCodeById(lang));
+
+    if (localTranslationButton.classList.contains('active') && targetLangs.length > 0) {
+      console.debug('[DEBUG] [Translator API] 檢測到 local-translation-api 啟用，開始預下載模型:', { sourceLang, targetLangs });
+      preloadTranslationModels(sourceLang, targetLangs);
+    } else {
+      console.debug('[DEBUG] [Translator API] local-translation-api 未啟用或無目標語言');
+    }
+  };
+
+  localTranslationButton.addEventListener('click', () => {
+    setTimeout(checkAndPreload, 0);
+  });
+
+  checkAndPreload();
+
+  ['source-language', 'target1-language', 'target2-language', 'target3-language'].forEach(id => {
+    const select = document.getElementById(id);
+    if (select) {
+      select.addEventListener('change', checkAndPreload);
+    }
+  });
+}
 
 // 確保語言模型已載入
-async function ensureModelLoaded(sourceLanguage, targetLanguage, updateSourceText) {
+async function ensureModelLoaded(sourceLanguage, targetLanguage) {
   try {
     console.debug('[DEBUG] [Translator API] 檢查語言模型可用性:', { sourceLanguage, targetLanguage });
     const availability = await Translator.availability({ sourceLanguage, targetLanguage });
@@ -29,18 +69,18 @@ async function ensureModelLoaded(sourceLanguage, targetLanguage, updateSourceTex
     });
     console.info('[INFO] [Translator API] 語言模型下載完成:', { sourceLanguage, targetLanguage });
     updateStatusDisplay(`翻訳モデル（${sourceLanguage} → ${targetLanguage}）のダウンロードが完了しました。`);
-    setTimeout(() => updateStatusDisplay(''), 5000); // 修改為 5 秒清空
+    setTimeout(() => updateStatusDisplay(''), 5000);
     return true;
   } catch (error) {
     console.error('[ERROR] [Translator API] 語言模型下載失敗:', { sourceLanguage, targetLanguage, error: error.message });
     updateStatusDisplay('翻訳モデルを読み込めなかったため、リモートサービスを利用します。');
-    setTimeout(() => updateStatusDisplay(''), 5000); // 修改為 5 秒清空
+    setTimeout(() => updateStatusDisplay(''), 5000);
     return false;
   }
 }
 
 // 使用 Chrome Translator API 進行翻譯（加入斷句、分批與組合邏輯，針對日語）
-async function sendLocalTranslation(text, targetLangs, sourceLang, updateSourceText) {
+async function sendLocalTranslation(text, targetLangs, sourceLang) { // 移除 updateSourceText
   if (!text || text.trim() === '' || text.trim() === 'っ') {
     console.debug('[DEBUG] [Translator API] 無效文字，跳過翻譯:', text);
     return null;
@@ -55,14 +95,13 @@ async function sendLocalTranslation(text, targetLangs, sourceLang, updateSourceT
     const cacheKey = `${sourceLanguage}-${targetLanguage}`;
 
     try {
-      const isAvailable = await ensureModelLoaded(sourceLanguage, targetLanguage, updateSourceText);
+      const isAvailable = await ensureModelLoaded(sourceLanguage, targetLanguage); // 已移除 updateSourceText
       if (!isAvailable) {
         console.error('[ERROR] [Translator API] 語言對不可用:', { sourceLanguage, targetLanguage });
         allAvailable = false;
         continue;
       }
 
-      // 檢查快取中是否已有 Translator 物件
       let translator = translatorCache.get(cacheKey);
       if (!translator) {
         translator = await Translator.create({ sourceLanguage, targetLanguage });
@@ -73,15 +112,14 @@ async function sendLocalTranslation(text, targetLangs, sourceLang, updateSourceT
       }
 
       try {
-        const result = await translator.translate(text); // 直接翻譯整段文字
-        console.debug('[DEBUG] [Translator API] 翻譯結果:', { text, result });
+        const result = await translator.translate(text);
+        //console.debug('[DEBUG] [Translator API] 翻譯結果:', { text, result });
         translations[i] = result;
-        //console.info('[INFO] [Translator API] 翻譯完成:', { sourceLanguage, targetLanguage, result });
       } catch (error) {
         console.error('[ERROR] [Translator API] 翻譯失敗:', { text, error: error.message });
         updateStatusDisplay('翻訳エラー:', { error: error.message });
         setTimeout(() => updateStatusDisplay(''), 5000);
-        translations[i] = ''; // 失敗時返回空字串
+        translations[i] = '';
       }
     } catch (error) {
       console.error('[ERROR] [Translator API] 翻譯初始化失敗:', { sourceLanguage, targetLanguage, error: error.message });
@@ -95,12 +133,11 @@ async function sendLocalTranslation(text, targetLangs, sourceLang, updateSourceT
     return null;
   }
 
-  // 在所有翻譯完成後一次性更新 UI
   if (translations.some(t => t !== '')) {
     await updateTranslationUI(
       { translations, sequenceId: sequenceCounter },
       targetLangs,
-      0.5, // 使用較短顯示時間
+      0.5,
       sequenceCounter
     );
   }
@@ -109,7 +146,7 @@ async function sendLocalTranslation(text, targetLangs, sourceLang, updateSourceT
 }
 
 // 預下載語言模型
-async function preloadTranslationModels(sourceLang, targetLangs, updateSourceText) {
+async function preloadTranslationModels(sourceLang, targetLangs) {
   if (!('Translator' in self)) {
     console.debug('[DEBUG] [Translator API] Translator API 不支援');
     updateStatusDisplay('新しい Translator API はサポートされていないため、翻訳リンクを利用します。');
@@ -120,8 +157,8 @@ async function preloadTranslationModels(sourceLang, targetLangs, updateSourceTex
   for (const targetLang of targetLangs) {
     const sourceLanguage = getTargetCodeForTranslator(sourceLang);
     const targetLanguage = getTargetCodeForTranslator(targetLang);
-    await ensureModelLoaded(sourceLanguage, targetLanguage, updateSourceText);
+    await ensureModelLoaded(sourceLanguage, targetLanguage);
   }
 }
 
-export { ensureModelLoaded, preloadTranslationModels, sendLocalTranslation };
+export { ensureModelLoaded, monitorLocalTranslationAPI, sendLocalTranslation };
