@@ -367,15 +367,19 @@ body {
 #target-text-2.overflow-truncate, 
 #target-text-3.overflow-truncate {
     display: -webkit-box;
-    -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     text-overflow: ellipsis;
     font-size: var(--text-font-size);
 }
 
+#target-text-1.overflow-truncate, 
+#target-text-2.overflow-truncate, 
+#target-text-3.overflow-truncate {
+    -webkit-line-clamp: 1;
+}
+
 #source-text.overflow-shrink {
     display: -webkit-box;
-    -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     font-size: var(--text-font-size);
     overflow: hidden;
@@ -423,15 +427,19 @@ body {
 #target-text-2.overflow-truncate::before, 
 #target-text-3.overflow-truncate::before {
     display: -webkit-box;
-    -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     text-overflow: ellipsis;
     font-size: var(--text-font-size);
 }
 
+#target-text-1.overflow-truncate::before, 
+#target-text-2.overflow-truncate::before, 
+#target-text-3.overflow-truncate::before {
+    -webkit-line-clamp: 1;
+}
+
 #source-text.overflow-shrink::before {
     display: -webkit-box;
-    -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     font-size: var(--text-font-size);
     overflow: hidden;
@@ -462,12 +470,7 @@ body {
   to { opacity: 1; }
 }
 
-/* 針對 dataset.stroke 的描邊效果 */
-[data-stroke]::after {
-  content: attr(data-stroke);
-  position: absolute;
-  animation: fadeInStroke 120ms linear;
-}
+
 
 @keyframes fadeInStroke {
   from { text-shadow: 0 0 0 currentColor; }

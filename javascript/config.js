@@ -44,6 +44,7 @@ function getDisplayTimeRules(id) {
 }
 
 function getPromptApiCode(id) {
+  console.debug({id});
   if (!_config) throw new Error('config 尚未載入');
   const lang = getLangById(id);
   if (!lang?.promptApiCode) {

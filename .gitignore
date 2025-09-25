@@ -1,0 +1,52 @@
+# Node.js 依賴套件
+node_modules/
+
+# 環境設定檔（通常含有敏感資訊）
+.env
+.env.local
+.env.*.local
+
+# 日誌檔
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 編譯/建置輸出
+dist/
+build/
+.cache/
+.next/
+out/
+
+# 測試覆蓋率
+coverage/
+
+# 系統檔案
+.DS_Store
+Thumbs.db
+
+# IDE / 編輯器設定
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# 套件管理器產生的暫存檔
+package.json
+package-lock.json
+yarn.lock
+.pnpm-debug.log*
+
+# TypeScript 編譯資訊
+*.tsbuildinfo
+
+# 其他暫存檔
+*.tmp
+*.swp
+
+# 本地 Git 設定
+.gitconfig

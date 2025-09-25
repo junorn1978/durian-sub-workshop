@@ -1,6 +1,7 @@
 // speechCapture.js
 import { loadLanguageConfig, getChunkSize, getTargetCodeById } from './config.js';
 import { sendTranslationRequest } from './translationController.js';
+import { addJapanesePunctuation, ensureTokenizerReady } from './punctuation-ja.js';
 
 // 語音辨識控制器
 let recognition = null;
@@ -9,11 +10,9 @@ let recognition = null;
 let isRestartPending = false;
 let restartAttempts = 0;
 let lastResultTime = 0;
-const WATCHDOG_CHECK_INTERVAL = 2000; // 檢查間隔（毫秒）
 
-// 文字發送字幕使用的相關狀態
+// 文字發送字幕使用的相關狀態。
 let isPaused = false;
-let pauseTimeout = null;
 let isRecognitionActive = false;
 
 // 因為各種原因重新啟動語音擷取時的時間
@@ -159,9 +158,7 @@ function updateSourceText(text) {
 
   el.textContent = text;
   el.dataset.stroke = text;
-
-  el.animate([{ opacity: 0.9 }, { opacity: 1 }], { duration: 120, fill: 'none' });
-}
+  }
 
 // 初始化 SpeechRecognition 物件
 function initializeSpeechRecognition() {
@@ -186,7 +183,7 @@ function initializeSpeechRecognition() {
   let finalTranscript = '';
   let interimTranscript = '';
 
-  newRecognition.onresult = (event) => {
+  newRecognition.onresult = async (event) => {
     lastResultTime = Date.now();
 
     let hasFinalResult = false;
@@ -216,8 +213,19 @@ function initializeSpeechRecognition() {
       if (isRayModeActive) {
         sendTranslationRequestText = filterRayModeText(sendTranslationRequestText, sourceLang);
       }
+      
       if (isLocalTranslationActive && recognitionBrowser().browser === 'Chrome' && sourceLang === 'ja-JP') {
-        sendTranslationRequestText = sendTranslationRequestText.replace(/\s/g, "");
+        const noSpaces = sendTranslationRequestText.replace(/\s/g, '');
+        try {
+          /* sendTranslationRequestText = noSpaces; */
+          sendTranslationRequestText = await addJapanesePunctuation(noSpaces, {
+          mode: 'aggressive',                 // 'safe' 或 'aggressive'
+          enableLongRelativeComma: true, // 需要時再開
+          // minEnumerateForComma: 3,
+          });
+        } catch {
+          sendTranslationRequestText = noSpaces; // 失敗時保底
+        }
         console.debug('[DEBUG] [SpeechRecognition] 標點符號整理結果:', sendTranslationRequestText, '字數', sendTranslationRequestText.length);
       }
 
@@ -419,7 +427,9 @@ function executeSpeechRecognition() {
     } catch (error) {
       console.error('[ERROR] [SpeechRecognition] 啟動語音辨識失敗:', error);
       startButton.disabled = false;
+      miniStartButton.disabled = false;
       stopButton.disabled = true;
+      miniStopButton.disabled = true;
       isRecognitionActive = false;
     }
   });
@@ -446,6 +456,7 @@ function executeSpeechRecognition() {
 document.addEventListener('DOMContentLoaded', async () => {
   await loadLanguageConfig();
   loadKeywordRules();
+  await ensureTokenizerReady({ dicPath: '/data/dict' }); //kuromoji相關
   executeSpeechRecognition();
 });
 
