@@ -1,7 +1,7 @@
 // speechCapture.js
 import { loadLanguageConfig, getChunkSize, getTargetCodeById } from './config.js';
 import { sendTranslationRequest } from './translationController.js';
-import { addJapanesePunctuation, ensureTokenizerReady } from './punctuation-ja.js';
+// import { addJapanesePunctuation, ensureTokenizerReady } from './punctuation-ja.js';
 
 // 語音辨識控制器
 let recognition = null;
@@ -217,12 +217,13 @@ function initializeSpeechRecognition() {
       if (isLocalTranslationActive && recognitionBrowser().browser === 'Chrome' && sourceLang === 'ja-JP') {
         const noSpaces = sendTranslationRequestText.replace(/\s/g, '');
         try {
-          /* sendTranslationRequestText = noSpaces; */
-          sendTranslationRequestText = await addJapanesePunctuation(noSpaces, {
+          sendTranslationRequestText = noSpaces;
+          /* sendTranslationRequestText = await addJapanesePunctuation(noSpaces, {
           mode: 'aggressive',                 // 'safe' 或 'aggressive'
           enableLongRelativeComma: true, // 需要時再開
           // minEnumerateForComma: 3,
           });
+        */
         } catch {
           sendTranslationRequestText = noSpaces; // 失敗時保底
         }
@@ -456,7 +457,7 @@ function executeSpeechRecognition() {
 document.addEventListener('DOMContentLoaded', async () => {
   await loadLanguageConfig();
   loadKeywordRules();
-  await ensureTokenizerReady({ dicPath: '/data/dict' }); //kuromoji相關
+  // await ensureTokenizerReady({ dicPath: '/data/dict' }); //kuromoji相關
   executeSpeechRecognition();
 });
 
