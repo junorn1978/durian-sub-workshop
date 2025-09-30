@@ -95,12 +95,14 @@ document.addEventListener('DOMContentLoaded', async function() {
       apiButton.classList.remove('active');
       localStorage.removeItem('local-translation-api-active');
     }
+    /*
     const promptButton = document.getElementById('local-prompt-api');
     if (promptButton) {
       promptButton.disabled = true;
       promptButton.classList.remove('active');
       localStorage.removeItem('local-prompt-api-active');
     }
+    */
   }
 
   // 通用的 localStorage 操作

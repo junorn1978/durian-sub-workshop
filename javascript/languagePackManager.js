@@ -98,7 +98,6 @@ async function updateLanguagePackButton(lang) {
     console.warn("[WARN]", "[languagePackManager.js]", "語言包不可用", { lang, status, apiSupport: typeof SpeechRecognition.available });
     downloadButton.disabled = true;
     downloadButton.textContent = '語言包不可用';
-    downloadButton.style.display = 'none';
   }
   console.debug("[DEBUG]", "[languagePackManager.js]", "更新語言包按鍵狀態:", { lang, status });
 }

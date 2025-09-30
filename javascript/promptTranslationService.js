@@ -1,4 +1,6 @@
 import { getPromptApiCode } from './config.js';
+import { updateStatusDisplay } from './translationController.js';
+
 
 // SessionManager：用於管理 LanguageModel 工作階段的池子
 const sessionPool = new Map(); // key: cacheKey, val: { session, lastUsedAt, idleTimer }
@@ -19,10 +21,20 @@ async function getSession(targetLang, options) {
     console.debug('[DEBUG] [promptTranslationService.js]', '重用現有 LanguageModel 工作階段:', { key });
     return hit.session;
   }
-  // 建立新 session
+  // 建立新 session（新增：system prompt 與語言預期）
   const session = await LanguageModel.create({
     temperature: options.temperature ?? 0.3,
-    topK: options.topK ?? 20
+    topK: options.topK ?? 20,
+    initialPrompts: [{  // System prompt：設定翻譯助手角色
+      role: 'system',
+      content: `你是專業的翻譯人員。
+                翻譯規則：
+                1.翻譯結果為繁體中文時，使用台灣用語。
+                2.原始語言為日文時，除非人稱有在prompt中被明確指定，否則請勿生成人稱代詞。
+                3.僅輸出譯文。`
+    }],
+    //expectedInputs: [{ type: 'text', languages: [sourceLanguage] }],  // 預期輸入語言
+    //expectedOutputs: [{ type: 'text', languages: [targetLang] }]    // 預期輸出語言
   });
   sessionPool.set(key, {
     session,
@@ -114,7 +126,7 @@ async function ensureModelLoaded(sourceLanguage, targetLanguage) {
 
 // 使用 Prompt API 進行翻譯
 async function sendPromptTranslation(text, targetLangs, sourceLang) {
-  if (!text || text.trim() === '' || text.trim() === 'っ') {
+  if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') {
     console.debug('[DEBUG] [promptTranslationService.js]', '無效文字，跳過翻譯:', text);
     return null;
   }
@@ -122,7 +134,7 @@ async function sendPromptTranslation(text, targetLangs, sourceLang) {
   const translations = new Array(targetLangs.length).fill('');
   const sourceLanguage = getPromptApiCode(sourceLang);
   const targetLanguages = targetLangs.map(lang => getPromptApiCode(lang));
-  const options = { temperature: 0.3, topK: 20 }; // 固定選項
+  const options = { temperature: 0, topK: 20 }; // 固定選項
   let hasErrors = false;
 
   try {
@@ -150,13 +162,13 @@ async function sendPromptTranslation(text, targetLangs, sourceLang) {
             session = await getSession(targetLang, options);
           }
 
-          // 建構單一語言翻譯提示
-          const promptText = `
-          請將這段文字從${sourceLanguage}翻譯成${targetLang}：「${text}」。
-          只輸出生成翻譯的結果。當原文為日語時，除非人稱有在prompt中被明確指定，否則請勿生成人稱代詞。
-          `;
+          // 建構 user prompt 訊息陣列（修改：使用 user role，並精調為結構化指令）
+          const userMessages = [{
+            role: 'user',
+            content: `將 ${sourceLanguage} 翻譯成 ${targetLang} :\n\n${text}\n\n`
+          }];
           
-          const result = await session.prompt(promptText);
+          const result = await session.prompt(userMessages);  // 修改：傳入訊息陣列
           translations[index] = result.trim() || '';
           console.info('[INFO] [promptTranslationService.js]', '單一語言翻譯完成:', { sourceLanguage, targetLang, translation: translations[index] });
           
@@ -204,21 +216,9 @@ function setupPromptModelDownload(sourceLang, targetLangs) {
     downloadButton.addEventListener('click', async () => {
       if (!('LanguageModel' in self)) {
         console.debug('[DEBUG] [promptTranslationService.js]', 'LanguageModel API 不支援');
+        updateStatusDisplay(`この機能は現在ご利用いただけません。`);
         return;
       }
-
-      const sourceText = document.getElementById('status-display');
-      const updateSourceText = (text) => {
-        if (sourceText && text.trim().length !== 0 && sourceText.textContent !== text) {
-          sourceText.textContent = text;
-          sourceText.dataset.stroke = text;
-          sourceText.getAnimations?.().forEach(a => a.cancel());
-          sourceText.classList.remove('flash');
-          requestAnimationFrame(() => {
-            sourceText.classList.add('flash');
-          });
-        }
-      };
 
       try {
         const session = await LanguageModel.create({
@@ -226,28 +226,20 @@ function setupPromptModelDownload(sourceLang, targetLangs) {
             m.addEventListener('downloadprogress', (e) => {
               const progress = Math.round(e.loaded * 100);
               console.debug('[DEBUG] [promptTranslationService.js]', '模型下載進度:', { progress });
-              updateSourceText(`語言模型下載中：${progress}%`);
+              updateStatusDisplay(`モデルダウンロード：${progress}%`);
             });
           }
         });
         console.info('[INFO] [promptTranslationService.js]', '語言模型下載完成。');
-        updateSourceText('語言模型下載完成。');
-        setTimeout(() => updateSourceText(''), 5000);
+        updateStatusDisplay('モデルダウンロードが完了しました。');
+        setTimeout(() => updateStatusDisplay(''), 5000);
         session.destroy(); // 僅下載，不保留工作階段
       } catch (error) {
         console.error('[ERROR] [promptTranslationService.js]', '語言模型下載失敗:', { error: error.message });
-        updateSourceText('語言模型下載失敗。');
+        updateStatusDisplay('モデルダウンロードに失敗しました。');
       }
     });
   }
 }
-
-// 生命週期掛鉤：頁面隱藏時清空所有 session
-addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') {
-    destroyAllSessions();
-  }
-});
-addEventListener('pagehide', destroyAllSessions);
 
 export { ensureModelLoaded, setupPromptModelDownload, sendPromptTranslation };

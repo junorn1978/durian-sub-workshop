@@ -14,13 +14,10 @@ if defined PID (
   echo "[INFO] The port %PORT% is already in use (PID=%PID%), skipping the launch of the Python HTTP server."
 ) else (
   echo "[INFO] The port %PORT% is available, launching the Python HTTP server..."
-  :: ���T�� start �Ϊk�G�Ĥ@�Ӥ޸��O�������D�A�d�ŧY�i
   start "" python -m http.server %PORT%
-  :: �� 1 �������A���_�ӡ]�i�վ�/�i�ٲ��^
   timeout /t 1 /nobreak >nul
 )
 
-:: ���R���ǳƨϥΪ̸�Ƨ��b�إߨö}�� Chrome ���ε���
 rmdir /S /Q "%USERPROFILE%\junorn_1978_translate"
 if not exist "%translate_DIR%" mkdir "%translate_DIR%"
 
@@ -29,6 +26,11 @@ start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" ^
   --disable-features=CalculateNativeWinOcclusion ^
   --user-data-dir="%translate_DIR%" ^
   --disable-extensions ^
-  --disable-default-apps
+  --disable-default-apps ^
+  --flag-switches-begin ^
+  --enable-features=AIPromptAPI ^
+  --flag-switches-end ^
+  --no-first-run ^
+  --no-default-browser-check
 
 exit /b

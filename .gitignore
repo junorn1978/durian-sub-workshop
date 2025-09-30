@@ -50,3 +50,6 @@ yarn.lock
 
 # 本地 Git 設定
 .gitconfig
+
+# 其他不備份檔案
+ARCHITECTURE.md

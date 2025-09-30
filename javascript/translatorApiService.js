@@ -1,7 +1,7 @@
 // translatorApiService.js
-import { getTargetCodeForTranslator } from './config.js';
+import { getLanguageModelApiCode } from './config.js';
 import { sequenceCounter, translatorCache, updateStatusDisplay, updateTranslationUI } from './translationController.js';
-import { getTargetCodeById } from './config.js';
+
 
 // 監聽 local-translation-api 狀態變化
 function monitorLocalTranslationAPI() {
@@ -17,7 +17,7 @@ function monitorLocalTranslationAPI() {
       document.getElementById('target1-language')?.value,
       document.getElementById('target2-language')?.value,
       document.getElementById('target3-language')?.value
-    ].filter(lang => lang && lang !== 'none').map(lang => getTargetCodeById(lang));
+    ].filter(lang => lang && lang !== 'none').map(lang => getLanguageModelApiCode(lang));
 
     if (localTranslationButton.classList.contains('active') && targetLangs.length > 0) {
       console.debug('[DEBUG] [Translator API] 檢測到 local-translation-api 啟用，開始預下載模型:', { sourceLang, targetLangs });
@@ -44,7 +44,7 @@ function monitorLocalTranslationAPI() {
 // 確保語言模型已載入
 async function ensureModelLoaded(sourceLanguage, targetLanguage) {
   try {
-    console.debug('[DEBUG] [Translator API] 檢查語言模型可用性:', { sourceLanguage, targetLanguage });
+    //console.debug('[DEBUG] [Translator API] 檢查語言模型可用性:', { sourceLanguage, targetLanguage });
     const availability = await Translator.availability({ sourceLanguage, targetLanguage });
     if (availability === 'available') {
       console.debug('[DEBUG] [Translator API] 語言模型已準備好:', { sourceLanguage, targetLanguage });
@@ -90,8 +90,8 @@ async function sendLocalTranslation(text, targetLangs, sourceLang) { // 移除 u
   let allAvailable = true;
 
   for (let i = 0; i < targetLangs.length; i++) {
-    const sourceLanguage = getTargetCodeForTranslator(sourceLang);
-    const targetLanguage = getTargetCodeForTranslator(targetLangs[i]);
+    const sourceLanguage = getLanguageModelApiCode(sourceLang);
+    const targetLanguage = getLanguageModelApiCode(targetLangs[i]);
     const cacheKey = `${sourceLanguage}-${targetLanguage}`;
 
     try {
@@ -155,8 +155,8 @@ async function preloadTranslationModels(sourceLang, targetLangs) {
   }
 
   for (const targetLang of targetLangs) {
-    const sourceLanguage = getTargetCodeForTranslator(sourceLang);
-    const targetLanguage = getTargetCodeForTranslator(targetLang);
+    const sourceLanguage = getLanguageModelApiCode(sourceLang);
+    const targetLanguage = getLanguageModelApiCode(targetLang);
     await ensureModelLoaded(sourceLanguage, targetLanguage);
   }
 }

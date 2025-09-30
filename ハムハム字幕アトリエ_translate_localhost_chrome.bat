@@ -23,6 +23,11 @@ start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" ^
   --disable-features=CalculateNativeWinOcclusion ^
   --user-data-dir="%translate_DIR%" ^
   --disable-extensions ^
-  --disable-default-apps
+  --disable-default-apps ^
+  --flag-switches-begin ^
+  --enable-features=AIPromptAPI ^
+  --flag-switches-end ^
+  --no-first-run ^
+  --no-default-browser-check
 
 exit /b

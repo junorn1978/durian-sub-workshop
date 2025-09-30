@@ -23,11 +23,16 @@ if defined PID (
 :: 準備使用者資料夾並開啟 Chrome 應用視窗
 if not exist "%translate_DIR%" mkdir "%translate_DIR%"
 
-start "" msedge.exe ^
+start "" "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" ^
   "http://localhost:%PORT%/index.html" --window-size=1280,720 ^
   --disable-features=CalculateNativeWinOcclusion ^
   --user-data-dir="%translate_DIR%" ^
   --disable-extensions ^
-  --disable-default-apps
+  --disable-default-apps ^
+  --flag-switches-begin ^
+  --enable-features=AIPromptAPI ^
+  --flag-switches-end ^
+  --no-first-run ^
+  --no-default-browser-check
 
 exit /b

@@ -27,7 +27,7 @@
         { "maxLength": 1e9, "time": 3 }
       ],
       "commentLangCode": "zh-TW",
-      "promptApiCode": "台灣國語",
+      "promptApiCode": "繁體中文",
       "languageModelApiCode": "zh-hant"
     },
     {

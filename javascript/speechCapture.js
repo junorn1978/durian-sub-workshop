@@ -1,7 +1,9 @@
 // speechCapture.js
-import { loadLanguageConfig, getChunkSize, getTargetCodeById } from './config.js';
+import { loadLanguageConfig, getChunkSize } from './config.js';
 import { sendTranslationRequest } from './translationController.js';
-// import { addJapanesePunctuation, ensureTokenizerReady } from './punctuation-ja.js';
+
+// 檢測瀏覽器類型
+const browserInfo = detectBrowser();
 
 // 語音辨識控制器
 let recognition = null;
@@ -96,30 +98,30 @@ function filterRayModeText(text, sourceLang) {
 }
 
 // 判斷瀏覽器類型並檢查 Translator API 可用性
-function recognitionBrowser() {
+function detectBrowser() {
   const userAgent = navigator.userAgent || '';
+  const brands = navigator.userAgentData?.brands?.map(b => b.brand) || [];
+  
+  // 偵測 Edge
+  const isEdge = brands.some(b => /Edge|Microsoft\s?Edge/i.test(b)) || /Edg\//.test(userAgent);
+  
+  // 偵測 Chrome（排除 Edge）
+  const isChrome = !isEdge && (brands.some(b => /Google Chrome/i.test(b)) || /Chrome\//.test(userAgent));
+  
   let browser = 'Unknown';
   let supportsTranslatorAPI = false;
-
-  if (userAgent.includes('Edg/')) {
+  
+  if (isEdge) {
     browser = 'Edge';
-  } else if (userAgent.includes('Chrome/')) {
+  } else if (isChrome) {
     browser = 'Chrome';
     supportsTranslatorAPI = 'Translator' in self;
   } else {
     console.warn('[WARN] [SpeechRecognition] 未檢測到 Chrome 或 Edge 瀏覽器:', userAgent);
   }
-
-  console.debug('[DEBUG] [SpeechRecognition] 瀏覽器檢測:', { browser, supportsTranslatorAPI, userAgent });
-  return { browser, supportsTranslatorAPI };
-}
-
-// 判斷是否為 Chrome 品牌
-function isChromeBrand() {
-  const brands = navigator.userAgentData?.brands?.map(b => b.brand) || [];
-  const edge = brands.some(b => /Edge|Microsoft\s?Edge/i.test(b)) || /Edg\//.test(navigator.userAgent);
-  const chrome = !edge && (brands.some(b => /Google Chrome|Chromium/i.test(b)) || /Chrome\//.test(navigator.userAgent));
-  return chrome;
+  
+  console.debug('[DEBUG] [SpeechRecognition] 瀏覽器檢測:', { browser, isChrome, supportsTranslatorAPI, userAgent });
+  return { browser, isChrome, supportsTranslatorAPI };
 }
 
 // 超時包裝函式
@@ -132,7 +134,8 @@ async function withTimeout(promise, ms = 1500) {
 
 // 決定 processLocally 的值
 async function decideProcessLocally(lang) {
-  if (!isChromeBrand()) return false;
+  const { isChrome } = detectBrowser();
+  if (!isChrome) return false;
 
   // 實驗 API 防守
   if (!('SpeechRecognition' in window) || !SpeechRecognition.available) return false;
@@ -156,15 +159,17 @@ function updateSourceText(text) {
 
   if (el.textContent === text) return;
 
-  el.textContent = text;
-  el.dataset.stroke = text;
-  }
+  requestAnimationFrame(() => {
+    el.textContent = text;
+    el.dataset.stroke = text;
+  });
+}
 
 // 初始化 SpeechRecognition 物件
 function initializeSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition;
 
-  if (!SpeechRecognition && window.webkitSpeechRecognition) {
+  if (!SpeechRecognition) {
     console.error('[ERROR] [SpeechRecognition] 不支援舊版 webkitSpeechRecognition');
     alert('このブラウザは旧式の「webkitSpeechRecognition」のみ対応しており、利用できません。\nChrome または Microsoft Edge のバージョン 139 以降をご利用ください。');
     return null;
@@ -214,23 +219,11 @@ function initializeSpeechRecognition() {
         sendTranslationRequestText = filterRayModeText(sendTranslationRequestText, sourceLang);
       }
       
-      if (isLocalTranslationActive && recognitionBrowser().browser === 'Chrome' && sourceLang === 'ja-JP') {
-        const noSpaces = sendTranslationRequestText.replace(/\s/g, '');
-        try {
-          sendTranslationRequestText = noSpaces;
-          /* sendTranslationRequestText = await addJapanesePunctuation(noSpaces, {
-          mode: 'aggressive',                 // 'safe' 或 'aggressive'
-          enableLongRelativeComma: true, // 需要時再開
-          // minEnumerateForComma: 3,
-          });
-        */
-        } catch {
-          sendTranslationRequestText = noSpaces; // 失敗時保底
-        }
-        console.debug('[DEBUG] [SpeechRecognition] 標點符號整理結果:', sendTranslationRequestText, '字數', sendTranslationRequestText.length);
+      if (isLocalTranslationActive && browserInfo.browser === 'Chrome' && sourceLang === 'ja-JP') {
+        sendTranslationRequestText = sendTranslationRequestText.replace(/\s/g, '');
       }
 
-      sendTranslationRequest(sendTranslationRequestText, newRecognition.lang, recognitionBrowser(), isLocalTranslationActive);
+      sendTranslationRequest(sendTranslationRequestText, newRecognition.lang, browserInfo, isLocalTranslationActive);
     }
 
     const fullText = finalTranscript + interimTranscript;
@@ -354,7 +347,7 @@ function clearAllTextElements() {
 }
 
 function executeSpeechRecognition() {
-  const { browser, supportsTranslatorAPI } = recognitionBrowser();
+  const { browser, supportsTranslatorAPI } = detectBrowser();
 
   if (!window.SpeechRecognition || browser === 'Unknown') {
     console.error('[ERROR] [SpeechRecognition] 瀏覽器不支援');
@@ -368,7 +361,7 @@ function executeSpeechRecognition() {
     return;
   }
 
- const [startButton, stopButton, sourceText, targetText1, targetText2, targetText3,] = [
+  const [startButton, stopButton, sourceText, targetText1, targetText2, targetText3,] = [
        'start-recording', 'stop-recording', 'source-text', 'target-text-1', 'target-text-2', 'target-text-3',]
        .map(document.getElementById.bind(document));
 
@@ -457,7 +450,6 @@ function executeSpeechRecognition() {
 document.addEventListener('DOMContentLoaded', async () => {
   await loadLanguageConfig();
   loadKeywordRules();
-  // await ensureTokenizerReady({ dicPath: '/data/dict' }); //kuromoji相關
   executeSpeechRecognition();
 });
 

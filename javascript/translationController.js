@@ -2,6 +2,7 @@ import { keywordRules } from './speechCapture.js';
 import { loadLanguageConfig, getChunkSize, getDisplayTimeRules, getTargetCodeById, getTargetCodeForTranslator } from './config.js';
 import { sendLocalTranslation } from './translatorApiService.js';
 import { sendPromptTranslation } from './promptTranslationService.js';
+import { fetchWithTimeout, sendTranslation, sendTranslationGet, processTranslationUrl } from './remoteTranslationService.js'; // 新增匯入
 
 // Chrome Translator API用參數
 const translatorCache = new Map();
@@ -20,17 +21,6 @@ const currentDisplays = { target1: null, target2: null, target3: null };
 const queue = [];
 let inFlight = 0;
 const MAX = 5; // 最大並發請求數
-
-async function fetchWithTimeout(input, init = {}, ms = 10000) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), ms);
-  try {
-    const res = await fetch(input, { ...init, signal: ctrl.signal });
-    return res;
-  } finally {
-    clearTimeout(t);
-  }
-}
 
 // 佇列管理函數：將任務加入佇列
 function enqueue(task) {
@@ -96,6 +86,9 @@ function updateStatusDisplay(text, details = null) {
   if (statusDisplay && statusDisplay.textContent !== displayText) {
     statusDisplay.textContent = displayText;
     statusDisplay.dataset.stroke = displayText;
+    
+    /* 理論上應該是用不到所以註解，確認沒問題的話就可以移除了
+
     // 移除舊動畫並觸發新動畫
     statusDisplay.getAnimations?.().forEach(a => a.cancel());
     statusDisplay.classList.remove('flash');
@@ -103,104 +96,7 @@ function updateStatusDisplay(text, details = null) {
       statusDisplay.classList.add('flash');
       //console.debug('[DEBUG] [Translation] 更新 statusDisplay:', { text: displayText });
     });
-  }
-}
-
-// 發送翻譯請求的核心邏輯（POST 方式）
-async function sendTranslation(text, targetLangs, serviceUrl, serviceKey, sequenceId) {
-  if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。' ) {
-    console.debug('[DEBUG] [Translation] 無效文字，跳過翻譯:', text);
-    return null;
-  }
-
-  if (!serviceUrl) throw new Error('Service URL is empty.');
-
-  const urlPattern = /^\s*(\w+):\/\/(.+)$/;
-  const match = serviceUrl.match(urlPattern);
-  if (match) {
-    const protocol = match[1].toLowerCase();
-    if (protocol !== 'http' && protocol !== 'https') {
-      serviceKey = match[1];
-      serviceUrl = match[2];
-      localStorage.setItem('api-key-value', serviceKey);
-    } else {
-      serviceUrl = match[2];
-    }
-  }
-
-  serviceUrl = `https://${serviceUrl}/translate`;
-
-  if (!/^https:\/\/[a-zA-Z0-9.-]+(:\d+)?\/translate$/.test(serviceUrl)) {
-    throw new Error('Invalid URL format.');
-  }
-
-  const headers = { 'Content-Type': 'application/json' };
-  if (serviceKey) headers['X-API-Key'] = serviceKey;
-
-  const payload = { text, targetLangs, sequenceId };
-
-  console.debug('[DEBUG] [Translation] 發送翻譯請求:', { text, targetLangs, sequenceId });
-
-  const response = await fetchWithTimeout(serviceUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload)
-  }, 10000);
-
-  if (!response.ok) {
-    throw new Error(`翻譯請求失敗: ${response.status} - ${await response.text()}`);
-  }
-
-  return await response.json();
-}
-
-// 發送翻譯請求的 GET 方式
-async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl, sequenceId) {
-  if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') {
-    console.debug('[DEBUG] [Translation] 無效文字，跳過翻譯:', text);
-    return null;
-  }
-
-  if (!serviceUrl.match(/^https:\/\/script\.google\.com\/macros\/s\/[^\/]+\/exec$/)) {
-    console.error('[ERROR] [Translation] 無效的 Google Apps Script URL:', serviceUrl);
-    throw new Error('無效的 Google Apps Script URL');
-  }
-
-  const queryParams = `text=${encodeURIComponent(text)}&targetLangs=${encodeURIComponent(JSON.stringify(targetLangs))}&sourceLang=${encodeURIComponent(sourceLang)}&sequenceId=${sequenceId}`;
-  const url = `${serviceUrl}?${queryParams}`;
-
-  if (url.length > 20000) {
-    console.error('[ERROR] [Translation] URL 過長:', url.length);
-    throw new Error('請求資料過長，請縮短文字內容');
-  }
-
-  const response = await fetchWithTimeout(url, { method: 'GET', mode: 'cors' }, 10000);
-
-  if (!response.ok) {
-    throw new Error(`翻譯請求失敗: ${response.status} - ${await response.text()}`);
-  }
-
-  const data = await response.json();
-  return data;
-}
-
-// 處理 URL 並選擇 GET 或 POST 方式
-async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, serviceKey, sequenceId) {
-  if (!serviceUrl) {
-    console.error('[ERROR] [Translation] URL 為空');
-    throw new Error('請輸入有效的翻譯服務 URL');
-  }
-
-  if (serviceUrl.startsWith('GAS://')) {
-    const scriptId = serviceUrl.replace('GAS://', '');
-    if (!scriptId.match(/^[a-zA-Z0-9_-]+$/)) {
-      console.error('[ERROR] [Translation] 無效的 Google Apps Script ID:', scriptId);
-      throw new Error('Google Apps Script ID 只能包含字母、數字和連字符');
-    }
-    const gasUrl = `https://script.google.com/macros/s/${scriptId}/exec`;
-    return await sendTranslationGet(text, targetLangs, sourceLang, gasUrl, sequenceId);
-  } else {
-    return await sendTranslation(text, targetLangs, serviceUrl, serviceKey, sequenceId);
+    */
   }
 }
 
