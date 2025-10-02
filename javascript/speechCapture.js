@@ -18,8 +18,8 @@ let isPaused = false;
 let isRecognitionActive = false;
 
 // 因為各種原因重新啟動語音擷取時的時間
-const MAX_RESTART_ATTEMPTS = 50;
-const RESTART_DELAY = 150;
+const MAX_RESTART_ATTEMPTS = 5000;
+const RESTART_DELAY = 200;
 
 // 關鍵字規則表
 let keywordRules = [];
@@ -159,17 +159,15 @@ function updateSourceText(text) {
 
   if (el.textContent === text) return;
 
-  requestAnimationFrame(() => {
-    el.textContent = text;
-    el.dataset.stroke = text;
-  });
+  el.textContent = text;
+  el.dataset.stroke = text;
 }
 
 // 初始化 SpeechRecognition 物件
 function initializeSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition;
 
-  if (!SpeechRecognition) {
+  if (!SpeechRecognition && window.webkitSpeechRecognition) {
     console.error('[ERROR] [SpeechRecognition] 不支援舊版 webkitSpeechRecognition');
     alert('このブラウザは旧式の「webkitSpeechRecognition」のみ対応しており、利用できません。\nChrome または Microsoft Edge のバージョン 139 以降をご利用ください。');
     return null;
@@ -248,17 +246,19 @@ function initializeSpeechRecognition() {
 
   newRecognition.onerror = (event) => {
     console.error('[ERROR] [SpeechRecognition] 錯誤:', event.error);
-    console.warn('[WARN] [SpeechRecognition]，嘗試重新啟動');
-    autoRestartRecognition();
+
+    // 由於目前的觀察onerror事件之後會產生onend事件的關係，所以重啟的邏輯先取消，但還需要再多觀察
+    // console.warn('[WARN] [SpeechRecognition]，嘗試重新啟動');
+    // autoRestartRecognition();
   };
 
   return newRecognition;
 }
 
 // 自動重啟語音辨識
-function autoRestartRecognition(shouldRestart = true) {
+async function autoRestartRecognition(shouldRestart = true) {
   if (!shouldRestart || isPaused || !isRecognitionActive || document.getElementById('stop-recording').disabled || restartAttempts >= MAX_RESTART_ATTEMPTS) {
-    console.debug('[DEBUG] [SpeechRecognition] 自動重啟取消:', {
+    console.debug('[DEBUG] [speechCapture.js] 自動重啟取消:', {
       shouldRestart,
       isPaused,
       isRecognitionActive,
@@ -277,22 +277,33 @@ function autoRestartRecognition(shouldRestart = true) {
   }
 
   if (recognition) {
-    console.debug('[DEBUG] [SpeechRecognition] 正在停止語音辨識');
+    console.debug('[DEBUG] [speechCapture.js] 正在停止語音辨識');
     recognition.stop();
     isRestartPending = true;
   }
 
-  setTimeout(() => {
+  setTimeout(async () => {
     if (isRestartPending && !isPaused && isRecognitionActive) {
-      console.debug('[DEBUG] [SpeechRecognition] 準備自動重啟語音辨識');
+      console.debug('[DEBUG] [speechCapture.js] 準備自動重啟語音辨識');
       try {
+        // 重新計算 processLocally 以確保重啟時參數一致
+        const selectedLang = document.getElementById('source-language')?.value || 'ja-JP';
+        let procLocal = false;
+        try {
+          procLocal = await decideProcessLocally(selectedLang);
+        } catch { procLocal = false; }
+
+        // 更新 options（語言與處理策略）
+        recognition.options = { langs: [selectedLang], processLocally: procLocal };
+        configureRecognition(recognition, { procLocal });
+
         recognition.start();
         isRestartPending = false;
         restartAttempts = 0;
         lastResultTime = Date.now();
-        console.info('[INFO] [SpeechRecognition] 自動重啟語音辨識成功');
+        console.info('[INFO] [speechCapture.js] 自動重啟語音辨識成功，processLocally=', procLocal);
       } catch (error) {
-        console.error('[ERROR] [SpeechRecognition] 自動重啟失敗:', error);
+        console.error('[ERROR] [speechCapture.js] 自動重啟失敗:', error);
         restartAttempts++;
         setTimeout(() => autoRestartRecognition(), RESTART_DELAY);
       }
@@ -361,7 +372,7 @@ function executeSpeechRecognition() {
     return;
   }
 
-  const [startButton, stopButton, sourceText, targetText1, targetText2, targetText3,] = [
+ const [startButton, stopButton, sourceText, targetText1, targetText2, targetText3,] = [
        'start-recording', 'stop-recording', 'source-text', 'target-text-1', 'target-text-2', 'target-text-3',]
        .map(document.getElementById.bind(document));
 

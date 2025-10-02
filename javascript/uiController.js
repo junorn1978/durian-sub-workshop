@@ -1,6 +1,5 @@
-import { processTranslationUrl } from './translationController.js';
+import { updateStatusDisplay } from './translationController.js';
 import { loadLanguageConfig, getAllLanguages } from './config.js';
-import { updateSourceText, sendTranslationRequest } from './speechCapture.js';
 import { setupPromptModelDownload } from './promptTranslationService.js';
 import { setupLanguagePackButton } from './languagePackManager.js';
 import { monitorLocalTranslationAPI } from './translatorApiService.js';
@@ -95,14 +94,18 @@ document.addEventListener('DOMContentLoaded', async function() {
       apiButton.classList.remove('active');
       localStorage.removeItem('local-translation-api-active');
     }
-    /*
+    
     const promptButton = document.getElementById('local-prompt-api');
     if (promptButton) {
       promptButton.disabled = true;
       promptButton.classList.remove('active');
       localStorage.removeItem('local-prompt-api-active');
     }
-    */
+
+    const downloadButton = document.getElementById('prompt-api-download');
+    if (downloadButton) {
+      downloadButton.style.display = 'none';
+    }
   }
 
   // 通用的 localStorage 操作
@@ -554,7 +557,7 @@ document.addEventListener('DOMContentLoaded', async function() {
   setupPanelSwitching();
   setupResetButton(handlers);
   
-  await setupLanguagePackButton('source-language', updateSourceText);
+  await setupLanguagePackButton('source-language', updateStatusDisplay);
 
   // 新增 mini 按鈕相關邏輯
   const miniStart = document.getElementById('mini-start-recording');

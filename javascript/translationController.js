@@ -1,8 +1,8 @@
 import { keywordRules } from './speechCapture.js';
-import { loadLanguageConfig, getChunkSize, getDisplayTimeRules, getTargetCodeById, getTargetCodeForTranslator } from './config.js';
+import { getChunkSize, getDisplayTimeRules, getTargetCodeById } from './config.js';
 import { sendLocalTranslation } from './translatorApiService.js';
 import { sendPromptTranslation } from './promptTranslationService.js';
-import { fetchWithTimeout, sendTranslation, sendTranslationGet, processTranslationUrl } from './remoteTranslationService.js'; // 新增匯入
+import { processTranslationUrl } from './remoteTranslationService.js';
 
 // Chrome Translator API用參數
 const translatorCache = new Map();
@@ -86,17 +86,6 @@ function updateStatusDisplay(text, details = null) {
   if (statusDisplay && statusDisplay.textContent !== displayText) {
     statusDisplay.textContent = displayText;
     statusDisplay.dataset.stroke = displayText;
-    
-    /* 理論上應該是用不到所以註解，確認沒問題的話就可以移除了
-
-    // 移除舊動畫並觸發新動畫
-    statusDisplay.getAnimations?.().forEach(a => a.cancel());
-    statusDisplay.classList.remove('flash');
-    requestAnimationFrame(() => {
-      statusDisplay.classList.add('flash');
-      //console.debug('[DEBUG] [Translation] 更新 statusDisplay:', { text: displayText });
-    });
-    */
   }
 }
 
@@ -347,4 +336,4 @@ window.addEventListener('beforeunload', () => {
   console.debug('[DEBUG] [Translation] 清理佇列');
 });
 
-export { sendTranslationRequest, sequenceCounter, translatorCache, processTranslationUrl, updateStatusDisplay, updateTranslationUI };
+export { sendTranslationRequest, sequenceCounter, translatorCache, updateStatusDisplay, updateTranslationUI };

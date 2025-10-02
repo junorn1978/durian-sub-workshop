@@ -23,7 +23,7 @@ async function getSession(targetLang, options) {
   }
   // 建立新 session（新增：system prompt 與語言預期）
   const session = await LanguageModel.create({
-    temperature: options.temperature ?? 0.3,
+    temperature: options.temperature ?? 0.1,
     topK: options.topK ?? 20,
     initialPrompts: [{  // System prompt：設定翻譯助手角色
       role: 'system',
@@ -31,10 +31,9 @@ async function getSession(targetLang, options) {
                 翻譯規則：
                 1.翻譯結果為繁體中文時，使用台灣用語。
                 2.原始語言為日文時，除非人稱有在prompt中被明確指定，否則請勿生成人稱代詞。
-                3.僅輸出譯文。`
+                3.僅輸出譯文，不解釋任何翻譯過程。
+                4.音樂直播用，翻譯風格以音樂和遊戲直播為主`
     }],
-    //expectedInputs: [{ type: 'text', languages: [sourceLanguage] }],  // 預期輸入語言
-    //expectedOutputs: [{ type: 'text', languages: [targetLang] }]    // 預期輸出語言
   });
   sessionPool.set(key, {
     session,

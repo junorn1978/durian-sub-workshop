@@ -18,7 +18,7 @@ if defined PID (
 
 if not exist "%translate_DIR%" mkdir "%translate_DIR%"
 
-start "" "C:\Users\reinf\AppData\Local\Google\Chrome SxS\Application\chrome.exe" ^
+start "" "C:\Program Files\Google\Chrome Dev\Application\chrome.exe" ^
   "http://localhost:%PORT%/index.html" --window-size=1280,720 ^
   --disable-features=CalculateNativeWinOcclusion ^
   --user-data-dir="%translate_DIR%" ^

@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="css/styles_horizontal.css">
     <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
     <title>ハムハム字幕アトリエ</title>
 
 </head>
@@ -18,9 +21,9 @@
             <!--- 顯示項目 2 內容可在此添加 --->
             開発者：乙夏れいのファン・ジュノーン（GrokとChatGPTを利用）
         </div>
-        <div id="target-text-2" data-stroke="2025.09.26">
+        <div id="target-text-2" data-stroke="2025.10.02">
             <!--- 顯示項目 3 內容可在此添加 --->
-            2025.09.26
+            2025.10.02
         </div>
         <div id="target-text-3" data-stroke="自動翻訳によるもので、正確性は保証できません。ご了承ください。">
             <!--- 顯示項目 4 內容可在此添加 --->
@@ -164,26 +167,24 @@
 
             <!--- 其他選項的相關設定 --->
             <div id="options-panel">
-                <div id="other-options" style="flex-direction: column;">
-                    <div class="grid-options-container">
-                    <!--- <div style="display:flex; flex-direction: row; width:100%;"> --->
-                        <div id="option2">
-                            <div class="option2-1">
-                                横位置：
-                                <div class="alignment" id="text-align">
-                                    <input type="radio" name="alignment" value="left">左</input>
-                                    <input type="radio" name="alignment" value="center">中央</input>
-                                    <input type="radio" name="alignment" value="right">右</input>
-                                </div>
-                            </div>
-                            <div class="option2-2">
-                                <label for="display-panel-color">背景色：</label>
-                                <input type="color" id="display-panel-color" value="#00FF00">
+                <div style="display:flex; flex-direction: row; width:50%;">
+                    <div id="option2">
+                        <div class="option2-1">
+                            横位置：
+                            <div class="alignment" id="text-align">
+                                <input type="radio" name="alignment" value="left">左</input>
+                                <input type="radio" name="alignment" value="center">中央</input>
+                                <input type="radio" name="alignment" value="right">右</input>
                             </div>
                         </div>
-                        <div id="option1">
-                            <button class="options-button" id="reset-settings">初始化</button>
+                        <div class="option2-2">
+                            <label for="display-panel-color">背景色：</label>
+                            <input type="color" id="display-panel-color" value="#00FF00">
                         </div>
+                    </div>
+
+                    <div id="option1">
+                        <button class="options-button" id="reset-settings">初始化</button>
                     </div>
                 </div>
                 <div id="subtitle-style">
