@@ -11,7 +11,9 @@
         { "maxLength": 40, "time": 2 },
         { "maxLength": 1e9, "time": 3 }
       ],
-      "commentLangCode": "ja-JP"
+      "commentLangCode": "ja-JP",
+      "promptApiCode": "日本語",
+      "languageModelApiCode": "ja"
     },
     {
       "id": "zh-TW",
@@ -24,11 +26,13 @@
         { "maxLength": 40, "time": 2 },
         { "maxLength": 1e9, "time": 3 }
       ],
-      "commentLangCode": "zh-TW"
+      "commentLangCode": "zh-TW",
+      "promptApiCode": "繁體中文",
+      "languageModelApiCode": "zh-hant"
     },
     {
       "id": "zh-HK",
-      "label": "中国語(香港)",
+      "label": "中国語(香港-粵語-翻譯書面語)",
       "asSource": true,
       "asTarget": true,
       "chunkSize": 33,
@@ -37,7 +41,9 @@
         { "maxLength": 40, "time": 2 },
         { "maxLength": 1e9, "time": 3 }
       ],
-      "commentLangCode": "zh-HK"
+      "commentLangCode": "zh-HK",
+      "promptApiCode": "廣東話",
+      "languageModelApiCode": "zh-hant"
     },
     {
       "id": "en-US",
@@ -50,7 +56,9 @@
         { "maxLength": 70, "time": 2 },
         { "maxLength": 1e9, "time": 3 }
       ],
-      "commentLangCode": "en-US"
+      "commentLangCode": "en-US",
+      "promptApiCode": "English",
+      "languageModelApiCode": "en"
     },
     {
       "id": "es-ES",
@@ -63,7 +71,9 @@
         { "maxLength": 70, "time": 2 },
         { "maxLength": 1e9, "time": 3 }
       ],
-      "commentLangCode": "es-ES"
+      "commentLangCode": "es-ES",
+      "promptApiCode": "Spanish",
+      "languageModelApiCode": "es"
     },
     {
       "id": "id-ID",
@@ -76,7 +86,9 @@
         { "maxLength": 70, "time": 2 },
         { "maxLength": 1e9, "time": 3 }
       ],
-      "commentLangCode": "id-ID"
+      "commentLangCode": "id-ID",
+      "promptApiCode": "Indonesian",
+      "languageModelApiCode": "id"
     },
     {
       "id": "ko-KR",
@@ -89,7 +101,9 @@
         { "maxLength": 40, "time": 2 },
         { "maxLength": 1e9, "time": 3 }
       ],
-      "commentLangCode": "ko-KR"
+      "commentLangCode": "ko-KR",
+      "promptApiCode": "Korean",
+      "languageModelApiCode": "ko"
     },
     {
       "id": "th-TH",
@@ -102,7 +116,9 @@
         { "maxLength": 70, "time": 2 },
         { "maxLength": 1e9, "time": 3 }
       ],
-      "commentLangCode": "th-TH"
+      "commentLangCode": "th-TH",
+      "promptApiCode": "Thai",
+      "languageModelApiCode": "th"
     },
     {
       "id": "vi-VN",
@@ -115,7 +131,9 @@
         { "maxLength": 70, "time": 2 },
         { "maxLength": 1e9, "time": 3 }
       ],
-      "commentLangCode": "vi-VN"
+      "commentLangCode": "vi-VN",
+      "promptApiCode": "Vietnamese",
+      "languageModelApiCode": "vi"
     }
   ],
   "targetCodeMap": {

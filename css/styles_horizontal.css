@@ -1,10 +1,3 @@
-@font-face {
-    font-family: "JF OPEN 粉圓 2.1";
-    src: url("../fonts/jf-openhuninn-2.1.ttf") format("truetype");
-    font-weight: normal;
-    font-style: normal;
-}
-
 :root {
     --text-font-size: 22px;
     --font-size-half: 16.5px; /* 22px * 0.75 */
@@ -27,7 +20,7 @@ body {
     display: flex;
     flex-direction: column;
     background-color: var(--body-background);
-    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
+    font-family: "Huninn", Arial, sans-serif;
     min-width: 950px;
     overflow-x: hidden;
     overflow-y: hidden;
@@ -69,21 +62,24 @@ body {
     padding: 0 20px 0 20px;
     align-items: center;
     /* user-select: none; 不可選取文字 */
-    justify-content: space-between;
+    /* justify-content: space-between; */
     gap: 5px;
     z-index: 2;
 }
 .status-info {
     display: flex;
-    width: 80%;
+    /* width: 80%; */
     height: 90%;
     text-align: left; /* 讓文字靠左對齊 */
     align-items: center;
     color: #6d1313;
+    white-space: nowrap; /* 防止文字換行 */
+    overflow: hidden; /* 隱藏超出部分 */
+    text-overflow: ellipsis; /* 超出時顯示省略號 */
 }
 .status-button {
     margin-left: auto; /* 將按鈕推到最右邊 */
-    margin-right: 15px;
+    /* margin-right: 15px; */
 }
 /* 以上為狀態攔相關設定 */
 
@@ -132,12 +128,12 @@ body {
     font-size: 12px;
     cursor: pointer;
     transition: background-color 0.3s;
-    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
+    font-family: "Huninn", Arial, sans-serif;
 }
 /* =============== */
 
 #recorder-panel {
-    width: 300px;
+    width: 250px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -159,7 +155,7 @@ body {
 
 #translation-link {
     display: none;
-    width: 650px;
+    width: 540px;
     height: 25px;
     border-radius: 10px;
     background-color: #FFFAAC;
@@ -174,11 +170,11 @@ body {
     flex-direction: column;
     text-align: left;
     gap: 5px;
-    color: #8B4513;
+    color: #000000;
     font-size: 16px;
     border-radius: 10px;
     background-color: #D9DCFF;
-    padding: 5px;
+    padding: 10px;
     width: 100%;
     height: 100%;
     overflow-y: auto;
@@ -245,19 +241,18 @@ body {
     flex-direction: row;
 }
 
-#option1, #option2, #option3 {
+#option1, #option2 {
     display: flex;
     flex-direction: column;
-    /* width: 50%; */
+    width: 50%;
     gap: 10px;
+    padding: 5px;
+    border-radius: 5px;
+    background-color: #F8E6F0;
 }
 .option2-1-style {
     display: flex;
     flex-direction: column;
-}
-#option3 {
-    display: flex;
-    flex-direction: row;
 }
 
 .option2-1, .option2-2, .subtitle1{
@@ -277,7 +272,7 @@ body {
     border-radius: 5px;
     border: 1px solid #8B4513;
     padding: 5px;
-    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
+    font-family: "Huninn", Arial, sans-serif;
 }
 
 #comment2 {
@@ -305,7 +300,7 @@ body {
     font-size: 14px;
     color: #333;
     background-color: #FFFFFF;
-    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
+    font-family: "Huninn", Arial, sans-serif;
 }
 
 #color-setting input[type="color"] {
@@ -331,7 +326,7 @@ body {
 #size-setting span {
     font-size: 14px;
     color: #8B4513;
-    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
+    font-family: "Huninn", Arial, sans-serif;
     margin-top: 5px;
     text-align: center;
 }
@@ -346,10 +341,10 @@ body {
     font-size: var(--text-font-size);
     background-color: transparent;
     position: relative;
-    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
+    font-family: "Huninn", Arial, sans-serif;
     line-height: 1.2em; /* 保留改善描邊截斷 */
     overflow: hidden;
-    padding-bottom: 2px; /* 改善描邊截斷 */
+    /* padding-bottom: 2px; /* 改善描邊截斷 */ */
 }
 
 #source-text.overflow-normal, 
@@ -364,15 +359,19 @@ body {
 #target-text-2.overflow-truncate, 
 #target-text-3.overflow-truncate {
     display: -webkit-box;
-    -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     text-overflow: ellipsis;
     font-size: var(--text-font-size);
 }
 
+#target-text-1.overflow-truncate, 
+#target-text-2.overflow-truncate, 
+#target-text-3.overflow-truncate {
+    -webkit-line-clamp: 1;
+}
+
 #source-text.overflow-shrink {
     display: -webkit-box;
-    -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     font-size: var(--text-font-size);
     overflow: hidden;
@@ -402,10 +401,10 @@ body {
     width: 100%;
     text-align: var(--text-align);
     font-size: var(--text-font-size);
-    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
+    font-family: "Huninn", Arial, sans-serif;
     line-height: 1.2em;
     overflow: hidden;
-    padding-bottom: 2px; /* 同步改善描邊截斷 */
+    /* padding-bottom: 2px; /* 同步改善描邊截斷 */ 
 }
 
 #source-text.overflow-normal::before, 
@@ -420,15 +419,19 @@ body {
 #target-text-2.overflow-truncate::before, 
 #target-text-3.overflow-truncate::before {
     display: -webkit-box;
-    -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     text-overflow: ellipsis;
     font-size: var(--text-font-size);
 }
 
+#target-text-1.overflow-truncate::before, 
+#target-text-2.overflow-truncate::before, 
+#target-text-3.overflow-truncate::before {
+    -webkit-line-clamp: 1;
+}
+
 #source-text.overflow-shrink::before {
     display: -webkit-box;
-    -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     font-size: var(--text-font-size);
     overflow: hidden;
@@ -450,6 +453,22 @@ body {
     font-size: var(--font-size-half);
 }
 
+.flash {
+  animation: fadeIn 120ms linear;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0.9; }
+  to { opacity: 1; }
+}
+
+
+
+@keyframes fadeInStroke {
+  from { text-shadow: 0 0 0 currentColor; }
+  to { text-shadow: 0 0 0px currentColor; }
+}
+
 #logo {
     height: 130px;
     object-fit: contain;
@@ -465,7 +484,7 @@ body {
     font-size: 16px;
     cursor: pointer;
     transition: background-color 0.3s;
-    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
+    font-family: "Huninn", Arial, sans-serif;
 }
 
 .record-button:hover {
@@ -485,6 +504,7 @@ body {
 
 .options-button, .comment1-button, .status-button, .minimenu-button {
     width: 100px;
+    min-width: 100px;
     height: 25px;
     border-radius: 25px;
     border: 2px solid #8B4513;
@@ -493,7 +513,7 @@ body {
     font-size: 12px;
     cursor: pointer;
     transition: background-color 0.3s;
-    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
+    font-family: "Huninn", Arial, sans-serif;
 }
 
 .options-button {
@@ -546,5 +566,5 @@ pre {
     max-height: 85%; /* 防止超出父容器 */
     padding: 0px;
     margin: 10px 0px;
-    font-family: "JF OPEN 粉圓 2.1", Arial, sans-serif;
+    font-family: "Huninn", Arial, sans-serif;
 }
