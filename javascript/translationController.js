@@ -1,4 +1,4 @@
-import { keywordRules } from './speechCapture.js';
+import { browserInfo, keywordRules } from './speechCapture.js';
 import { getChunkSize, getDisplayTimeRules, getTargetCodeById } from './config.js';
 import { sendLocalTranslation } from './translatorApiService.js';
 import { sendPromptTranslation } from './promptTranslationService.js';
@@ -38,7 +38,7 @@ async function pump() {
 
   inFlight++;
   try {
-    console.debug('[DEBUG] [Translation] 執行佇列任務:', { inFlight, queueLength: queue.length });
+    //console.debug('[DEBUG] [Translation] 執行佇列任務:', { inFlight, queueLength: queue.length });
     next.resolve(await next.task());
   } catch (e) {
     console.error('[ERROR] [Translation] 佇列任務失敗:', { error: e.message });
@@ -151,13 +151,13 @@ function processDisplayBuffers() {
   const hasData = ['target1', 'target2', 'target3'].some(key => displayBuffers[key].length > 0);
   if (!hasData) {
     if (now - lastLogTime >= LOG_THROTTLE_MS) {
-      console.debug('[DEBUG] [Translation] processDisplayBuffers 無數據');
+      //console.debug('[DEBUG] [Translation] processDisplayBuffers 無數據');
       lastLogTime = now;
     }
     if (bufferCheckInterval) {
       clearInterval(bufferCheckInterval);
       bufferCheckInterval = null;
-      console.debug('[DEBUG] [Translation] 停止緩衝區監控，無數據');
+      //console.debug('[DEBUG] [Translation] 停止緩衝區監控，無數據');
     }
     return;
   }
@@ -166,11 +166,6 @@ function processDisplayBuffers() {
     const span = spans[key];
     if (!span || displayBuffers[key].length === 0) {
       if (now - lastLogTime >= LOG_THROTTLE_MS) {
-        console.debug('[DEBUG] [Translation] 跳過處理:', { 
-          key, 
-          spanExists: !!span, 
-          bufferLength: displayBuffers[key].length 
-        });
         lastLogTime = now;
       }
       return;
@@ -244,7 +239,7 @@ function processDisplayBuffers() {
 }
 
 // 公開的翻譯請求函數
-async function sendTranslationRequest(text, sourceLang, browserInfo, isLocalTranslationActive) {
+async function sendTranslationRequest(text, sourceLang) {
   return enqueue(async () => {
     const sequenceId = sequenceCounter++;
 
@@ -261,33 +256,29 @@ async function sendTranslationRequest(text, sourceLang, browserInfo, isLocalTran
         return;
       }
 
-      const rules = getDisplayTimeRules(sourceLang) || getDisplayTimeRules('default');
-      const minDisplayTime = serviceUrl.startsWith('GAS://') || isLocalTranslationActive || document.getElementById('local-prompt-api')?.classList.contains('active')
-        ? 0
-        : rules.find(rule => text.length <= rule.maxLength).time;
-
-      console.debug('[DEBUG] [Translation] 計算顯示時間:', { sourceLang, textLength: text.length, minDisplayTime });
-
-      let data;
       const promptApiButton = document.getElementById('local-prompt-api');
       const isPromptApiActive = promptApiButton?.classList.contains('active') || false;
 
+      const localTranslationButton = document.getElementById('local-translation-api');
+      const isLocalTranslationActive = localTranslationButton?.classList.contains('active') || false;
+
+      // 翻譯後緩衝時間規則
+      const rules = getDisplayTimeRules(sourceLang) || getDisplayTimeRules('default');
+      const minDisplayTime = serviceUrl.startsWith('GAS://') || isLocalTranslationActive || isPromptApiActive
+        ? 0
+        : rules.find(rule => text.length <= rule.maxLength).time;
+
+      //console.debug('[DEBUG] [Translation] 計算顯示時間:', { sourceLang, textLength: text.length, minDisplayTime });
+
+      let data;
+      
+      // 根據選擇的翻譯服務進行翻譯
+      // 順序為 Prompt API > 本地翻譯 > 遠端翻譯
       if (isPromptApiActive && 'LanguageModel' in self) {
         console.debug('[DEBUG] [Translation] 執行 Prompt API 翻譯:', { sequenceId });
         try {
-          data = await sendPromptTranslation(text, targetLangs, sourceLang, (text) => {
-            const sourceText = document.getElementById('source-text');
-            if (sourceText && text.trim().length !== 0 && sourceText.textContent !== text) {
-              sourceText.textContent = text;
-              sourceText.dataset.stroke = text;
-              sourceText.getAnimations?.().forEach(a => a.cancel());
-              sourceText.classList.remove('flash');
-              requestAnimationFrame(() => {
-                sourceText.classList.add('flash');
-                //console.debug('[DEBUG] [Translation] 更新 source-text:', { text });
-              });
-            }
-          });
+          data = await sendPromptTranslation(text, targetLangs, sourceLang);
+          //console.debug('[DEBUG] [Translation] Prompt API 移除回調確認:', { sequenceId });
         } catch (error) {
           console.error('[ERROR] [Translation] Prompt API 翻譯失敗:', { sequenceId, error: error.message });
           updateStatusDisplay('翻訳エラー:', { sequenceId, error: error.message });

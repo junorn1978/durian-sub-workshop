@@ -114,7 +114,7 @@ export function getTargetCodeForTranslator(idOrCode /** @type {string} */) /** @
  */
 export function getPromptApiCode(idOrCode /** @type {string} */) /** @type {string} */ {
   ensureLoaded();
-  console.debug('[DEBUG] getPromptApiCode 代碼:', { id: idOrCode });
+  //console.debug('[DEBUG] [Config] getPromptApiCode 代碼:', { id: idOrCode });
   const resolvedId = resolveLangId(idOrCode);
   const lang = getLangById(resolvedId);
   if (!lang?.promptApiCode) {

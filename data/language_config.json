@@ -31,8 +31,8 @@
       "languageModelApiCode": "zh-hant"
     },
     {
-      "id": "yue",
-      "label": "中国語(香港)",
+      "id": "zh-HK",
+      "label": "中国語(香港-粵語-翻譯書面語)",
       "asSource": true,
       "asTarget": true,
       "chunkSize": 33,

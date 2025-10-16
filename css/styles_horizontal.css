@@ -170,11 +170,11 @@ body {
     flex-direction: column;
     text-align: left;
     gap: 5px;
-    color: #8B4513;
+    color: #000000;
     font-size: 16px;
     border-radius: 10px;
     background-color: #D9DCFF;
-    padding: 5px;
+    padding: 10px;
     width: 100%;
     height: 100%;
     overflow-y: auto;
@@ -183,8 +183,7 @@ body {
 
 #source-styles-panel,
 #target1-styles-panel, #target2-styles-panel, #target3-styles-panel,
-#options-panel,
-#comment-translation {
+#options-panel {
     display: none;
     flex-direction: row;
     gap: 10px;
@@ -344,7 +343,7 @@ body {
     font-family: "Huninn", Arial, sans-serif;
     line-height: 1.2em; /* 保留改善描邊截斷 */
     overflow: hidden;
-    /* padding-bottom: 2px; /* 改善描邊截斷 */ */
+    /* padding-bottom: 2px; /* 改善描邊截斷 */
 }
 
 #source-text.overflow-normal, 
@@ -514,6 +513,7 @@ body {
     cursor: pointer;
     transition: background-color 0.3s;
     font-family: "Huninn", Arial, sans-serif;
+    padding: 0px;
 }
 
 .options-button {

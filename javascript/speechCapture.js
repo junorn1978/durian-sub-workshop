@@ -1,58 +1,92 @@
 // speechCapture.js
-import { loadLanguageConfig, getChunkSize } from './config.js';
-import { sendTranslationRequest } from './translationController.js';
+import { getChunkSize } from './config.js';
+import { sendTranslationRequest, updateStatusDisplay } from './translationController.js';
 
 // 檢測瀏覽器類型
-const browserInfo = detectBrowser();
+export const browserInfo = detectBrowser();
 
 // 語音辨識控制器
 let recognition = null;
 
 // 追蹤語音辨識狀態
-let isRestartPending = false;
-let restartAttempts = 0;
-let lastResultTime = 0;
-
-// 文字發送字幕使用的相關狀態。
-let isPaused = false;
 let isRecognitionActive = false;
-
-// 因為各種原因重新啟動語音擷取時的時間
-const MAX_RESTART_ATTEMPTS = 5000;
-const RESTART_DELAY = 200;
 
 // 關鍵字規則表
 let keywordRules = [];
 const cachedRules = new Map();
 
-// ---- Browser Detection and Recognition Config ----
-function isEdge() {
-  // 優先用新版 UA-CH
-  const b = navigator.userAgentData?.brands || [];
-  if (b.some(x => /Microsoft Edge/i.test(x.brand))) return true;
-  // 後援：傳統 UA
-  return /Edg\//.test(navigator.userAgent); // 注意：Edge 是 "Edg/"
-}
+// 短語設定表
+let phrasesConfig = {};
+const cachedPhrases = new Map();
 
-function decideContinuous(procLocal) {
-  if (isEdge()) {
-    console.debug('[DEBUG] [SpeechRecognition] Edge 瀏覽器，強制 continuous = true');
-    return true;
+// 啟動語音按鍵的相關函式
+function setRecognitionControlsState(isStarting) {
+  const startButton = document.getElementById('start-recording');
+  const stopButton = document.getElementById('stop-recording');
+  const miniStartButton = document.getElementById('mini-start-recording');
+  const miniStopButton = document.getElementById('mini-stop-recording');
+
+  if (isStarting) {
+    startButton.disabled = true;
+    stopButton.disabled = false;
+    miniStartButton.disabled = true;
+    miniStopButton.disabled = false;
+    console.debug('[DEBUG] [SpeechRecognition] ', '按鈕切換至啟動狀態');
+  } else {
+    startButton.disabled = false;
+    stopButton.disabled = true;
+    miniStartButton.disabled = false;
+    miniStopButton.disabled = true;
+    console.debug('[DEBUG] [SpeechRecognition] ', '按鈕切換至停止狀態');
   }
-  console.debug('[DEBUG] [SpeechRecognition] 非 Edge，continuous =', !!procLocal);
-  return !!procLocal;
 }
 
-function configureRecognition(recognition, { procLocal }) {
+// 語音擷取物件使用的相關參數
+async function configureRecognition(recognition) {
+  const sourceLanguage = document.getElementById('source-language')?.value;
+  if (!sourceLanguage) {
+    updateStatusDisplay('音声認識を始める前に、音声認識言語を選択してください。');
+    setRecognitionControlsState(false); // 按鈕切換至停止狀態
+    isRecognitionActive = false;
+    throw new Error('[ERROR] [SpeechRecognition] 未選擇來源語言');
+  }
+
+  // 決定 processLocally 狀態
+  const processLocallyStatus = await decideProcessLocally(sourceLanguage);
+
+  /*
+   * 目前recognition.processLocally參數在本地語音辨識模型已經下載的狀態下不管布林值是哪一個都是優先使用本地語音辨識模型
+   * 目前只能在processLocally設置成true的時候phrases參數才會生效
+   * 等候Chrome未來版本修正這個問題
+   */
+  // 設定語音辨識參數
+  if (browserInfo.isChrome) { recognition.processLocally = processLocallyStatus; }
   recognition.interimResults = true;
-  recognition.lang = document.getElementById('source-language')?.value || 'ja-JP';
-  recognition.continuous = decideContinuous(procLocal);
+  recognition.lang = (sourceLanguage === 'zh-HK' ? 'yue' : sourceLanguage); //香港使用粵語語音
+  recognition.continuous = processLocallyStatus;
   recognition.maxAlternatives = 1;
-  console.debug('[DEBUG] [SpeechRecognition] 配置完成:', {
+
+  // 短語設定，僅Chrome和語音模型本地端可用時套用。
+  if (browserInfo.isChrome && recognition.processLocally && 'phrases' in recognition) {
+    const selectedPhrases = getPhrasesForLang(sourceLanguage);
+    if (selectedPhrases.length > 0) {
+      recognition.phrases = selectedPhrases;
+      console.debug('[DEBUG] [SpeechRecognition] 已設定 phrases 參數:', { lang: sourceLanguage, count: selectedPhrases.length });
+    } else {
+      recognition.phrases = [];
+      console.debug('[DEBUG] [SpeechRecognition] phrases 陣列為空，跳過設定:', { lang: sourceLanguage });
+    }
+  } else {
+    recognition.phrases = [];  // 清空，避免殘留
+    console.warn('[DEBUG] [SpeechRecognition] 本地處理不可用或 API 不支援，跳過 phrases 設定:', { lang: sourceLanguage, processLocally: processLocallyStatus });
+  }
+
+    console.debug('[DEBUG] [SpeechRecognition] 配置完成:', {
     interimResults: recognition.interimResults,
     lang: recognition.lang,
     continuous: recognition.continuous,
-    maxAlternatives: recognition.maxAlternatives
+    maxAlternatives: recognition.maxAlternatives,
+    processLocally: recognition.processLocally
   });
 }
 
@@ -68,12 +102,55 @@ async function loadKeywordRules() {
     const uniqueLangs = [...new Set(keywordRules.map(rule => rule.lang))];
     uniqueLangs.forEach(lang => {
       cachedRules.set(lang, keywordRules
-        .filter(rule => rule.lang === lang)
-        .map(rule => ({ source: new RegExp(rule.source, 'ig'), target: rule.target })));
+                 .filter(rule => rule.lang === lang)
+                 .map(rule => ({ source: new RegExp(rule.source, 'ig'), target: rule.target })));
     });
   } catch (error) {
     console.error('[ERROR] [TextProcessing] 載入關鍵字規則失敗:', error);
   }
+}
+
+// 初始化時載入短語配置
+async function loadPhrasesConfig() {
+  try {
+    const response = await fetch('data/phrases_config.json');
+    if (!response.ok) throw new Error('無法載入 phrases 配置');
+    
+    phrasesConfig = await response.json();
+    console.info('[INFO] [TextProcessing] phrases 配置載入成功');
+
+    // 依語言快取 SpeechRecognitionPhrase 物件陣列
+    Object.keys(phrasesConfig.languages || {}).forEach(lang => {
+      const langData = phrasesConfig.languages[lang] || [];
+      let phraseObjects = [];
+      // 先判斷物件能不能用，因為Chrome 141標準版以前還不能使用這個參數
+      if (typeof SpeechRecognitionPhrase !== 'undefined') {
+        phraseObjects = langData.map(p => new SpeechRecognitionPhrase(p.phrase, p.boost));
+      } else {
+        console.debug('[DEBUG] [TextProcessing] phrases 支援不可用，fallback 空陣列:', { lang });
+      }
+      cachedPhrases.set(lang, phraseObjects);
+    });
+
+    // 預設快取
+    if (phrasesConfig.defaults) {
+      let defaultObjects = [];
+      if (typeof SpeechRecognitionPhrase !== 'undefined') {
+        defaultObjects = phrasesConfig.defaults.map(p => new SpeechRecognitionPhrase(p.phrase, p.boost));
+      } else {
+        console.debug('[DEBUG] [TextProcessing] 預設 phrases 支援不可用，fallback 空陣列');
+      }
+      cachedPhrases.set('default', defaultObjects);
+    }
+  } catch (error) {
+    console.error('[ERROR] [TextProcessing] 載入 phrases 配置失敗:', error);
+    phrasesConfig = { languages: {} };  // fallback 空配置
+  }
+}
+
+// 輔助函式：依語言取出 phrases 物件陣列（在 loadPhrasesConfig() 之後插入）
+function getPhrasesForLang(sourceLang) {
+  return cachedPhrases.get(sourceLang) || cachedPhrases.get('default') || [];
 }
 
 // 專為RayMode生成關鍵字過濾規則
@@ -83,7 +160,7 @@ function generateRayModeRules(sourceLang) {
 
 // 專為RayMode過濾文字，僅移除標點符號並應用關鍵字替換
 function filterRayModeText(text, sourceLang) {
-  if (!text || text.trim() === '' || text.trim() === 'っ') {
+  if (!text || text.trim() === '' || text.trim() === 'っ'|| text.trim() === 'っ。') {
     console.info("[INFO] [SpeechRecognition] 跳過無效文字：", { original: text });
     return '';
   }
@@ -124,27 +201,13 @@ function detectBrowser() {
   return { browser, isChrome, supportsTranslatorAPI };
 }
 
-// 超時包裝函式
-async function withTimeout(promise, ms = 1500) {
-  return Promise.race([
-    promise,
-    new Promise((_, rej) => setTimeout(() => rej(new Error('probe-timeout')), ms))
-  ]);
-}
-
 // 決定 processLocally 的值
 async function decideProcessLocally(lang) {
-  const { isChrome } = detectBrowser();
-  if (!isChrome) return false;
+  if (!browserInfo.isChrome) return true;
 
-  // 實驗 API 防守
   if (!('SpeechRecognition' in window) || !SpeechRecognition.available) return false;
-
   try {
-    const status = await withTimeout(
-      SpeechRecognition.available({ langs: [lang], processLocally: true }),
-      1500
-    );
+    const status = await SpeechRecognition.available({ langs: [lang], processLocally: true });
     return status === 'available';
   } catch (e) {
     console.debug('[DEBUG] [SpeechRecognition] 本地處理檢查失敗:', e);
@@ -155,39 +218,27 @@ async function decideProcessLocally(lang) {
 // 更新原始文字到 DOM
 function updateSourceText(text) {
   const el = document.getElementById('source-text');
-  if (!el || !text || text.trim().length === 0) return;
-
-  if (el.textContent === text) return;
-
+  if (!el || !text || text.trim().length === 0 || el.textContent === text) return;
+  
   el.textContent = text;
   el.dataset.stroke = text;
 }
 
 // 初始化 SpeechRecognition 物件
-function initializeSpeechRecognition() {
+function setupSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition;
-
-  if (!SpeechRecognition && window.webkitSpeechRecognition) {
-    console.error('[ERROR] [SpeechRecognition] 不支援舊版 webkitSpeechRecognition');
-    alert('このブラウザは旧式の「webkitSpeechRecognition」のみ対応しており、利用できません。\nChrome または Microsoft Edge のバージョン 139 以降をご利用ください。');
-    return null;
-  }
 
   if (!SpeechRecognition) {
     console.error('[ERROR] [SpeechRecognition] 瀏覽器不支援SpeechRecognition');
     alert('お使いのブラウザは SpeechRecognition に対応していません。\nChrome または Microsoft Edge のバージョン 139 以降をご利用ください。');
     return null;
   }
-
   const newRecognition = new SpeechRecognition();
-  const procLocal = document.getElementById('source-language')?.value || 'ja-JP';
-  configureRecognition(newRecognition, { procLocal });
 
   let finalTranscript = '';
   let interimTranscript = '';
 
-  newRecognition.onresult = async (event) => {
-    lastResultTime = Date.now();
+    newRecognition.onresult = async (event) => {
 
     let hasFinalResult = false;
     interimTranscript = '';
@@ -206,37 +257,33 @@ function initializeSpeechRecognition() {
 
     const rayModeButton = document.getElementById('raymode');
     const isRayModeActive = rayModeButton?.classList.contains('active') || false;
-    const isLocalTranslationActive = document.getElementById('local-translation-api')?.classList.contains('active') || false;
+    //const isLocalTranslationActive = document.getElementById('local-translation-api')?.classList.contains('active') || false;
 
     if (hasFinalResult) {
       console.info('[INFO] [SpeechRecognition] 最終結果:', finalTranscript.trim(), '字數', finalTranscript.trim().length);
-      const sourceLang = document.getElementById("source-language")?.value || "ja-JP";
       let sendTranslationRequestText = finalTranscript.trim();
 
       if (isRayModeActive) {
-        sendTranslationRequestText = filterRayModeText(sendTranslationRequestText, sourceLang);
-      }
-      
-      if (isLocalTranslationActive && browserInfo.browser === 'Chrome' && sourceLang === 'ja-JP') {
-        sendTranslationRequestText = sendTranslationRequestText.replace(/\s/g, '');
+        sendTranslationRequestText = filterRayModeText(sendTranslationRequestText, newRecognition.lang);
       }
 
-      sendTranslationRequest(sendTranslationRequestText, newRecognition.lang, browserInfo, isLocalTranslationActive);
+      // 發送翻譯請求
+      sendTranslationRequest(sendTranslationRequestText, newRecognition.lang);
     }
 
     const fullText = finalTranscript + interimTranscript;
     const textToUpdate = isRayModeActive ?
-      (hasFinalResult ? processText(fullText) : formatAlignedText(processText(fullText))) :
-      (hasFinalResult ? fullText : formatAlignedText(fullText));
+      (hasFinalResult ? processRayModeTranscript(fullText, newRecognition.lang) : wrapWithNoteByAlignment(processRayModeTranscript(fullText, newRecognition.lang))) :
+      (hasFinalResult ? fullText : wrapWithNoteByAlignment(fullText));
     updateSourceText(textToUpdate);
   };
 
+  // 這個事件目前只有在Edge有看到出現，Chrome從來沒出現過。
   newRecognition.onnomatch = (event) => {
     console.warn('[WARN] [SpeechRecognition] 無語音匹配結果', {
       finalTranscript: finalTranscript,
       interimTranscript: interimTranscript
     });
-    lastResultTime = Date.now();
   };
 
   newRecognition.onend = () => {
@@ -245,80 +292,48 @@ function initializeSpeechRecognition() {
   };
 
   newRecognition.onerror = (event) => {
-    console.error('[ERROR] [SpeechRecognition] 錯誤:', event.error);
-
-    // 由於目前的觀察onerror事件之後會產生onend事件的關係，所以重啟的邏輯先取消，但還需要再多觀察
-    // console.warn('[WARN] [SpeechRecognition]，嘗試重新啟動');
-    // autoRestartRecognition();
+    if (event.error === 'aborted') {
+      console.info('[INFO] [SpeechRecognition] 已中止語音辨識:', event.error);
+    } else {
+      console.error('[ERROR] [SpeechRecognition] 錯誤:', event.error);
+    }
   };
 
   return newRecognition;
 }
 
 // 自動重啟語音辨識
-async function autoRestartRecognition(shouldRestart = true) {
-  if (!shouldRestart || isPaused || !isRecognitionActive || document.getElementById('stop-recording').disabled || restartAttempts >= MAX_RESTART_ATTEMPTS) {
-    console.debug('[DEBUG] [speechCapture.js] 自動重啟取消:', {
-      shouldRestart,
-      isPaused,
+async function autoRestartRecognition(options = { delay: 0 }) {
+  if (!isRecognitionActive) {
+    console.debug('[DEBUG] [SpeechRecognition] 自動重啟取消:', {
       isRecognitionActive,
       stopButtonDisabled: document.getElementById('stop-recording').disabled,
-      restartAttempts
+      currentDelay: options.delay
     });
-
-    if (restartAttempts >= MAX_RESTART_ATTEMPTS) {
-      const sourceText = document.getElementById('source-text');
-      sourceText.textContent = 'Failed to restart speech recognition. Please check your network or microphone.';
-      sourceText.dataset.stroke = sourceText.textContent;
-      document.getElementById('start-recording').disabled = false;
-      document.getElementById('stop-recording').disabled = true;
-    }
     return;
   }
 
-  if (recognition) {
-    console.debug('[DEBUG] [speechCapture.js] 正在停止語音辨識');
-    recognition.stop();
-    isRestartPending = true;
-  }
-
   setTimeout(async () => {
-    if (isRestartPending && !isPaused && isRecognitionActive) {
-      console.debug('[DEBUG] [speechCapture.js] 準備自動重啟語音辨識');
-      try {
-        // 重新計算 processLocally 以確保重啟時參數一致
-        const selectedLang = document.getElementById('source-language')?.value || 'ja-JP';
-        let procLocal = false;
-        try {
-          procLocal = await decideProcessLocally(selectedLang);
-        } catch { procLocal = false; }
-
-        // 更新 options（語言與處理策略）
-        recognition.options = { langs: [selectedLang], processLocally: procLocal };
-        configureRecognition(recognition, { procLocal });
-
-        recognition.start();
-        isRestartPending = false;
-        restartAttempts = 0;
-        lastResultTime = Date.now();
-        console.info('[INFO] [speechCapture.js] 自動重啟語音辨識成功，processLocally=', procLocal);
-      } catch (error) {
-        console.error('[ERROR] [speechCapture.js] 自動重啟失敗:', error);
-        restartAttempts++;
-        setTimeout(() => autoRestartRecognition(), RESTART_DELAY);
-      }
+    console.debug('[DEBUG] [SpeechRecognition] 準備自動重啟語音辨識');
+    try {
+      recognition.start();
+      options.delay = 0;  // 重置延遲值
+      console.info('[INFO] [SpeechRecognition] 自動重啟語音辨識成功', { recognition });
+    } catch (error) {
+      console.error('[ERROR] [SpeechRecognition] 自動重啟失敗，嘗試重啟。 原因: ', error);
+      if (options.delay < 1000) { options.delay += 200; } // 累積延遲值（物件屬性可直接修改）
+      setTimeout(() => autoRestartRecognition(options), options.delay);  // 遞迴傳遞物件
     }
-  }, RESTART_DELAY);
+  }, options.delay);
 }
 
 // 專為乙夏れい配信客製化的模式（れいーモード）
-function processText(text) {
-  if (!text || text.trim() === '' || text.trim() === 'っ') {
+function processRayModeTranscript(text, sourceLang) {
+  if (!text || text.trim() === '' || text.trim() === 'っ'  || text.trim() === 'っ。') {
     console.info("[INFO] [SpeechRecognition] 跳過無效文字：", { original: text });
     return '';
   }
-
-  const sourceLang = document.getElementById("source-language")?.value || "ja-JP";
+  
   const chunkSize = getChunkSize(sourceLang) || 40;
   let result = text.replace(/[、。？,.]/g, '');
   
@@ -337,11 +352,12 @@ function processText(text) {
 }
 
 // 利用音符符號識別翻譯發送訊號
-function formatAlignedText(baseText) {
+function wrapWithNoteByAlignment(baseText) {
   const alignment = document.querySelector('input[name="alignment"]:checked')?.value || 'left';
-  if (alignment === 'center') return `🎼️${baseText}🎼`;
-  if (alignment === 'right') return `🎼${baseText}`;
-  return `${baseText}🎼`;
+
+  return alignment === 'center' ? `🎼️${baseText}🎼` :
+         alignment === 'right'  ? `🎼${baseText}` :
+                                  `${baseText}🎼`;
 }
 
 // 清空所有文字顯示元素
@@ -357,16 +373,14 @@ function clearAllTextElements() {
   }
 }
 
-function executeSpeechRecognition() {
-  const { browser, supportsTranslatorAPI } = detectBrowser();
-
-  if (!window.SpeechRecognition || browser === 'Unknown') {
+function setupSpeechRecognitionHandlers() {
+  if (!window.SpeechRecognition || browserInfo.browser === 'Unknown') {
     console.error('[ERROR] [SpeechRecognition] 瀏覽器不支援');
     alert('Your browser is not supported. Please use Chrome or Edge browser.');
     return;
   }
 
-  recognition = initializeSpeechRecognition();
+  recognition = setupSpeechRecognition();
   if (!recognition) {
     console.error('[ERROR] [SpeechRecognition] 無法初始化 SpeechRecognition');
     return;
@@ -381,77 +395,39 @@ function executeSpeechRecognition() {
     return;
   }
 
-  let stopButtonClicked = false;
-
   startButton.addEventListener('click', async () => {
+    updateStatusDisplay(''); // 清空狀態顯示
+
     if (!recognition) {
       console.error('[ERROR] [SpeechRecognition] 無法初始化 SpeechRecognition');
-      alert('無法啟動語音辨識，請檢查瀏覽器支援或麥克風設定。');
+      alert('音声認識を開始できませんでした。ブラウザの対応状況またはマイクの設定を確認してください。');
       return;
     }
 
-    clearAllTextElements();
+    clearAllTextElements(); // 清空所有文字顯示元素
 
-    const miniStartButton = document.getElementById('mini-start-recording');
-    miniStartButton.disabled = true;
-
-    const miniStopButton = document.getElementById('mini-stop-recording');
-    miniStopButton.disabled = false;
-
-    const sourceLanguageSelect = document.getElementById('source-language');
-    const selectedLang = sourceLanguageSelect.value;
-    recognition.lang = selectedLang;
-    console.info(`[INFO] [SpeechRecognition] 語音辨識語言更新為: ${recognition.lang}`);
-    startButton.disabled = true;
-    stopButton.disabled = false;
-    stopButtonClicked = false;
+    setRecognitionControlsState(true);  // 按鈕切換至啟動狀態
     isRecognitionActive = true;
 
-    // 預設雲端
-    let procLocal = false;
-
-    // 只在 Chrome 嘗試偵測；Edge 或失敗都保持 false
-    try {
-      procLocal = await decideProcessLocally(selectedLang);
-    } catch { procLocal = false; }
-
-    // 設定 options（守備：某些版本沒有 options）
-    try {
-      recognition.options = { langs: [selectedLang], processLocally: procLocal };
-    } catch { /* no-op */ }
-
-    configureRecognition(recognition, { procLocal });
-
-    console.info('[INFO] [SpeechRecognition] 開始語音辨識 - processLocally=', procLocal);
+    // 設定語音物件參數
+    await configureRecognition(recognition);
 
     try {
       recognition.start();
-      lastResultTime = Date.now();
-      console.info('[INFO] [SpeechRecognition] 瀏覽器類型:', browser);
+      console.info('[INFO] [SpeechRecognition] 瀏覽器類型:', browserInfo.browser);
       console.info('[INFO] [SpeechRecognition] 開始語音辨識 - recognition 狀態:', recognition);
     } catch (error) {
-      console.error('[ERROR] [SpeechRecognition] 啟動語音辨識失敗:', error);
-      startButton.disabled = false;
-      miniStartButton.disabled = false;
-      stopButton.disabled = true;
-      miniStopButton.disabled = true;
+      console.error('[ERROR] [SpeechRecognition] 啟動語音辨識失敗:', error, recognition);
+      setRecognitionControlsState(false); // 按鈕切換至停止狀態
       isRecognitionActive = false;
     }
   });
 
   stopButton.addEventListener('click', () => {
-    const miniStartButton = document.getElementById('mini-start-recording');
-    miniStartButton.disabled = false;
-
-    const miniStopButton = document.getElementById('mini-stop-recording');
-    miniStopButton.disabled = true;
-
-    startButton.disabled = false;
-    stopButton.disabled = true;
-    stopButtonClicked = true;
+    setRecognitionControlsState(false); // 按鈕切換至停止狀態
     isRecognitionActive = false;
     if (recognition) {
-      recognition.stop();
+      recognition.abort();
       console.info('[INFO] [SpeechRecognition] 停止語音辨識 - recognition 狀態:', recognition);
     }
   });
@@ -459,9 +435,11 @@ function executeSpeechRecognition() {
 
 // 在 DOM 載入完成後初始化
 document.addEventListener('DOMContentLoaded', async () => {
-  await loadLanguageConfig();
-  loadKeywordRules();
-  executeSpeechRecognition();
+  await loadKeywordRules();
+  await loadPhrasesConfig();
+  setupSpeechRecognitionHandlers();
+  setRecognitionControlsState(false);
+  isRecognitionActive = false;
 });
 
-export { keywordRules, generateRayModeRules, updateSourceText, sendTranslationRequest };
+export { keywordRules };

@@ -1,209 +1,207 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="css/styles_horizontal.css">
-    <link rel="icon" type="image/x-icon" href="images/favicon.ico">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-    <title>ハムハム字幕アトリエ</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="css/styles_horizontal.css">
+  <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+  <meta name="description" content="Chrome/Edge対応。多言語のリアルタイム声音認識と翻訳、Prompt API・ローカルモデルに対応。配信や生放送の字幕生成に最適です。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+  <title>ハムハム字幕アトリエ</title>
 
 </head>
 <body>
-    <div id="display-panel">
-        <div id="source-text" data-stroke="ハムハム字幕アトリエ">
-            <!--- 顯示項目 1 內容可在此添加 --->
-            ハムハム字幕アトリエ
-        </div>
-        <div id="target-text-1" data-stroke="開発者：乙夏れいのファン・ジュノーン（GrokとChatGPTを利用）">
-            <!--- 顯示項目 2 內容可在此添加 --->
-            開発者：乙夏れいのファン・ジュノーン（GrokとChatGPTを利用）
-        </div>
-        <div id="target-text-2" data-stroke="2025.10.02">
-            <!--- 顯示項目 3 內容可在此添加 --->
-            2025.10.02
-        </div>
-        <div id="target-text-3" data-stroke="自動翻訳によるもので、正確性は保証できません。ご了承ください。">
-            <!--- 顯示項目 4 內容可在此添加 --->
-            自動翻訳によるもので、正確性は保証できません。ご了承ください。
-        </div>
+  <div id="display-panel">
+    <div id="source-text" data-stroke="ハムハム字幕アトリエ">
+      <!--- 顯示項目 1 內容可在此添加 --->
+      ハムハム字幕アトリエ
     </div>
-
-    <div id="status-panel">
-        <button class="minimenu-button" id="control-panel-minimize">最小化</button>
-        <button id="mini-start-recording" class="minimenu-button" style="display: none;">錄音開始</button>
-        <button id="mini-stop-recording" class="minimenu-button" style="display: none;">錄音停止</button>
-        <button id="prompt-api-download" class="minimenu-button" style="display: none;">Download</button>
-        <button id="download-language-pack" class="minimenu-button">下載語言包</button>
-        <div class="status-info" id="status-display">
-          【注意】 NEW APIとPrompt API機能は現在テストであり、ご利用は可能ですが、動作を保証するものではありません。
-        </div>
-
+    <div id="target-text-1" data-stroke="開発者：乙夏れいのファン・ジュノーン（GrokとChatGPTを利用）">
+      <!--- 顯示項目 2 內容可在此添加 --->
+      開発者：乙夏れいのファン・ジュノーン（GrokとChatGPTを利用）
     </div>
-    <div id="control-panel">
-        <div id="recorder-panel">
-            <img id="logo" src="images/logo.png" alt="Logo">
-            <button class="record-button" id="start-recording">録音開始</button>
-            <button class="record-button" id="stop-recording">録音停止</button>
+    <div id="target-text-2" data-stroke="2025.10.15">
+      <!--- 顯示項目 3 內容可在此添加 --->
+      2025.10.15
+    </div>
+    <div id="target-text-3" data-stroke="自動翻訳によるもので、正確性は保証できません。ご了承ください。">
+      <!--- 顯示項目 4 內容可在此添加 --->
+      自動翻訳によるもので、正確性は保証できません。ご了承ください。
+    </div>
+  </div>
+
+  <div id="status-panel">
+    <button class="minimenu-button" id="control-panel-minimize">最小化</button>
+    <button id="mini-start-recording" class="minimenu-button" style="display: none;">錄音開始</button>
+    <button id="mini-stop-recording" class="minimenu-button" style="display: none;">錄音停止</button>
+    <button id="prompt-api-download" class="minimenu-button" style="display: none;">Download</button>
+    <button id="download-language-pack" class="minimenu-button">下載語言包</button>
+    <div class="status-info" id="status-display">声音認識反応ないの場合は、一度止めて数秒待ってから、もう一回録音ボタンを押し直すことをお勧めします。</div>
+
+  </div>
+  <div id="control-panel">
+    <div id="recorder-panel">
+      <img id="logo" src="images/logo.png" alt="Logo">
+      <button class="record-button" id="start-recording" disabled>録音開始</button>
+      <button class="record-button" id="stop-recording" disabled>録音停止</button>
+    </div>
+    <div id="settings-panel">
+
+      <!--- 選單 --->
+      <div class="menu-panel">
+        <div id="menu">
+          <button class="menu-button" id="source1">音声認識言語</button>
+          <button class="menu-button" id="target1">翻訳言語1</button>
+          <button class="menu-button" id="target2">翻訳言語2</button>
+          <button class="menu-button" id="target3">翻訳言語3</button>
+          <button class="menu-button" id="options">その他</button>
+
+          <input type="text" class="t-link" placeholder="翻訳アプリ用のリンク（必須）" id="translation-link" value="" >
+          <!--- <div c="layout_only" style="width: 80px;"></div> 空元素單純切割用 --->
+          <button class="menu2-button" id="apilink">翻訳リンク</button>
+          <button class="status-button" id="local-translation-api">高速翻訳</button>
+          <button class="status-button" id="local-prompt-api">ブラウザAI翻訳</button>
+          <button class="menu3-button" id="raymode">れいーモード</button>
         </div>
-        <div id="settings-panel">
+      </div>
 
-            <!--- 選單 --->
-            <div class="menu-panel">
-                <div id="menu">
-                    <button class="menu-button" id="source1">音声認識言語</button>
-                    <button class="menu-button" id="target1">翻訳言語1</button>
-                    <button class="menu-button" id="target2">翻訳言語2</button>
-                    <button class="menu-button" id="target3">翻訳言語3</button>
-                    <button class="menu-button" id="options">その他</button>
-
-                    <input type="text" class="t-link" placeholder="翻訳アプリ用のリンク（必須）" id="translation-link" value="" >
-                    <!--- <div c="layout_only" style="width: 80px;"></div> 空元素單純切割用 --->
-                    <button class="menu2-button" id="apilink">翻訳リンク</button>
-                    <button class="status-button" id="local-translation-api">NEW API</button>
-                    <button class="status-button" id="local-prompt-api" disabled>Prompt API</button>
-                    <button class="menu3-button" id="raymode">れいーモード</button>
-                </div>
-            </div>
-
-            <!--- 軟體宣告 --->
-            <div id="usage-guide">
+      <!--- 軟體宣告 --->
+      <div id="usage-guide">
 <pre>
 ハムハム字幕アトリエは、<a href="http://lit.link/otsukaray" target="_blank" title="Otsuka Ray ch.乙夏れい">乙夏れい</a>様を応援するファン・ジュノーンが、乙夏れい様のために制作したツールです。
 
-Chromeが最近アップデートされて、少し安定したみたいです。
+ここでは注意事項をお知らせします。
 
-でも今のところ字幕は途中で切れやすいので、まだChromeで使うのはおすすめしません。
-おそらく1〜2ヶ月後のアップデートで音声の新機能が入ってからのほうが良さそうです。
-そのときはテストでもかなり良かったので、リリースを待ってから使うと安心です。
-左側に出る『語言包不可用』という表示は、その準備のためで、機能が利用可能になれば自動的に使えるようになります。
+NEW APIの名称を「高速翻訳」に変更しました。
+スピードはとても速いですが、翻訳の精度は劣ります。
+それに、やっぱりChromeでしか使えない、残念です…。
 </pre>
+      </div>
+
+      <!--- 顯示字型的相關設定 --->
+      <!--- 來源語言 --->
+      <div id="source-styles-panel">
+        <div id="lang-setting">
+          <label for="source-language">言語を選択</label>
+          <select id="source-language">
+            <option value="ja">日本語</option>
+          </select>
+          <div>設定を変更した後は、録音を再起動する必要があります</div>
+        </div>
+        <div id="color-setting">
+          <label for="source-font-color">文字色</label>
+          <input type="color" id="source-font-color" list="color-list" >
+          <label for="source-font-stroke-color">縁取り色</label>
+          <input type="color" id="source-font-stroke-color" list="color-list" value="#000000">
+        </div>
+        <div id="size-setting">
+          <label for="source-font-size">文字サイズ</label>
+          <input type="range" id="source-font-size" min="14" max="32" value="20">
+          <label for="source-font-stroke-size">縁取りサイズ</label>
+          <input type="range" id="source-font-stroke-size" min="2" max="10" value="5">
+        </div>
+      </div>
+
+      <!--- 目標語言1 --->
+      <div id="target1-styles-panel">
+        <div id="lang-setting">
+          <label for="target1-language">言語を選択</label>
+          <select id="target1-language">
+            <option value="none">翻訳しない</option>
+          </select>
+        </div>
+        <div id="color-setting">
+          <label for="target1-font-color">文字色</label>
+          <input type="color" id="target1-font-color" list="color-list" value="#FFFFFF">
+          <label for="target1-font-stroke-color">縁取り色</label>
+          <input type="color" id="target1-font-stroke-color"  list="color-list" value="#000000">
+        </div>
+        <div id="size-setting">
+          <label for="target1-font-size">文字サイズ</label>
+          <input type="range" id="target1-font-size" min="14" max="32" value="20">
+          <label for="target1-font-stroke-size">縁取りサイズ</label>
+          <input type="range" id="target1-font-stroke-size" min="2" max="10" value="5">
+        </div>
+      </div>
+
+      <!--- 目標語言2 --->
+      <div id="target2-styles-panel">
+        <div id="lang-setting">
+          <label for="target2-language">言語を選択</label>
+          <select id="target2-language">
+            <option value="none">翻訳しない</option>
+          </select>
+        </div>
+        <div id="color-setting">
+          <label for="target2-font-color">文字色</label>
+          <input type="color" id="target2-font-color" list="color-list" value="#FFFFFF">
+          <label for="target2-font-color">縁取り色</label>
+          <input type="color" id="target2-font-stroke-color" list="color-list" value="#000000">
+        </div>
+        <div id="size-setting">
+          <label for="target2-font-size">文字サイズ</label>
+          <input type="range" id="target2-font-size" min="14" max="32" value="20">
+          <label for="target2-font-stroke-size">縁取りサイズ</label>
+          <input type="range" id="target2-font-stroke-size" min="2" max="10" value="5">
+        </div>
+      </div>
+
+      <!--- 目標語言3 --->
+      <div id="target3-styles-panel">
+        <div id="lang-setting">
+          <label for="target3-language">言語を選択</label>
+          <select id="target3-language">
+            <option value="none">翻訳しない</option>
+          </select>
+        </div>
+        <div id="color-setting">
+          <label for="target3-font-color">文字色</label>
+          <input type="color" id="target3-font-color" list="color-list" value="#FFFFFF">
+          <label for="target3-font-color">縁取り色</label>
+          <input type="color" id="target3-font-stroke-color" list="color-list" value="#000000">
+        </div>
+        <div id="size-setting">
+          <label for="target3-font-size">文字サイズ</label>
+          <input type="range" id="target3-font-size" min="14" max="32" value="20">
+          <label for="target3-font-stroke-size">縁取りサイズ</label>
+          <input type="range" id="target3-font-stroke-size" min="2" max="10" value="5">
+        </div>
+      </div>
+
+      <!--- 其他選項的相關設定 --->
+      <div id="options-panel">
+        <div style="display:flex; flex-direction: row; width:50%;">
+          <div id="option2">
+            <div class="option2-1">
+              横位置：
+              <div class="alignment" id="text-align">
+                <input type="radio" name="alignment" value="left">左</input>
+                <input type="radio" name="alignment" value="center">中央</input>
+                <input type="radio" name="alignment" value="right">右</input>
+              </div>
             </div>
-
-            <!--- 顯示字型的相關設定 --->
-            <!--- 來源語言 --->
-            <div id="source-styles-panel">
-                <div id="lang-setting">
-                    <label for="source-language">言語を選択</label>
-                    <select id="source-language">
-                        <option value="ja">日本語</option>
-                    </select>
-                    <div>設定を変更した後は、録音を再起動する必要があります</div>
-                </div>
-                <div id="color-setting">
-                    <label for="source-font-color">文字の色</label>
-                    <input type="color" id="source-font-color">
-                    <label for="source-font-stroke-color">縁取りの色</label>
-                    <input type="color" id="source-font-stroke-color" value="#000000">
-                </div>
-                <div id="size-setting">
-                    <label for="source-font-size">文字サイズ</label>
-                    <input type="range" id="source-font-size" min="14" max="32" value="20">
-                    <label for="source-font-stroke-size">縁取りサイズ</label>
-                    <input type="range" id="source-font-stroke-size" min="2" max="10" value="5">
-                </div>
+            <div class="option2-2">
+              <label for="display-panel-color">背景色：</label>
+              <input type="color" id="display-panel-color" list="display-color-list" value="#00FF00">
             </div>
+          </div>
 
-            <!--- 目標語言1 --->
-            <div id="target1-styles-panel">
-                <div id="lang-setting">
-                    <label for="target1-language">言語を選択</label>
-                    <select id="target1-language">
-                        <option value="none">翻訳しない</option>
-                    </select>
-                </div>
-                <div id="color-setting">
-                    <label for="target1-font-color">文字の色</label>
-                    <input type="color" id="target1-font-color" value="#FFFFFF">
-                    <label for="target1-font-stroke-color">縁取りの色</label>
-                    <input type="color" id="target1-font-stroke-color" value="#000000">
-                </div>
-                <div id="size-setting">
-                    <label for="target1-font-size">文字サイズ</label>
-                    <input type="range" id="target1-font-size" min="14" max="32" value="20">
-                    <label for="target1-font-stroke-size">縁取りサイズ</label>
-                    <input type="range" id="target1-font-stroke-size" min="2" max="10" value="5">
-                </div>
+          <div id="option1">
+            <button class="options-button" id="reset-settings">初始化</button>
+          </div>
+        </div>
+        <div id="subtitle-style">
+          <div class="subtitle1">
+            単一言語行数制限設定：
+            <div class="overflow-options" id="overflow-layout">
+              <input type="radio" name="overflow" value="normal">制限なし</input>
+              <input type="radio" name="overflow" value="truncate">1行</input>
+              <input type="radio" name="overflow" value="shrink">2行</input>
             </div>
-
-            <!--- 目標語言2 --->
-            <div id="target2-styles-panel">
-                <div id="lang-setting">
-                    <label for="target2-language">言語を選択</label>
-                    <select id="target2-language">
-                        <option value="none">翻訳しない</option>
-                    </select>
-                </div>
-                <div id="color-setting">
-                    <label for="target2-font-color">文字の色</label>
-                    <input type="color" id="target2-font-color" value="#FFFFFF">
-                    <label for="target2-font-color">縁取りの色</label>
-                    <input type="color" id="target2-font-stroke-color" value="#000000">
-                </div>
-                <div id="size-setting">
-                    <label for="target2-font-size">文字サイズ</label>
-                    <input type="range" id="target2-font-size" min="14" max="32" value="20">
-                    <label for="target2-font-stroke-size">縁取りサイズ</label>
-                    <input type="range" id="target2-font-stroke-size" min="2" max="10" value="5">
-                </div>
-            </div>
-
-            <!--- 目標語言3 --->
-            <div id="target3-styles-panel">
-                <div id="lang-setting">
-                    <label for="target3-language">言語を選択</label>
-                    <select id="target3-language">
-                        <option value="none">翻訳しない</option>
-                    </select>
-                </div>
-                <div id="color-setting">
-                    <label for="target3-font-color">文字の色</label>
-                    <input type="color" id="target3-font-color" value="#FFFFFF">
-                    <label for="target3-font-color">縁取りの色</label>
-                    <input type="color" id="target3-font-stroke-color" value="#000000">
-                </div>
-                <div id="size-setting">
-                    <label for="target3-font-size">文字サイズ</label>
-                    <input type="range" id="target3-font-size" min="14" max="32" value="20">
-                    <label for="target3-font-stroke-size">縁取りサイズ</label>
-                    <input type="range" id="target3-font-stroke-size" min="2" max="10" value="5">
-                </div>
-            </div>
-
-            <!--- 其他選項的相關設定 --->
-            <div id="options-panel">
-                <div style="display:flex; flex-direction: row; width:50%;">
-                    <div id="option2">
-                        <div class="option2-1">
-                            横位置：
-                            <div class="alignment" id="text-align">
-                                <input type="radio" name="alignment" value="left">左</input>
-                                <input type="radio" name="alignment" value="center">中央</input>
-                                <input type="radio" name="alignment" value="right">右</input>
-                            </div>
-                        </div>
-                        <div class="option2-2">
-                            <label for="display-panel-color">背景色：</label>
-                            <input type="color" id="display-panel-color" value="#00FF00">
-                        </div>
-                    </div>
-
-                    <div id="option1">
-                        <button class="options-button" id="reset-settings">初始化</button>
-                    </div>
-                </div>
-                <div id="subtitle-style">
-                    <div class="subtitle1">
-                        単一言語行数制限設定：
-                        <div class="overflow-options" id="overflow-layout">
-                            <input type="radio" name="overflow" value="normal">制限なし</input>
-                            <input type="radio" name="overflow" value="truncate">1行</input>
-                            <input type="radio" name="overflow" value="shrink">2行</input>
-                        </div>
-                    </div>
-                      <pre>
+          </div>
+            <pre>
 この設定は、翻訳後のテキストが長すぎて言語が他の言語の表示を圧迫しないようにするためのものです。
 
 ただし、表示行数を固定すると、文字数が多い場合に内容がすべて表示されないことがあります。ご利用環境やご希望の表示に合わせて調整してください。
@@ -211,38 +209,31 @@ Chromeが最近アップデートされて、少し安定したみたいです�
 2行表示の場合、文字数が一定を超えると自動的にフォントサイズが縮小されます。
 
 表示スペースに限りがあるため、このような仕様となっております。ご理解いただければ幸いです。
-                      </pre>
-                </div>
-            </div>
-
-            <!--- 留言版翻譯用(不一定能用因為不知道訊息從哪來) --->
-            <div id="comment-translation">
-                <div id="comment1">
-                    <div>
-                        <button class="comment1-button" id="translation1">翻訳</button>
-                        <button class="comment1-button" id="translation2">字幕發送</button>
-                        ←翻訳は10秒間残ります
-                    </div>
-                    <div style="display: flex; gap: 5px;">
-                        <input type="radio" name="comment-lang" value="ja"> 日本語</input>
-                        <input type="radio" name="comment-lang" value="en"> 英語</input>
-                        <input type="radio" name="comment-lang" value="es"> スペイン語</input>
-                        <input type="radio" name="comment-lang" value="zh-TW"> 中国語（台湾）</input>
-                    </div>
-                    <textarea id="comment-input" placeholder="翻訳するテキストを入力してください。"></textarea>
-                </div>
-                <div id="comment2">
-                    <div class="comment2-text" id="translation-title">翻訳結果:</div>
-                    <div class="comment2-text" id="translation-comm">
-                        左側の翻訳ボタンを押すと、翻訳結果がここに表示されます。字幕送信ボタンを押すと原文の上に表示され、その後は翻訳結果に基づいて翻訳表示が行われます。
-                    </div>
-                </div>
-            </div>
+            </pre>
         </div>
+      </div>
     </div>
+  </div>
 
-    <script type="module" src="javascript/uiController.js"></script>
-    <script type="module" src="javascript/speechCapture.js"></script>
-    <script type="module" src="javascript/uiController.js"></script>
+  <datalist id="color-list">
+    <option value="#FFFFFF"></option>
+    <option value="#000000"></option>
+    <option value="#4b8ce2"></option>
+    <option value="#FF80FF"></option>
+    <option value="#CB9947"></option>
+    <option value="#FF6264"></option>
+    <option value="#988952"></option>
+    <option value="#FF0000"></option>
+    <option value="#FF6C6C"></option>
+    <option value="#BE78FF"></option>
+  </datalist>
+  <datalist id="display-color-list">
+    <option value="#000000"></option>
+    <option value="#FFFFFF"></option>
+    <option value="#00FF00"></option>
+  </datalist>
+
+  <script type="module" src="javascript/uiController.js"></script>
+  <script type="module" src="javascript/speechCapture.js"></script>
 </body>
 </html>

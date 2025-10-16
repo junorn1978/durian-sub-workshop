@@ -94,7 +94,7 @@ async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl, seq
 async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, serviceKey, sequenceId) {
   if (!serviceUrl) {
     console.error('[ERROR] [remoteTranslationService] URL 為空');
-    throw new Error('請輸入有效的翻譯服務 URL');
+    throw new Error('有効な翻訳サービスの URL を入力してください。');
   }
 
   if (serviceUrl.startsWith('GAS://')) {
@@ -110,4 +110,4 @@ async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, 
   }
 }
 
-export { fetchWithTimeout, sendTranslation, sendTranslationGet, processTranslationUrl };
+export { sendTranslation, processTranslationUrl };
