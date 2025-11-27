@@ -36,20 +36,11 @@ body {
     margin: 0 auto;
     width: 100%;
     background-color: transparent;
-    min-height: 200px; /* 確保佈局穩定 */
+    min-height: 290px; /* 確保佈局穩定 */
     user-select: none; /* 不可選取文字 */
     border-bottom: 4px solid #e5b3ff;
 }
 /* 以上為字幕顯示處相關設定 */
-
-.grid-options-container {
-  display: grid;
-  grid-template-columns: auto auto; /* 兩列，自動調整寬度以模擬 Flexbox */
-  grid-template-row: auto auto; /* 兩行，自動調整寬度以模擬 Flexbox */
-  width: 100%; /* 占滿父容器寬度 */
-  height:100%;
-  gap: 10px; /* 模擬 Flexbox 的間距 */
-}
 
 /* 狀態攔相關設定 */
 #status-panel {
@@ -170,21 +161,42 @@ body {
     flex-direction: column;
     text-align: left;
     gap: 5px;
-    color: #000000;
+    color: #8B4513;
     font-size: 16px;
     border-radius: 10px;
     background-color: #D9DCFF;
     padding: 10px;
     width: 100%;
     height: 100%;
-    overflow-y: auto;
+    overflow-y: hidden;
     overflow-x: hidden;
+}
+
+.mic-info {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 12px;           /* 左右間距，依喜好可調 */
+    margin-bottom: 8px;  /* 跟下面的說明文字留一點距離 */
+    font-size: 12px;
+    height: 200px;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.mic-info-block {
+    flex: 1;
+    white-space: pre-line;
+    width:50%;
+}
+
+section.help {
+    overflow-y: auto;
 }
 
 #source-styles-panel,
 #target1-styles-panel, #target2-styles-panel, #target3-styles-panel,
-#options-panel,
-#comment-translation {
+#options-panel {
     display: none;
     flex-direction: row;
     gap: 10px;
@@ -344,7 +356,7 @@ body {
     font-family: "Huninn", Arial, sans-serif;
     line-height: 1.2em; /* 保留改善描邊截斷 */
     overflow: hidden;
-    /* padding-bottom: 2px; /* 改善描邊截斷 */ */
+    /* padding-bottom: 2px; /* 改善描邊截斷 */
 }
 
 #source-text.overflow-normal, 
@@ -367,6 +379,7 @@ body {
 #target-text-1.overflow-truncate, 
 #target-text-2.overflow-truncate, 
 #target-text-3.overflow-truncate {
+    line-clamp: 2;
     -webkit-line-clamp: 1;
 }
 
@@ -381,6 +394,7 @@ body {
 #target-text-2.overflow-shrink, 
 #target-text-3.overflow-shrink {
     display: -webkit-box;
+    line-clamp: 2;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     font-size: var(--text-font-size);
@@ -427,6 +441,7 @@ body {
 #target-text-1.overflow-truncate::before, 
 #target-text-2.overflow-truncate::before, 
 #target-text-3.overflow-truncate::before {
+    line-clamp: 2;
     -webkit-line-clamp: 1;
 }
 
@@ -441,6 +456,7 @@ body {
 #target-text-2.overflow-shrink::before, 
 #target-text-3.overflow-shrink::before {
     display: -webkit-box;
+    line-clamp: 2;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     font-size: var(--text-font-size);
@@ -514,6 +530,7 @@ body {
     cursor: pointer;
     transition: background-color 0.3s;
     font-family: "Huninn", Arial, sans-serif;
+    padding: 0px;
 }
 
 .options-button {
@@ -567,4 +584,26 @@ pre {
     padding: 0px;
     margin: 10px 0px;
     font-family: "Huninn", Arial, sans-serif;
+}
+
+.help > ul > li {
+    margin-block-end: 0.75rem; /* 約 12px，可依喜好 0.5~1rem */
+}
+.help > ul > li:last-child {
+    margin-block-end: 0; /* 最後一項不多留空白 */
+}
+
+/* 子清單（GAS／AI）微調：與標題靠近一些，但項目之間仍留一點距離 */
+.help ul ul {
+    margin-top: 0.5rem;     /* 子清單整體往下留半格 */
+}
+.help ul ul > li {
+    margin-block-end: 0.5rem;
+}
+.help ul ul > li:last-child {
+    margin-block-end: 0;
+}
+
+.help p {
+    margin: 10px 0;
 }

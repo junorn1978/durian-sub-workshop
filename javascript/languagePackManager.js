@@ -1,18 +1,21 @@
+import { updateStatusDisplay } from './translationController.js';
+
+
 // 檢查指定語言是否支援本地語音辨識
 async function isLanguageSupportedLocally(lang) {
-  //if (lang === 'zh-TW') {lang = 'zh'};
+  
   const options = { langs: [lang], processLocally: true };
-  console.info(options);
+  
   try {
     const status = await SpeechRecognition.available(options);
-    console.debug("[DEBUG]", "[languagePackManager.js]", "檢查語言包支援:", { lang, status });
+    console.debug("[DEBUG]", "[languagePackManager]", "檢查語言包支援:", { lang, status });
     return {
       supported: status === 'available',
       downloadable: status === 'downloadable',
       downloading: status === 'downloading'
     };
   } catch (error) {
-    console.error("[ERROR]", "[languagePackManager.js]", "檢查語言包狀態失敗:", error);
+    console.error("[ERROR]", "[languagePackManager]", "檢查語言包狀態失敗:", error);
     return { supported: false, downloadable: false, downloading: false };
   }
 }
@@ -20,21 +23,21 @@ async function isLanguageSupportedLocally(lang) {
 // 下載指定語言的語言包
 async function downloadLanguagePack(lang, updateCallback) {
   if (!navigator.onLine) {
-    console.warn("[WARN]", "[languagePackManager.js]", "無網路連線，無法下載語言包:", lang);
+    console.warn("[WARN]", "[languagePackManager]", "無網路連線，無法下載語言包:", lang);
     updateCallback('ネットワークに接続できません。接続を確認してから再試行してください。');
     return false;
   }
 
   const downloadButton = document.getElementById('download-language-pack');
   if (!downloadButton) {
-    console.error("[ERROR]", "[languagePackManager.js]", "未找到下載語言包按鍵");
+    console.error("[ERROR]", "[languagePackManager]", "未找到下載語言包按鍵");
     updateCallback('言語パックのダウンロードボタンが見つかりません。');
     return false;
   }
 
   const status = await isLanguageSupportedLocally(lang);
   if (status.downloading) {
-    console.info("[INFO]", "[languagePackManager.js]", "語言包正在下載:", lang);
+    console.info("[INFO]", "[languagePackManager]", "語言包正在下載:", lang);
     downloadButton.disabled = true;
     downloadButton.textContent = 'ダウンロード…'; 
     updateCallback(`「${lang}」の言語パックをダウンロードしています`);
@@ -42,7 +45,7 @@ async function downloadLanguagePack(lang, updateCallback) {
   }
 
   if (!status.downloadable) {
-    console.warn("[WARN]", "[languagePackManager.js]", "語言包不可下載:", lang);
+    console.warn("[WARN]", "[languagePackManager]", "語言包不可下載:", lang);
     downloadButton.disabled = true;
     downloadButton.textContent = 'ダウンロード不可';
     updateCallback(`「${lang}」の言語パックはダウンロードできません`);
@@ -50,27 +53,27 @@ async function downloadLanguagePack(lang, updateCallback) {
   }
 
   try {
-    console.info("[INFO]", "[languagePackManager.js]", "開始下載語言包:", lang);
+    console.info("[INFO]", "[languagePackManager]", "開始下載語言包:", lang);
     downloadButton.disabled = true;
     downloadButton.textContent = 'ダウンロード…';
     
     const options = { langs: [lang], processLocally: true };
     const success = await SpeechRecognition.install(options);
     if (success) {
-      console.info("[INFO]", "[languagePackManager.js]", `語言包 ${lang} 安裝成功`);
+      console.info("[INFO]", "[languagePackManager]", `語言包 ${lang} 安裝成功`);
       downloadButton.textContent = 'ダウンロード済';
       downloadButton.disabled = true;
       updateCallback(`「${lang}」のローカル音声認識の準備が整いました。利用するにはブラウザの再起動が必要です。`);
       return true;
     } else {
-      console.error("[ERROR]", "[languagePackManager.js]", `無法安裝語言包 ${lang}，可能是語言不支援或下載問題`);
+      console.error("[ERROR]", "[languagePackManager]", `無法安裝語言包 ${lang}，可能是語言不支援或下載問題`);
       downloadButton.disabled = false;
       downloadButton.textContent = 'ダウンロード失敗';
       updateCallback(`「${lang}」の言語パックのダウンロードに失敗しました。再試行してください。`);
       return false;
     }
   } catch (error) {
-    console.error("[ERROR]", "[languagePackManager.js]", "下載語言包失敗:", { error: error.message, stack: error.stack });
+    console.error("[ERROR]", "[languagePackManager]", "下載語言包失敗:", { error: error.message, stack: error.stack });
     downloadButton.disabled = false;
     downloadButton.textContent = 'ダウンロード失敗';
     updateCallback(`「${lang}」の言語パックのダウンロードに失敗しました。再試行してください。`);
@@ -82,7 +85,14 @@ async function downloadLanguagePack(lang, updateCallback) {
 async function updateLanguagePackButton(lang) {
   const downloadButton = document.getElementById('download-language-pack');
   if (!downloadButton) {
-    console.debug("[DEBUG]", "[languagePackManager.js]", "未找到下載語言包按鍵，跳過更新");
+    console.debug("[DEBUG]", "[languagePackManager]", "未找到下載語言包按鍵，跳過更新");
+    return;
+  }
+
+  if (lang === 'zh-TW') {
+    console.debug("[DEBUG]", "[languagePackManager]", "zh-TW目前不支援本地語音辨識，禁用按鍵");
+    downloadButton.disabled = true;
+    downloadButton.textContent = 'パック利用不可';
     return;
   }
 
@@ -97,60 +107,60 @@ async function updateLanguagePackButton(lang) {
     downloadButton.disabled = true;
     downloadButton.textContent = 'ダウンロード…';
   } else {
-    console.warn("[WARN]", "[languagePackManager.js]", "語言包不可用", { lang, status, apiSupport: typeof SpeechRecognition.available });
+    console.warn("[WARN]", "[languagePackManager]", "語言包不可用", { lang, status, apiSupport: typeof SpeechRecognition.available });
     downloadButton.disabled = true;
     downloadButton.textContent = 'パック利用不可';
   }
-  console.debug("[DEBUG]", "[languagePackManager.js]", "更新語言包按鍵狀態:", { lang, status });
+  console.debug("[DEBUG]", "[languagePackManager]", "更新語言包按鍵狀態:", { lang, status });
 }
 
 // 設置下載語言包按鍵的事件處理
 async function setupLanguagePackButton(languageSelectorId, updateCallback) {
   const speechLangPack = document.getElementById('download-language-pack');
   if (!speechLangPack) {
-    console.error("[ERROR]", "[languagePackManager.js]", "未找到下載語言包按鍵");
+    console.error("[ERROR]", "[languagePackManager]", "未找到下載語言包按鍵");
     updateCallback('言語パックのダウンロードボタンが見つかりません。');
     return;
   }
 
   const sourceLanguageSelect = document.getElementById(languageSelectorId);
   if (!sourceLanguageSelect) {
-    console.error("[ERROR]", "[languagePackManager.js]", "未找到語言選擇器:", languageSelectorId);
+    console.error("[ERROR]", "[languagePackManager]", "未找到語言選擇器:", languageSelectorId);
     updateCallback('元の言語が見つかりません');
     return;
   }
 
   // 初始化按鍵狀態
-  const initialLang = sourceLanguageSelect.value || 'ja-JP';
-  console.debug("[DEBUG]", "[languagePackManager.js]", "初始化語言:", { initialLang, selectValue: sourceLanguageSelect.value });
+  const initialLang = sourceLanguageSelect.value;
+  console.debug("[DEBUG]", "[languagePackManager]", "初始化語言:", { initialLang, selectValue: sourceLanguageSelect.value });
   await updateLanguagePackButton(initialLang);
 
   // 綁定點擊事件
   speechLangPack.addEventListener('click', async () => {
-    const sourceLang = sourceLanguageSelect.value || 'ja-JP';
-    console.debug("[DEBUG]", "[languagePackManager.js]", "點擊時語言:", { sourceLang });
+    const sourceLang = sourceLanguageSelect.value;
+    console.debug("[DEBUG]", "[languagePackManager]", "點擊時語言:", { sourceLang });
     try {
-      console.debug("[DEBUG]", "[languagePackManager.js]", "開始檢查語言包狀態", { lang: sourceLang });
+      console.debug("[DEBUG]", "[languagePackManager]", "開始檢查語言包狀態", { lang: sourceLang });
       const status = await isLanguageSupportedLocally(sourceLang);
 
       if (status.supported) {
-        console.info("[INFO]", "[languagePackManager.js]", "語言包已可用，無需下載", { lang: sourceLang });
+        console.info("[INFO]", "[languagePackManager]", "語言包已可用，無需下載", { lang: sourceLang });
         updateCallback(`「${sourceLang}」のローカル音声認識の準備が整いました。`);
         return;
       }
 
       if (status.downloadable) {
-        console.info("[INFO]", "[languagePackManager.js]", "語言包可下載，開始下載流程", { lang: sourceLang });
+        console.info("[INFO]", "[languagePackManager]", "語言包可下載，開始下載流程", { lang: sourceLang });
         await downloadLanguagePack(sourceLang, updateCallback);
       } else if (status.downloading) {
-        console.debug("[DEBUG]", "[languagePackManager.js]", "語言包正在下載中", { lang: sourceLang });
+        console.debug("[DEBUG]", "[languagePackManager]", "語言包正在下載中", { lang: sourceLang });
         updateCallback(`語言 ${sourceLang} 的語言包正在下載`);
       } else {
-        console.warn("[WARN]", "[languagePackManager.js]", "語言包不可用", { lang: sourceLang, status });
+        console.warn("[WARN]", "[languagePackManager]", "語言包不可用", { lang: sourceLang, status });
         updateCallback(`語言 ${sourceLang} 的本地語音辨識不可用`);
       }
     } catch (error) {
-      console.error("[ERROR]", "[languagePackManager.js]", "點擊下載語言包時產生錯誤", error);
+      console.error("[ERROR]", "[languagePackManager]", "點擊下載語言包時產生錯誤", error);
       updateCallback('檢查語言包失敗，請重試');
     }
   });
@@ -158,9 +168,9 @@ async function setupLanguagePackButton(languageSelectorId, updateCallback) {
   // 語言切換時更新按鍵狀態
   sourceLanguageSelect.addEventListener('change', async () => {
     const newLang = sourceLanguageSelect.value;
-    console.debug("[DEBUG]", "[languagePackManager.js]", "語言選擇器變更:", { newLang });
+    console.debug("[DEBUG]", "[languagePackManager]", "語言選擇器變更:", { newLang });
     await updateLanguagePackButton(newLang);
-    console.info("[INFO]", "[languagePackManager.js]", "語言切換後更新按鍵狀態", { lang: newLang });
+    console.info("[INFO]", "[languagePackManager]", "語言切換後更新按鍵狀態", { lang: newLang });
   });
 }
 

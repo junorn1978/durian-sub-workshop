@@ -3,8 +3,6 @@ setlocal enabledelayedexpansion
 
 set "PORT=8081"
 set "translate_DIR=%USERPROFILE%\junorn_1978_translate"
-
-:: �ˬd 8081 �O�_���{���b LISTENING
 set "PID="
 for /f "tokens=5" %%P in ('
   netstat -ano ^| findstr /R /C:":%PORT%" ^| findstr LISTENING
@@ -27,9 +25,6 @@ start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" ^
   --user-data-dir="%translate_DIR%" ^
   --disable-extensions ^
   --disable-default-apps ^
-  --flag-switches-begin ^
-  --enable-features=AIPromptAPI ^
-  --flag-switches-end ^
   --no-first-run ^
   --no-default-browser-check
 

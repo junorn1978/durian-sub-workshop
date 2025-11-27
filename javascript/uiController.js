@@ -3,6 +3,7 @@ import { loadLanguageConfig, getAllLanguages } from './config.js';
 import { setupPromptModelDownload } from './promptTranslationService.js';
 import { setupLanguagePackButton } from './languagePackManager.js';
 import { monitorLocalTranslationAPI } from './translatorApiService.js';
+import { browserInfo } from './speechCapture.js';
 
 document.addEventListener('DOMContentLoaded', async function() {
   // 7秒後清除狀態顯示
@@ -84,10 +85,9 @@ document.addEventListener('DOMContentLoaded', async function() {
   };
 
   // 瀏覽器檢查
-  const isEdge = navigator.userAgent.includes('Edg/');
-  if (isEdge) {
+  if (!browserInfo.isChrome) {
     console.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
-    document.getElementById('status-display').textContent = '高速翻訳はEdgeに対応しておりません。ご了承ください。';
+    document.getElementById('status-display').textContent = '高速翻訳とブラウザAI翻訳はEdgeに対応しておりません。ご了承ください。';
     const apiButton = document.getElementById('local-translation-api');
     if (apiButton) {
       apiButton.disabled = true;
@@ -95,7 +95,6 @@ document.addEventListener('DOMContentLoaded', async function() {
       localStorage.removeItem('local-translation-api-active');
     }
     
-    /*
     const promptButton = document.getElementById('local-prompt-api');
     if (promptButton) {
       promptButton.disabled = true;
@@ -107,14 +106,18 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (downloadButton) {
       downloadButton.style.display = 'none';
     }
-    */
+
+    const languagePackButton = document.getElementById('download-language-pack');
+    if (languagePackButton) {
+      languagePackButton.style.display = 'none';
+    }
   }
 
   // 通用的 localStorage 操作
   const Storage = {
     save: (key, value, desc) => {
       localStorage.setItem(key, value);
-      console.debug('[DEBUG] [UIController]', `${desc} 已儲存至 localStorage`);
+      //console.debug('[DEBUG] [UIController]', `${desc} 已儲存至 localStorage`);
     },
     
     load: (key, defaultValue = null) => {
@@ -303,7 +306,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       
       'toggle': {
         load(element) {
-          if (isEdge && config.id === 'local-translation-api') {
+          if (!browserInfo.isChrome && config.id === 'local-translation-api') {
             element.classList.remove('active');
             Storage.save(config.key, 'false', config.desc);
             return;
@@ -331,7 +334,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         setupListener(element) {
           element.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (isEdge && config.id === 'local-translation-api') {
+            if (!browserInfo.isChrome && config.id === 'local-translation-api') {
               console.debug('[DEBUG] [UIController]', 'Edge 瀏覽器下禁止啟用本地端 API');
               return;
             }
@@ -343,18 +346,33 @@ document.addEventListener('DOMContentLoaded', async function() {
             
             // NEW API和Prompt API按鈕二選一邏輯
             if (config.id === 'local-translation-api') {
+              const promptApiDownloadButton = document.getElementById('prompt-api-download');
+              if (promptApiDownloadButton) {
+                promptApiDownloadButton.style.display = 'none';
+                updateStatusDisplay('');
+              }
               const otherElement = document.getElementById('local-prompt-api');
               if (otherElement && otherElement.classList.contains('active')) {
                 otherElement.classList.remove('active');
                 Storage.save('local-prompt-api-active', 'false', 'local-prompt-api state');
-                console.debug('[DEBUG] [UIController]', '移除 local-prompt-api 的 active 狀態');
+                //console.debug('[DEBUG] [UIController]', '移除 local-prompt-api 的 active 狀態');
               }
             } else if (config.id === 'local-prompt-api') {
+              const localpromptActive = document.getElementById('local-prompt-api').classList.contains('active');
+              if (localpromptActive) {
+                setupPromptModelDownload();
+              } else {
+                const promptApiDownloadButton = document.getElementById('prompt-api-download');
+                if (promptApiDownloadButton) {
+                  promptApiDownloadButton.style.display = 'none';
+                  updateStatusDisplay('');
+                }
+              }
               const otherElement = document.getElementById('local-translation-api');
               if (otherElement && otherElement.classList.contains('active')) {
                 otherElement.classList.remove('active');
                 Storage.save('local-translation-api-active', 'false', 'local-translation-api state');
-                console.debug('[DEBUG] [UIController]', '移除 local-translation-api 的 active 狀態');
+                //console.debug('[DEBUG] [UIController]', '移除 local-translation-api 的 active 狀態');
               }
             }
             
@@ -445,7 +463,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         select.appendChild(option);
       });
 
-      console.debug('[DEBUG] [UIController]', `已填充 ${config.id} 選單，使用 id 作為 value`);
+      //console.debug('[DEBUG] [UIController]', `已填充 ${config.id} 選單，使用 id 作為 value`);
     });
   };
   
@@ -540,17 +558,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         Object.values(handlers).flat().forEach(handler => {
           if (handler.reset) handler.reset();
         });
-
-        // 確保 Edge 瀏覽器重置後仍禁用
-        if (isEdge) {
-          const apiButton = document.getElementById('local-translation-api');
-          if (apiButton) {
-            apiButton.disabled = true;
-            apiButton.classList.remove('active');
-            localStorage.removeItem('local-translation-api-active');
-            console.debug('[DEBUG] [UIController]', '重置後確保 Edge 瀏覽器本地端 API 禁用');
-          }
-        }
       });
     }
   };
@@ -601,8 +608,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     console.error('[ERROR] [UIController]', '無法找到 mini-start-recording, mini-stop-recording, start-recording 或 stop-recording 元素');
   }
 
-  console.debug('[DEBUG] [UIController]', '正在調用 setupPromptModelDownload');
-  
   setupPromptModelDownload();
   monitorLocalTranslationAPI();
 });

@@ -37,6 +37,7 @@ Thumbs.db
 
 # 套件管理器產生的暫存檔
 package-lock.json
+package.json
 yarn.lock
 .pnpm-debug.log*
 
@@ -49,3 +50,5 @@ yarn.lock
 
 # 本地 Git 設定
 .gitconfig
+.gitignore
+

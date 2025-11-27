@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 set "PORT=8081"
-set "translate_DIR=%USERPROFILE%\junorn_1978_translate"
+set "translate_DIR=%USERPROFILE%\junorn_1978_translate_edge_profile"
 
 :: 檢查 8081 是否有程式在 LISTENING
 set "PID="

@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 set "PORT=8081"
-set "translate_DIR=%USERPROFILE%\junorn_1978_translate"
+set "translate_DIR=%USERPROFILE%\junorn_1978_translate_edge_profile"
 
 set "PID="
 for /f "tokens=5" %%P in ('
@@ -17,7 +17,7 @@ if defined PID (
   timeout /t 1 /nobreak >nul
 )
 
-rmdir /S /Q "%USERPROFILE%\junorn_1978_translate"
+rmdir /S /Q "%USERPROFILE%\junorn_1978_translate_edge_profile"
 if not exist "%translate_DIR%" mkdir "%translate_DIR%"
 
 start "" "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" ^

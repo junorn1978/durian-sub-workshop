@@ -34,9 +34,13 @@ async function sendTranslation(text, targetLangs, serviceUrl, serviceKey, sequen
     }
   }
 
-  serviceUrl = `https://${serviceUrl}/translate`;
-
-  if (!/^https:\/\/[a-zA-Z0-9.-]+(:\d+)?\/translate$/.test(serviceUrl)) {
+  if (serviceUrl === 'localhost:8083') { 
+      serviceUrl = `http://${serviceUrl}/translate`;
+    } else { 
+      serviceUrl = `https://${serviceUrl}/translate`;
+    }
+  //serviceUrl = `https://${serviceUrl}/translate`;
+  if (!/:\/\/[a-zA-Z0-9.-]+(:\d+)?\/translate$/.test(serviceUrl)) {
     throw new Error('Invalid URL format.');
   }
 

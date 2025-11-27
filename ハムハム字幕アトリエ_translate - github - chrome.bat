@@ -8,5 +8,6 @@ start chrome.exe --app="https://junorn1978.github.io/durian-sub-workshop/" --win
 --disable-features=CalculateNativeWinOcclusion ^
 --user-data-dir="%translate_DIR%" ^
 --disable-extensions ^
+--enable-features=AIPromptAPI ^
 --disable-default-apps
 exit /b
