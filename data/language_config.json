@@ -1,0 +1,157 @@
+{
+  "languages": [
+    {
+      "id": "ja-JP",
+      "label": "日本語",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 45,
+      "displayTimeRules": [
+        { "maxLength": 20, "time": 1 },
+        { "maxLength": 40, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "ja-JP",
+      "promptApiCode": "日本語",
+      "languageModelApiCode": "ja"
+    },
+    {
+      "id": "zh-TW",
+      "label": "中国語(台湾)",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 33,
+      "displayTimeRules": [
+        { "maxLength": 20, "time": 1 },
+        { "maxLength": 40, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "zh-TW",
+      "promptApiCode": "繁體中文",
+      "languageModelApiCode": "zh-hant"
+    },
+    {
+      "id": "zh-HK",
+      "label": "中国語(香港-粵語-翻譯書面語)",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 33,
+      "displayTimeRules": [
+        { "maxLength": 20, "time": 1 },
+        { "maxLength": 40, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "zh-HK",
+      "promptApiCode": "廣東話",
+      "languageModelApiCode": "zh-hant"
+    },
+    {
+      "id": "en-US",
+      "label": "英語",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 80,
+      "displayTimeRules": [
+        { "maxLength": 30, "time": 1 },
+        { "maxLength": 70, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "en-US",
+      "promptApiCode": "English",
+      "languageModelApiCode": "en"
+    },
+    {
+      "id": "es-ES",
+      "label": "スペイン語",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 80,
+      "displayTimeRules": [
+        { "maxLength": 30, "time": 1 },
+        { "maxLength": 70, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "es-ES",
+      "promptApiCode": "Spanish",
+      "languageModelApiCode": "es"
+    },
+    {
+      "id": "id-ID",
+      "label": "インドネシア語",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 80,
+      "displayTimeRules": [
+        { "maxLength": 30, "time": 1 },
+        { "maxLength": 70, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "id-ID",
+      "promptApiCode": "Indonesian",
+      "languageModelApiCode": "id"
+    },
+    {
+      "id": "ko-KR",
+      "label": "韓国語",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 80,
+      "displayTimeRules": [
+        { "maxLength": 20, "time": 1 },
+        { "maxLength": 40, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "ko-KR",
+      "promptApiCode": "Korean",
+      "languageModelApiCode": "ko"
+    },
+    {
+      "id": "th-TH",
+      "label": "タイ語",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 80,
+      "displayTimeRules": [
+        { "maxLength": 30, "time": 1 },
+        { "maxLength": 70, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "th-TH",
+      "promptApiCode": "Thai",
+      "languageModelApiCode": "th"
+    },
+    {
+      "id": "vi-VN",
+      "label": "ベトナム語",
+      "asSource": true,
+      "asTarget": true,
+      "chunkSize": 80,
+      "displayTimeRules": [
+        { "maxLength": 30, "time": 1 },
+        { "maxLength": 70, "time": 2 },
+        { "maxLength": 1e9, "time": 3 }
+      ],
+      "commentLangCode": "vi-VN",
+      "promptApiCode": "Vietnamese",
+      "languageModelApiCode": "vi"
+    }
+  ],
+  "targetCodeMap": {
+    "ja-JP": "ja",
+    "zh-TW": "zh-TW",
+    "en-US": "en",
+    "es-ES": "es",
+    "id-ID": "id",
+    "ko-KR": "ko",
+    "th-TH": "th",
+    "vi-VN": "vi"
+  },
+  "defaults": {
+    "chunkSize": 40,
+    "displayTimeRules": [
+      { "maxLength": 30, "time": 1 },
+      { "maxLength": 70, "time": 2 },
+      { "maxLength": 1e9, "time": 3 }
+    ]
+  }
+}

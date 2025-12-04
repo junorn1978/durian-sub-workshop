@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ハムハム字幕アトリエ</title>
+  <meta name="description" content="Chrome/Edge対応。多言語のリアルタイム声音認識と翻訳、Prompt API・ローカルモデルに対応。配信や生放送の字幕生成に最適です。">
+  
+  <link rel="stylesheet" href="css/styles_horizontal.css">
+  <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="display-panel">
+    <div id="source-text" data-stroke="ハムハム字幕アトリエ">
+      ハムハム字幕アトリエ
+    </div>
+    <div id="target-text-1" data-stroke="開発者：乙夏れいのファン・ジュノーン（GrokとChatGPTを利用）">
+      開発者：乙夏れいのファン・ジュノーン（GrokとChatGPTを利用）
+    </div>
+    <div id="target-text-2" data-stroke="2025.12.03">
+      2025.12.03
+    </div>
+    <div id="target-text-3" data-stroke="自動翻訳によるもので、精度は保証できません。ご了承ください。">
+      自動翻訳によるもので、精度は保証できません。ご了承ください。
+    </div>
+  </div>
+
+  <div id="control-panel">
+    
+    <div id="recorder-panel">
+      <img id="logo" src="images/logo.png" alt="Logo">
+      <button class="record-button" id="start-recording" disabled>開始</button>
+      <button class="record-button" id="stop-recording" disabled>停止</button>
+    </div>
+
+    <div id="settings-panel">
+      
+      <div class="top-control-bar">
+        
+        <div class="mode-selector-group">
+          <label for="translation-mode">翻訳モード</label>
+          <select id="translation-mode" title="翻訳エンジンの選択">
+            <option value="link" selected>翻訳クラウド接続</option>
+            <option value="fast">高速翻訳 (非推奨)</option>
+            <option value="ai">ブラウザAI (実験機能)</option>
+          </select>
+        </div>
+
+        <form id="link-input-wrapper" class="link-wrapper" style="display:none;" onsubmit="return false;">
+          <input type="password" class="t-link" placeholder="翻訳クラウド接続用リンク" id="translation-link" value="" autocomplete="off">
+          <button type="button" id="toggle-link-visibility" class="visibility-btn" title="表示/非表示">
+            <svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+          </button>
+        </form>
+
+        <button id="prompt-api-download" class="menu3-button" style="display: none;">モデルDL</button>
+
+        <div class="menu-panel">
+          <div id="menu">
+            <button class="menu-button" id="Subtitle">字幕設定</button>
+            <button class="menu-button" id="options">その他</button>
+
+            <button id="download-language-pack" class="menu3-button" style="display: none;">下載語言包</button>
+            <label class="capsule-checkbox-label" title="Ray Mode 開關">
+              <input type="checkbox" id="raymode"><span>れいーモード</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div id="source-styles-panel" class="unified-settings-view">
+        
+        <div class="settings-left-col">
+          <div class="setting-row source-row">
+            <div class="row-label">音声認識</div>
+            <select id="source-language" title="音声認識言語">
+              <option value="ja">日本語</option>
+            </select>
+            <div class="control-group">
+              <input type="color" id="source-font-color" list="color-list" title="文字色">
+              <input type="color" id="source-font-stroke-color" list="color-list" value="#000000" title="縁取り色">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">サイズ</span>
+              <input type="range" id="source-font-size" min="16" max="32" value="20" title="文字サイズ">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">縁取り</span>
+              <input type="range" id="source-font-stroke-size" min="2" max="10" value="5" title="縁取りサイズ">
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="row-label">翻訳 1</div>
+            <select id="target1-language" title="翻訳言語1">
+              <option value="none">翻訳しない</option>
+            </select>
+            <div class="control-group">
+              <input type="color" id="target1-font-color" list="color-list" value="#FFFFFF" title="文字色">
+              <input type="color" id="target1-font-stroke-color" list="color-list" value="#000000" title="縁取り色">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">サイズ</span>
+              <input type="range" id="target1-font-size" min="16" max="32" value="20" title="文字サイズ">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">縁取り</span>
+              <input type="range" id="target1-font-stroke-size" min="2" max="10" value="5" title="縁取りサイズ">
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="row-label">翻訳 2</div>
+            <select id="target2-language" title="翻訳言語2">
+              <option value="none">翻訳しない</option>
+            </select>
+            <div class="control-group">
+              <input type="color" id="target2-font-color" list="color-list" value="#FFFFFF" title="文字色">
+              <input type="color" id="target2-font-stroke-color" list="color-list" value="#000000" title="縁取り色">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">サイズ</span>
+              <input type="range" id="target2-font-size" min="16" max="32" value="20" title="文字サイズ">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">縁取り</span>
+              <input type="range" id="target2-font-stroke-size" min="2" max="10" value="5" title="縁取りサイズ">
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="row-label">翻訳 3</div>
+            <select id="target3-language" title="翻訳言語3">
+              <option value="none">翻訳しない</option>
+            </select>
+            <div class="control-group">
+              <input type="color" id="target3-font-color" list="color-list" value="#FFFFFF" title="文字色">
+              <input type="color" id="target3-font-stroke-color" list="color-list" value="#000000" title="縁取り色">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">サイズ</span>
+              <input type="range" id="target3-font-size" min="16" max="32" value="20" title="文字サイズ">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">縁取り</span>
+              <input type="range" id="target3-font-stroke-size" min="2" max="10" value="5" title="縁取りサイズ">
+            </div>
+          </div>
+        </div>
+
+        <div class="info-right-col">
+          <div class="info-header" style="display: flex;justify-content: center;align-items: center;">
+            <span>マイク情報</span>
+            <label class="privacy-toggle" title="情報を隠す (Privacy Mode)">
+              <input type="checkbox" id="mic-privacy-toggle">
+              <span class="lock-icon">🔒</span> 
+            </label>
+          </div>
+
+          <div class="mic-info" style="position: relative;"> 
+            <div id="mic-privacy-cover" class="privacy-cover" style="display: none;">
+              <img src="images/Overlay.png" alt="HIDDEN">
+              <span>PROTECTED</span>
+            </div>
+            <div id="default-mic" class="mic-info-block"></div>
+            <div id="other-mic" class="mic-info-block"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="options-panel" class="unified-options-view">
+        
+        <div class="options-column">
+          <div class="option-card">
+            <div class="card-title">字幕表示設定</div>
+            
+            <div class="card-row">
+              <span class="card-label">横位置 (Align)</span>
+              <div class="alignment-group" id="text-align">
+                <label><input type="radio" name="alignment" value="left"> 左</label>
+                <label><input type="radio" name="alignment" value="center"> 中央</label>
+                <label><input type="radio" name="alignment" value="right"> 右</label>
+              </div>
+            </div>
+            
+            <div class="card-row">
+              <label for="display-panel-color" class="card-label">背景色 (BG)</label>
+              <input type="color" id="display-panel-color" list="display-color-list" value="#00FF00" class="option-color-picker">
+            </div>
+          </div>
+        </div>
+
+        <div class="options-column">
+          <div class="option-card">
+            <div class="card-title">声音認識設定</div>
+            <div class="card-row">
+              <span class="card-label">声音認識字幕単一行表示</span>
+              <select id="force-single-line-opt" class="card-select" title="長い文章を自動的にカットして1行に収める">
+                <option value="false" selected>無効 (Disable)</option>
+                <option value="true">有効 (Enable)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="option-card">
+            <div class="card-title">操作設定</div>
+            <div class="card-row">
+              <span class="card-label">字幕パネル最大化</span>
+              <select id="click-minimize-opt" class="card-select" title="画面クリックでの最小化機能">
+                <option value="true" selected>有効 (Enable)</option>
+                <option value="false">無効 (Disable)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="option-card">
+            <div class="card-title">システム</div>
+            <div class="card-row">
+              <span class="card-label">設定リセット</span>
+              <button class="options-button danger-zone" id="reset-settings">初期化</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="options-column">
+          <div class="option-card full-height-card">
+            <div class="card-title">翻訳字幕行数制限 (Overflow)</div>
+            
+            <div class="overflow-options-container" id="overflow-layout">
+              <label class="radio-box">
+                <input type="radio" name="overflow" value="normal">
+                <span>制限なし</span>
+              </label>
+              <label class="radio-box">
+                <input type="radio" name="overflow" value="truncate">
+                <span>1行 (省略)</span>
+              </label>
+              <label class="radio-box">
+                <input type="radio" name="overflow" value="shrink">
+                <span>2行 (縮小)</span>
+              </label>
+            </div>
+          </div>
+          <div class="help-text-box">
+            <p>翻訳文が長すぎる場合の表示ルールを設定します。</p>
+            <ul>
+              <li><strong>制限なし：</strong> 全てのテキストを表示します（画面が埋まる可能性があります）。</li>
+              <li><strong>1行：</strong> 1行を超えると「...」で省略されます。</li>
+              <li><strong>2行：</strong> 文字数が多い場合、自動的にフォントサイズを縮小して2行以内に収めます。</li>
+            </ul>
+            <p class="note">※ 配信画面のスペースに合わせて調整してください。</p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <div id="status-panel">
+    <div class="status-info" id="status-display">声音認識反応ないの場合は、一度止めて数秒待ってから、もう一回録音ボタンを押し直すことをお勧めします。</div>
+  </div>
+
+  <datalist id="color-list">
+    <option value="#FFFFFF"></option>
+    <option value="#000000"></option>
+    <option value="#4b8ce2"></option>
+    <option value="#FF80FF"></option>
+    <option value="#CB9947"></option>
+    <option value="#FF6264"></option>
+    <option value="#988952"></option>
+    <option value="#FF0000"></option>
+    <option value="#FF6C6C"></option>
+    <option value="#BE78FF"></option>
+  </datalist>
+  <datalist id="display-color-list">
+    <option value="#000000"></option>
+    <option value="#FFFFFF"></option>
+    <option value="#00FF00"></option>
+  </datalist>
+
+  <script type="module" src="javascript/uiController.js"></script>
+  <script type="module" src="javascript/speechCapture.js"></script>
+</body>
+</html>

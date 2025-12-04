@@ -1,0 +1,642 @@
+/* =========================================
+   1. 全域變數與基礎設定 (Global)
+   ========================================= */
+:root {
+    --text-font-size: 22px;
+    --font-size-half: 16.5px; /* 22px * 0.75 */
+    --text-color: #FFFFFF;
+    --stroke-color: #000000;
+    --stroke-width: 5px;
+    --text-align: center;
+    --body-background: #00FF00;
+    --overflow-height: 26.4px; /* font-size * 1.2，JS用 */
+    --display-panel-height: 55%;
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--body-background);
+    font-family: "Huninn", Arial, sans-serif;
+    min-width: 950px;
+    overflow-x: hidden;
+    overflow-y: hidden;
+}
+
+/* =========================================
+   2. 字幕顯示區 (Display Panel)
+   ========================================= */
+#display-panel {
+    height: var(--display-panel-height);
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    gap: 5px;
+    margin: 0 auto;
+    width: 100%;
+    background-color: transparent;
+    min-height: 290px;
+    user-select: none;
+    cursor: pointer;   /* 提示可點擊 (切換最小化) */
+    transition: height 0.3s ease;
+}
+
+/* 通用文字設定 */
+#source-text, #target-text-1, #target-text-2, #target-text-3 {
+    display: flex;
+    flex-direction: column;
+    align-items: var(--text-align);
+    text-align: var(--text-align);
+    z-index: 1;
+    color: var(--text-color);
+    font-size: var(--text-font-size);
+    background-color: transparent;
+    position: relative;
+    font-family: "Huninn", Arial, sans-serif;
+    line-height: 1.2em;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+/* 描邊設定 (::before) */
+#source-text::before, #target-text-1::before, #target-text-2::before, #target-text-3::before {
+    content: attr(data-stroke);
+    position: absolute;
+    z-index: -1;
+    -webkit-text-stroke: var(--stroke-width) var(--stroke-color);
+    width: 100%;
+    text-align: var(--text-align);
+    font-size: var(--text-font-size);
+    font-family: "Huninn", Arial, sans-serif;
+    line-height: 1.2em;
+    overflow: hidden;
+}
+
+/* Overflow 邏輯 (Normal/Truncate/Shrink) */
+.overflow-normal { overflow: visible }
+
+.overflow-truncate {
+    display: -webkit-box ;
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+    font-size: var(--text-font-size);
+}
+#source-text.overflow-truncate, #source-text.overflow-truncate::before { line-clamp: 1; -webkit-line-clamp: 1; }
+#target-text-1.overflow-truncate, #target-text-2.overflow-truncate, #target-text-3.overflow-truncate,
+#target-text-1.overflow-truncate::before, #target-text-2.overflow-truncate::before, #target-text-3.overflow-truncate::before {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+    font-size: var(--text-font-size);
+}
+
+#target-text-1.overflow-truncate, #target-text-2.overflow-truncate, #target-text-3.overflow-truncate,
+#target-text-1.overflow-truncate::before, #target-text-2.overflow-truncate::before, #target-text-3.overflow-truncate::before {
+    line-clamp: 1;
+    -webkit-line-clamp: 1;
+}
+
+/* Shrink: 縮小字體 */
+#source-text.overflow-shrink,
+#source-text.overflow-shrink::before {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    font-size: var(--text-font-size);
+    overflow: hidden;
+}
+
+#target-text-1.overflow-shrink, #target-text-2.overflow-shrink, #target-text-3.overflow-shrink,
+#target-text-1.overflow-shrink::before, #target-text-2.overflow-shrink::before, #target-text-3.overflow-shrink::before {
+    display: -webkit-box;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    font-size: var(--text-font-size);
+    overflow: hidden;
+}
+
+/* Shrink 模式下的第二行字體變小 */
+#target-text-1.overflow-shrink.multi-line, #target-text-2.overflow-shrink.multi-line, #target-text-3.overflow-shrink.multi-line,
+#target-text-1.overflow-shrink.multi-line::before, #target-text-2.overflow-shrink.multi-line::before,
+#target-text-3.overflow-shrink.multi-line::before {
+    font-size: var(--font-size-half);
+}
+
+/* 動畫 */
+.flash { animation: fadeIn 120ms linear; }
+@keyframes fadeIn { from { opacity: 0.9; } to { opacity: 1; } }
+
+/* =========================================
+   3. 狀態列 (Status Panel)
+   ========================================= */
+#status-panel {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    height: 5%;
+    min-height: 30px;
+    background-color: #FFF2DE;
+    padding: 0 20px;
+    align-items: center;
+    gap: 5px;
+    z-index: 2;
+}
+.status-info {
+    display: flex;
+    height: 90%;
+    text-align: left;
+    align-items: center;
+    color: #6d1313;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+
+/* =========================================
+   4. 控制面板佈局 (Control Panel)
+   ========================================= */
+#control-panel {
+    height: 40%;
+    background-color: #FFF2DE;
+    padding: 20px;
+    box-sizing: border-box;
+    display: flex;
+    gap: 10px;
+    margin: 0 auto;
+    width: 100%;
+    min-width: 1200px;
+    min-height: 280px;
+    z-index: 2;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    border-bottom: 2px dashed #6d1313;
+}
+
+/* 左側：錄音區塊 */
+#recorder-panel {
+    width: 250px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    border-radius: 10px;
+    background-color: #F8B8C4;
+}
+#logo { height: 130px; object-fit: contain; }
+
+.record-button {
+    width: 150px;
+    padding: 10px 30px;
+    border-radius: 10px;
+    border: none;
+    background-color: #FFF2DE;
+    color: #333;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    font-family: "Huninn", Arial, sans-serif;
+}
+.record-button:hover { background-color: #E0E0E0; }
+.record-button:disabled { background-color: #CCCCCC; color: #666; cursor: not-allowed; opacity: 0.6; }
+
+/* 右側：設定區塊容器 */
+#settings-panel {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+}
+
+/* =========================================
+   5. 頂部控制列 (Top Control Bar)
+   ========================================= */
+.top-control-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    margin-bottom: -2px;
+    z-index: 5;
+    gap: 10px;
+    padding-left: 5px;
+}
+
+/* 翻譯模式選擇器 */
+.mode-selector-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background-color: #FFF2DE;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid #D8BFD1;
+    height: 30px;
+}
+.mode-selector-group label {
+    font-size: 12px;
+    font-weight: bold;
+    color: #8B4513;
+}
+#translation-mode {
+    height: 22px;
+    font-size: 12px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background-color: #fff;
+    cursor: pointer;
+    font-family: "Huninn", Arial, sans-serif;
+}
+
+/* 翻譯連結輸入框容器 */
+.link-wrapper {
+    position: relative;
+    flex: 1;
+    height: 30px;
+    display: none; /* JS 控制 */
+}
+#translation-link {
+    display: block; 
+    width: 100%;
+    height: 100%;
+    border-radius: 5px;
+    border: 1px solid #aaa;
+    padding-left: 10px;
+    padding-right: 30px; /* 留給眼睛按鈕 */
+    font-family: "Huninn", Arial, sans-serif;
+    font-size: 12px;
+}
+
+/* 顯示/隱藏眼睛按鈕 */
+.visibility-btn {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    opacity: 0.6;
+    z-index: 2;
+}
+.visibility-btn:hover { opacity: 1; color: #8B4513; }
+.eye-icon { pointer-events: none; }
+
+/* 分頁列容器 (Menu Panel) */
+.menu-panel {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    border-radius: 5px;
+    width: auto;
+    height: 30px;
+    background-color: #C7EFFF;
+    margin-left: auto; /* 靠右對齊 */
+}
+#menu {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    border-radius: 10px;
+    background-color: #C7EFFF;
+    padding: 0 5px;
+}
+
+/* 通用分頁按鈕樣式 */
+.menu-button, .menu2-button, .menu3-button, .status-button, .options-button {
+    width: 100px;
+    min-width: 100px;
+    height: 25px;
+    border-radius: 25px;
+    border: 2px solid #8B4513;
+    background-color: #D8BFD1;
+    color: #333;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    font-family: "Huninn", Arial, sans-serif;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.menu-button:hover, .menu2-button:hover, .menu3-button:hover, .status-button:hover, .options-button:hover {
+    background-color: #E0E0E0;
+}
+.menu-button.active, .menu2-button.active, .menu3-button.active, .status-button.active, .options-button.active {
+    border: 2px solid #000000;
+    background-color: #D28BC4;
+}
+
+/* Ray Mode 膠囊 Checkbox */
+.capsule-checkbox-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: auto;
+    min-width: 110px;
+    height: 25px;
+    border-radius: 15px;
+    border: 2px solid #8B4513;
+    background-color: #FFF2DE;
+    color: #333;
+    font-size: 12px;
+    font-family: "Huninn", Arial, sans-serif;
+    cursor: pointer;
+    padding: 0 10px;
+    user-select: none;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+.capsule-checkbox-label:hover { background-color: #E0E0E0; }
+.capsule-checkbox-label:has(input:checked) {
+    background-color: #D28BC4;
+    border-color: #000000;
+    font-weight: bold;
+}
+.capsule-checkbox-label input[type="checkbox"] {
+    cursor: pointer;
+    width: 14px;
+    height: 14px;
+    accent-color: #8B4513;
+    margin: 0;
+}
+
+/* =========================================
+   6. 設定面板內容 (Settings Content)
+   ========================================= */
+/* 統一設定介面佈局 */
+.unified-settings-view, .unified-options-view {
+    display: none;
+    flex-direction: row;
+    width: 100%;
+    height: 100%;
+    gap: 10px;
+    padding: 5px;
+    background-color: #F1C6D2;
+    border-radius: 10px;
+    overflow: hidden;
+}
+#options-panel { gap: 15px; padding: 10px; overflow-y: auto; }
+#options-panel[style*="display: flex"] { display: flex !important; }
+#source-styles-panel, #options-panel { display: none; }
+
+/* 左側欄位 */
+.settings-left-col {
+    flex: 0 0 65%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+.setting-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    background-color: #FFF;
+    border-radius: 8px;
+    padding: 5px 10px;
+    gap: 10px;
+    height: 43px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.source-row { background-color: #FFF9E6; border: 1px solid #FFD700; }
+
+.row-label {
+    width: 60px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #8B4513;
+    text-align: right;
+    margin-right: 5px;
+}
+.setting-row select {
+    flex: 2;
+    min-width: 100px;
+    height: 30px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-family: "Huninn", Arial, Helvetica, sans-serif;
+}
+
+/* 顏色與滑動條 */
+.control-group { display: flex; gap: 5px; align-items: center; }
+.setting-row input[type="color"] { width: 30px; height: 30px; border: none; cursor: pointer; background: none; }
+.slider-group { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; min-width: 80px; }
+.tiny-label { font-size: 10px; color: #666; margin-bottom: 7px; }
+.setting-row input[type="range"] { width: 100%; height: 5px; cursor: pointer; margin: 0; }
+
+/* 右側資訊區 (Info Col) */
+.info-right-col {
+    flex: 0 0 34%;
+    display: flex;
+    flex-direction: column;
+    background-color: #F8E6F0;
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid #D8BFD1;
+    height: 100%;
+    max-height: 197px;
+}
+.info-header {
+    font-size: 14px;
+    font-weight: bold;
+    color: #8B4513;
+    margin-bottom: 5px;
+    text-align: center;
+    border-bottom: 1px dashed #8B4513;
+    padding-bottom: 5px;
+    line-height: 1.2em;
+}
+
+/* 麥克風資訊與隱私 */
+.mic-info { flex: 1; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; padding: 2px; }
+.mic-info-block { width: 100%; white-space: pre-wrap; word-break: break-all; }
+
+#default-mic { background-color: #E8F5E9; border-left: 5px solid #ff6363; border-radius: 4px; padding: 10px; font-size: 12px; position: relative; }
+#default-mic::before { content: "🎙️ 現在のマイク (Active)"; display: block; font-size: 10px; margin-bottom: 5px; font-weight: normal; }
+#other-mic { background-color: #FAFAFA; border: 1px solid #EEE; border-radius: 4px; padding: 10px; font-size: 11px; color: #666; position: relative; white-space: pre-line; }
+#other-mic::before { content: "📋 検出された他のデバイス"; display: block; font-size: 10px; color: #999; margin-bottom: 5px; border-bottom: 1px dashed #DDD; padding-bottom: 3px; font-weight: bold; }
+
+/* 隱私開關與遮罩 */
+.privacy-toggle { cursor: pointer; font-size: 14px; user-select: none; display: flex; align-items: center; }
+.privacy-toggle input { display: none; }
+.privacy-toggle .lock-icon { filter: grayscale(100%); opacity: 0.5; transition: all 0.2s; }
+.privacy-toggle input:checked + .lock-icon { filter: grayscale(0%); opacity: 1; transform: scale(1.1); }
+
+.privacy-cover {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: #F8E6F0;
+    z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    border-radius: 4px; backdrop-filter: blur(2px);
+}
+.privacy-cover img { width: 120px; height: 120px; object-fit: contain; opacity: 0.5; }
+.privacy-cover span { font-size: 12px; font-weight: bold; color: #D8BFD1; letter-spacing: 2px; }
+
+/* =========================================
+   7. 其他選項卡片 (Options Cards)
+   ========================================= */
+.options-column { flex: 1; display: flex; flex-direction: column; gap: 15px; }
+
+.option-card {
+    background-color: #FFFFFF;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 2px 4px rgba(139, 69, 19, 0.1);
+    display: flex; flex-direction: column; gap: 10px;
+}
+.full-height-card { height: 100%; }
+.card-title { font-size: 14px; font-weight: bold; color: #8B4513; border-bottom: 2px dashed #F1C6D2; padding-bottom: 5px; margin-bottom: 5px; }
+.card-row { display: flex; align-items: center; justify-content: space-between; height: 35px; }
+.card-label { font-size: 13px; color: #333; font-weight: bold; }
+
+/* 卡片內元件 */
+.alignment-group { display: flex; gap: 10px; background-color: #FFF9E6; padding: 5px 10px; border-radius: 20px; border: 1px solid #FFE4B5; }
+.alignment-group label { font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 3px; }
+.option-color-picker { width: 50px; height: 30px; border: none; background: none; cursor: pointer; }
+
+.card-select {
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    font-size: 13px;
+    background-color: #FAFAFA;
+    color: #333;
+    font-family: "Huninn", Arial, sans-serif;
+    cursor: pointer;
+    outline: none;
+    height: 28px;
+}
+.card-select:hover { border-color: #8B4513; }
+
+/* Overflow Radio */
+.overflow-options-container { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; width: 100%; }
+.radio-box {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    background-color: #F8F9FA; border-radius: 6px; border: 1px solid #EEE;
+    cursor: pointer; transition: all 0.2s; width: 100%; box-sizing: border-box;
+}
+.radio-box:hover { background-color: #FFF5E6; border-color: #FFD700; }
+.radio-box span { font-size: 13px; color: #333; }
+
+/* 說明文字 */
+.help-text-box {
+    background-color: #F0F8FF; border-radius: 6px; padding: 12px;
+    font-size: 12px; color: #4682B4; line-height: 1.6;
+    flex: 1; width: 100%; box-sizing: border-box; border: 1px solid #D6EAF8;
+}
+.help-text-box p { margin: 0 0 8px 0; }
+.help-text-box ul { margin: 0; padding-left: 18px; }
+.help-text-box li { margin-bottom: 4px; }
+.help-text-box .note { margin-top: 10px; color: #999; font-size: 11px; text-align: right; }
+
+/* === [新增] 強制單行顯示 (Visual Push Up) === */
+/* 當此 class 被 JS 加到 #source-text 時生效 */
+.visual-single-line {
+    /* 1. 設定固定高度 (約 1.3 倍字體大小，確保容納一行但不顯示第二行) */
+    height: calc(var(--text-font-size) * 1.2) !important; /* 注意 * 只能調1.1-1.2，調高反而會讓別行字出現 */
+    
+    /* 2. 隱藏超出範圍的內容 (即舊的文字) */
+    overflow: hidden !important;
+    
+    /* 3. [關鍵] 讓內容靠底部對齊，這樣新文字才會出現在可視區，舊文字被推上去 */
+    justify-content: flex-end !important;
+}
+
+/* [關鍵修正] 修正描邊層的定位
+   當文字靠下對齊時，描邊層也必須改為「靠下錨定 (bottom: 0)」，
+   否則描邊會留在頂部，導致錯位。
+*/
+.visual-single-line::before {
+    top: auto !important;    /* 取消頂部定位 */
+    bottom: 0 !important;    /* 改為底部定位 */
+    
+    /* 確保描邊層的高度不會被壓縮 */
+    height: auto !important; 
+    min-height: 100%;
+    
+    /* 保持 flex 佈局特性以同步對齊 */
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-end !important;
+}
+
+/* =========================================
+   8. 響應式調整 (Responsive Media Queries)
+   ========================================= */
+
+/* 當視窗寬度小於 1200px 時 (原本的 min-width 限制) */
+@media screen and (max-width: 1200px) {
+    
+    /* 1. 解除 Body 與 Control Panel 的強制寬度 */
+    body {
+        min-width: 100%; /* 不再強制 950px */
+        overflow-x: auto; /* 如果真的太窄，顯示捲軸而不是切掉 */
+    }
+
+    #control-panel {
+        min-width: 100%; /* 讓面板寬度跟隨視窗縮放 */
+        padding: 10px;   /* 稍微減少內距以節省空間 */
+    }
+
+    /* 2. 頂部控制列調整 */
+    .top-control-bar { flex-wrap: wrap; /* 空間不足時允許換行 */ height: auto; /* 高度改為自動適應 */ padding-bottom: 5px; }
+
+    /* 讓分頁按鈕群組在換行後自動填滿並靠右 */
+    .menu-panel { margin-left: auto; width: auto; justify-content: flex-end; }
+    
+    /* 翻譯連結輸入框在窄螢幕時稍微縮短 */
+    .link-wrapper { min-width: 200px; /* 確保至少有這個寬度 */ }
+}
+
+/* 當視窗寬度小於 850px 時 (更窄的視窗，例如直向擺放或半螢幕) */
+@media screen and (max-width: 850px) {
+
+    /* 1. 將設定面板的「左右欄」改為「上下堆疊」 */
+    .unified-settings-view {
+        flex-direction: column; /* 改為垂直排列 */
+        overflow-y: auto;       /* 允許內容垂直捲動 */
+    }
+
+    /* 2. 設定區塊寬度填滿 */
+    .settings-left-col {
+        flex: none;
+        width: 100%;
+        padding-right: 0;
+        overflow-y: visible; /* 取消內部捲軸，改由外層捲動 */
+    }
+
+    /* 3. 右側資訊欄 (Mic Info) 移動到下方 */
+    .info-right-col {
+        flex: none;
+        width: 100%;
+        height: auto;
+        min-height: 150px;
+        margin-top: 10px;
+    }
+
+    /* 4. 其他選項面板 (Options Panel) 也改為堆疊 */
+    .unified-options-view { flex-direction: column; }
+    .options-column { width: 100%; }
+    
+    /* 5. 隱藏 Logo 以節省空間 (可選) */
+    #logo { display: none; }
+    #recorder-panel { width: 120px; /* 縮小左側錄音面板 */ }
+    .record-button { width: auto; min-width: 100px; }
+}
