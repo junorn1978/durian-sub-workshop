@@ -1,11 +1,11 @@
 import { updateStatusDisplay } from './translationController.js';
-import { loadLanguageConfig, getAllLanguages } from './config.js';
+import { loadLanguageConfig, getAllLanguages, setRayModeStatus, setForceSingleLineStatus, setDeepgramStatus } from './config.js';
 import { setupPromptModelDownload } from './promptTranslationService.js';
 import { setupLanguagePackButton } from './languagePackManager.js';
 import { monitorLocalTranslationAPI } from './translatorApiService.js';
-import { browserInfo } from './speechCapture.js';
+import { browserInfo } from './config.js';
 
-document.addEventListener('DOMContentLoaded', async function() {
+document.addEventListener('DOMContentLoaded', async function () {
   // 7秒後清除狀態顯示
   setTimeout(() => {
     const statusDisplay = document.getElementById('status-display');
@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       statusDisplay.textContent = '';
     }
   }, 7000);
-  
+
   // 統一的設定配置
   const CONFIG = {
     // 樣式設定
@@ -46,17 +46,17 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // 單選按鈕群組
     radioGroups: [
-      { 
-        name: 'alignment', 
-        key: 'text-alignment', 
+      {
+        name: 'alignment',
+        key: 'text-alignment',
         default: 'center',
         targets: ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'],
         css: '--text-align',
         desc: 'Text alignment'
       },
-      { 
-        name: 'overflow', 
-        key: 'overflow-mode', 
+      {
+        name: 'overflow',
+        key: 'overflow-mode',
         default: 'normal',
         targets: ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'],
         desc: 'Overflow mode'
@@ -67,20 +67,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     special: [
       { id: 'display-panel-color', type: 'body-color', css: '--body-background', desc: 'Body background color' },
       { id: 'translation-link', type: 'text', desc: 'Translation link' },
-      { id: 'raymode', type: 'toggle', key: 'raymode-active', desc: 'Raymode active state' },
-      { id: 'local-translation-api', type: 'toggle', key: 'local-translation-api-active', desc: 'local-translation-api state' },
-      { id: 'local-prompt-api', type: 'toggle', key: 'local-prompt-api-active', desc: 'local-prompt-api state' },
-      { id: 'control-panel-minimize', type: 'toggle', key: 'control-panel-minimized', desc: 'Control panel minimized state' }
+      { id: 'gas-script-id', type: 'text', desc: 'GAS Script ID' },
+      { id: 'raymode', type: 'checkbox', key: 'raymode-active', desc: 'Raymode active state' },
+      { id: 'click-minimize-opt', type: 'select', key: 'click-minimize-enabled', desc: 'Display panel click minimize' },
+      { id: 'force-single-line-opt', type: 'select', key: 'force-single-line-enabled', desc: 'Force single line display' },
+      { id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state' },
     ],
 
     // 面板對應
     panels: {
-      'source1': 'source-styles-panel',
-      'target1': 'target1-styles-panel', 
-      'target2': 'target2-styles-panel',
-      'target3': 'target3-styles-panel',
-      'options': 'options-panel',
-      'usage': 'usage-guide'
+      'Subtitle': 'source-styles-panel',
+      'options': 'options-panel'
     }
   };
 
@@ -88,19 +85,6 @@ document.addEventListener('DOMContentLoaded', async function() {
   if (!browserInfo.isChrome) {
     console.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
     document.getElementById('status-display').textContent = '高速翻訳とブラウザAI翻訳はEdgeに対応しておりません。ご了承ください。';
-    const apiButton = document.getElementById('local-translation-api');
-    if (apiButton) {
-      apiButton.disabled = true;
-      apiButton.classList.remove('active');
-      localStorage.removeItem('local-translation-api-active');
-    }
-    
-    const promptButton = document.getElementById('local-prompt-api');
-    if (promptButton) {
-      promptButton.disabled = true;
-      promptButton.classList.remove('active');
-      localStorage.removeItem('local-prompt-api-active');
-    }
 
     const downloadButton = document.getElementById('prompt-api-download');
     if (downloadButton) {
@@ -119,11 +103,11 @@ document.addEventListener('DOMContentLoaded', async function() {
       localStorage.setItem(key, value);
       //console.debug('[DEBUG] [UIController]', `${desc} 已儲存至 localStorage`);
     },
-    
+
     load: (key, defaultValue = null) => {
       return localStorage.getItem(key) || defaultValue;
     },
-    
+
     getDefaultFromCSS: (cssProperty) => {
       return getComputedStyle(document.documentElement).getPropertyValue(cssProperty).trim();
     }
@@ -131,22 +115,22 @@ document.addEventListener('DOMContentLoaded', async function() {
 
   // 設定處理器工廠
   const createSettingHandler = (config) => ({
-    
+
     load() {
       const element = document.getElementById(config.id);
       const target = config.target ? document.getElementById(config.target) : null;
-      
+
       if (!element) return;
-      
+
       const saved = Storage.load(config.id);
       const value = saved || (config.css ? Storage.getDefaultFromCSS(config.css) : null);
-      
+
       if (!value) return;
-      
+
       element.value = config.type === 'range' ? parseFloat(value) : value;
-      
+
       if (!target || !config.css) return;
-      
+
       target.style.setProperty(config.css, value);
       if (config.css === '--text-font-size') {
         this.syncFontSizeProps(target, config.id, parseFloat(value));
@@ -155,12 +139,12 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     save(value) {
       Storage.save(config.id, value, config.desc);
-      
+
       if (!config.target || !config.css) return;
-      
+
       const target = document.getElementById(config.target);
       if (!target) return;
-      
+
       target.style.setProperty(config.css, value);
       if (config.css === '--text-font-size') {
         this.syncFontSizeProps(target, config.id, parseFloat(value));
@@ -170,10 +154,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     syncFontSizeProps(target, id, fontSize) {
       const overflowHeight = `${fontSize * 1.2}px`;
       const fontSizeHalf = `${fontSize * 0.75}px`;
-      
+
       target.style.setProperty('--overflow-height', overflowHeight);
       target.style.setProperty('--font-size-half', fontSizeHalf);
-      
+
       Storage.save(`${id}-overflow-height`, overflowHeight, `${config.desc} overflow height`);
       Storage.save(`${id}-font-size-half`, fontSizeHalf, `${config.desc} font size half`);
     },
@@ -185,38 +169,38 @@ document.addEventListener('DOMContentLoaded', async function() {
       element.addEventListener(config.type === 'select' ? 'change' : 'input', (e) => {
         const value = config.type === 'range' ? `${e.target.value}px` : e.target.value;
         this.save(value);
-        
+
         this.handleSpecialCases(e);
       });
     },
 
     handleSpecialCases(e) {
       if (!config.clearTarget || e.target.value !== 'none') return;
-      
+
       const targetEl = document.getElementById(config.clearTarget);
       if (!targetEl) return;
-      
+
       targetEl.textContent = '\u200B';
       targetEl.setAttribute("data-stroke", "\u200B");
     },
 
     reset() {
       if (!config.css) return;
-      
+
       const defaultValue = Storage.getDefaultFromCSS(config.css);
       if (!defaultValue) return;
-      
+
       this.save(defaultValue);
       const element = document.getElementById(config.id);
       if (!element) return;
-      
+
       element.value = config.type === 'range' ? parseFloat(defaultValue) : defaultValue;
     }
   });
 
   // 單選按鈕群組處理器
   const createRadioHandler = (config) => ({
-    
+
     load() {
       const saved = Storage.load(config.key, config.default);
       const radio = document.querySelector(`input[name="${config.name}"][value="${saved}"]`);
@@ -225,7 +209,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         this.save(saved);
       }
     },
-    
+
     setupListener() {
       document.querySelectorAll(`input[name="${config.name}"]`).forEach(radio => {
         radio.addEventListener('change', (e) => {
@@ -235,7 +219,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
       });
     },
-    
+
     save(value) {
       Storage.save(config.key, value, config.desc);
       config.targets.forEach(targetId => {
@@ -251,7 +235,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
       });
     },
-    
+
     reset() {
       const defaultRadio = document.querySelector(`input[name="${config.name}"][value="${config.default}"]`);
       if (defaultRadio) {
@@ -269,18 +253,18 @@ document.addEventListener('DOMContentLoaded', async function() {
           const saved = Storage.load(config.id);
           const defaultValue = Storage.getDefaultFromCSS(config.css) || '#00FF00';
           const value = saved || defaultValue;
-          
+
           element.value = value;
           document.body.style.setProperty(config.css, value);
         },
-        
+
         setupListener(element) {
           element.addEventListener('input', (e) => {
             document.body.style.setProperty(config.css, e.target.value);
             Storage.save(config.id, e.target.value, config.desc);
           });
         },
-        
+
         reset(element) {
           const defaultValue = Storage.getDefaultFromCSS(config.css) || '#00FF00';
           element.value = defaultValue;
@@ -288,139 +272,135 @@ document.addEventListener('DOMContentLoaded', async function() {
           Storage.save(config.id, defaultValue, config.desc);
         }
       },
-      
+
       'text': {
         load(element) {
           const saved = Storage.load(config.id);
           if (saved) element.value = saved;
         },
-        
+
         setupListener(element) {
           element.addEventListener('input', (e) => {
             Storage.save(config.id, e.target.value, config.desc);
           });
         },
-        
-        reset() {}
+
+        reset() { }
       },
-      
-      'toggle': {
+
+      // [新增] Checkbox 專用處理器
+      'checkbox': {
         load(element) {
-          if (!browserInfo.isChrome && config.id === 'local-translation-api') {
-            element.classList.remove('active');
-            Storage.save(config.key, 'false', config.desc);
-            return;
-          }
           const saved = Storage.load(config.key) === 'true';
-          element.classList.toggle('active', saved);
-          if (config.id === 'control-panel-minimize') {
-            const controlPanel = document.getElementById('control-panel');
-            const displayPanel = document.getElementById('display-panel');
-            const miniStart = document.getElementById('mini-start-recording');
-            const miniStop = document.getElementById('mini-stop-recording');
-            const startButton = document.getElementById('start-recording');
-            const stopButton = document.getElementById('stop-recording');
-            if (controlPanel && displayPanel && miniStart && miniStop && startButton && stopButton) {
-              controlPanel.style.display = saved ? 'none' : 'flex';
-              displayPanel.style.setProperty('--display-panel-height', saved ? '95%' : '55%');
-              miniStart.style.display = saved ? 'inline-block' : 'none';
-              miniStop.style.display = saved ? 'inline-block' : 'none';
-              miniStart.disabled = startButton.disabled;
-              miniStop.disabled = stopButton.disabled;
+          element.checked = saved; // 恢復勾選狀態
+
+          if (config.id === 'raymode') { setRayModeStatus(saved); }
+        },
+
+        setupListener(element) {
+          // Checkbox 使用 'change' 事件
+          element.addEventListener('change', (e) => {
+            const isChecked = e.target.checked;
+            Storage.save(config.key, isChecked.toString(), config.desc);
+
+            if (config.id === 'raymode') { setRayModeStatus(isChecked); }
+          });
+        },
+
+        reset(element) {
+          element.checked = false;
+          Storage.save(config.key, 'false', config.desc);
+
+          if (config.id === 'raymode') setRayModeStatus(false);
+        }
+      },
+
+      // 下拉選單專用處理器 (通用)
+      'select': {
+        load(element) {
+          const saved = Storage.load(config.key);
+          
+          // [修正] 定義預設值邏輯
+          // force-single-line-opt 和 deepgram-enabled 預設應該是 'false'
+          // click-minimize-opt 預設是 'true'
+          let defaultValue = 'true';
+          if (config.id === 'force-single-line-opt' || config.id === 'deepgram-enabled') {
+            defaultValue = 'false';
+          }
+          
+          const value = saved ? saved : defaultValue;
+          element.value = value;
+
+          // 針對強制單行，直接操作 CSS Class
+          if (config.id === 'force-single-line-opt') {
+            const sourceText = document.getElementById('source-text');
+            if (sourceText) {
+              if (value === 'true') {
+                sourceText.classList.add('visual-single-line');
+              } else {
+                sourceText.classList.remove('visual-single-line');
+              }
             }
+            setForceSingleLineStatus(value === 'true');
+          }
+
+          if (config.id === 'deepgram-enabled') {
+            setDeepgramStatus(element.value);
           }
         },
-        
+
         setupListener(element) {
-          element.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (!browserInfo.isChrome && config.id === 'local-translation-api') {
-              console.debug('[DEBUG] [UIController]', 'Edge 瀏覽器下禁止啟用本地端 API');
-              return;
-            }
-            element.classList.toggle('active');
-            const isActive = element.classList.contains('active');
-            if (config.id !== 'control-panel-minimize') {
-              Storage.save(config.key, isActive.toString(), config.desc);
-            }
-            
-            // NEW API和Prompt API按鈕二選一邏輯
-            if (config.id === 'local-translation-api') {
-              const promptApiDownloadButton = document.getElementById('prompt-api-download');
-              if (promptApiDownloadButton) {
-                promptApiDownloadButton.style.display = 'none';
-                updateStatusDisplay('');
-              }
-              const otherElement = document.getElementById('local-prompt-api');
-              if (otherElement && otherElement.classList.contains('active')) {
-                otherElement.classList.remove('active');
-                Storage.save('local-prompt-api-active', 'false', 'local-prompt-api state');
-                //console.debug('[DEBUG] [UIController]', '移除 local-prompt-api 的 active 狀態');
-              }
-            } else if (config.id === 'local-prompt-api') {
-              const localpromptActive = document.getElementById('local-prompt-api').classList.contains('active');
-              if (localpromptActive) {
-                setupPromptModelDownload();
-              } else {
-                const promptApiDownloadButton = document.getElementById('prompt-api-download');
-                if (promptApiDownloadButton) {
-                  promptApiDownloadButton.style.display = 'none';
-                  updateStatusDisplay('');
+          element.addEventListener('change', (e) => {
+            const value = e.target.value;
+            Storage.save(config.key, value, config.desc);
+            console.debug('[DEBUG] [UI]', `${config.desc} 設定變更: ${value}`);
+
+            if (config.id === 'force-single-line-opt') {
+              const sourceText = document.getElementById('source-text');
+              if (sourceText) {
+                if (value === 'true') {
+                  sourceText.classList.add('visual-single-line');
+                } else {
+                  sourceText.classList.remove('visual-single-line');
                 }
               }
-              const otherElement = document.getElementById('local-translation-api');
-              if (otherElement && otherElement.classList.contains('active')) {
-                otherElement.classList.remove('active');
-                Storage.save('local-translation-api-active', 'false', 'local-translation-api state');
-                //console.debug('[DEBUG] [UIController]', '移除 local-translation-api 的 active 狀態');
-              }
+              setForceSingleLineStatus(value === 'true');
             }
-            
-            if (config.id === 'control-panel-minimize') {
-              const controlPanel = document.getElementById('control-panel');
-              const displayPanel = document.getElementById('display-panel');
-              const miniStart = document.getElementById('mini-start-recording');
-              const miniStop = document.getElementById('mini-stop-recording');
-              const startButton = document.getElementById('start-recording');
-              const stopButton = document.getElementById('stop-recording');
-              if (controlPanel && displayPanel && miniStart && miniStop && startButton && stopButton) {
-                controlPanel.style.display = isActive ? 'none' : 'flex';
-                displayPanel.style.setProperty('--display-panel-height', isActive ? '95%' : '55%');
-                miniStart.style.display = isActive ? 'inline-block' : 'none';
-                miniStop.style.display = isActive ? 'inline-block' : 'none';
-                miniStart.disabled = startButton.disabled;
-                miniStop.disabled = stopButton.disabled;
-                console.debug('[DEBUG] [UIController]', `控制面板${isActive ? '隱藏' : '顯示'}，mini 按鈕顯示狀態: ${miniStart.style.display}`);
-              }
+
+            if (config.id === 'deepgram-enabled') {
+              setDeepgramStatus(value);
+              console.debug('[DEBUG]', '[UI]', `Deepgram 狀態變更: ${value}`);
             }
           });
         },
-        
+
         reset(element) {
-          element.classList.remove('active');
-          Storage.save(config.key, 'false', config.desc);
-          if (config.id === 'control-panel-minimize') {
-            const controlPanel = document.getElementById('control-panel');
-            const displayPanel = document.getElementById('display-panel');
-            const miniStart = document.getElementById('mini-start-recording');
-            const miniStop = document.getElementById('mini-stop-recording');
-            const startButton = document.getElementById('start-recording');
-            const stopButton = document.getElementById('stop-recording');
-            if (controlPanel && displayPanel && miniStart && miniStop && startButton && stopButton) {
-              controlPanel.style.display = 'flex';
-              displayPanel.style.setProperty('--display-panel-height', '55%');
-              miniStart.style.display = 'none';
-              miniStop.style.display = 'none';
-              miniStart.disabled = startButton.disabled;
-              miniStop.disabled = stopButton.disabled;
-            }
+          // [修正] 重置時的邏輯也要同步修改
+          let defaultVal = 'true';
+          if (config.id === 'force-single-line-opt' || config.id === 'deepgram-enabled') {
+            defaultVal = 'false';
+          }
+
+          element.value = defaultVal;
+          Storage.save(config.key, defaultVal, config.desc);
+
+          // 重置時移除 Class
+          if (config.id === 'force-single-line-opt') {
+            const sourceText = document.getElementById('source-text');
+            if (sourceText) sourceText.classList.remove('visual-single-line');
+            setForceSingleLineStatus(false);
+          }
+
+          // 重置時關閉 Deepgram
+          if (config.id === 'deepgram-enabled') {
+            setDeepgramStatus('false');
           }
         }
-      }
+      },
     };
 
     const handler = handlers[config.type];
-    
+
     return {
       load() {
         const element = document.getElementById(config.id);
@@ -466,12 +446,12 @@ document.addEventListener('DOMContentLoaded', async function() {
       //console.debug('[DEBUG] [UIController]', `已填充 ${config.id} 選單，使用 id 作為 value`);
     });
   };
-  
+
   // 初始化所有設定
   const initializeSettings = () => {
     // 填充語言選單
     populateLanguageSelects();
-    
+
     // 樣式設定
     const styleHandlers = CONFIG.styles.map(config => {
       const handler = createSettingHandler(config);
@@ -513,13 +493,13 @@ document.addEventListener('DOMContentLoaded', async function() {
       // 移除所有按鈕的 active 類
       document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
       document.getElementById(buttonId)?.classList.add('active');
-      
+
       // 隱藏所有面板，顯示目標面板
       Object.values(CONFIG.panels).forEach(panelId => {
         const panel = document.getElementById(panelId);
         if (panel) panel.style.display = 'none';
       });
-      
+
       const targetPanel = document.getElementById(CONFIG.panels[buttonId]);
       if (targetPanel) targetPanel.style.display = 'flex';
     };
@@ -536,15 +516,221 @@ document.addEventListener('DOMContentLoaded', async function() {
         e.stopPropagation();
         const isActive = apiLinkButton.classList.contains('active');
         const translationLink = document.getElementById('translation-link');
-        const menuButtons = document.querySelectorAll('.menu-button');
-        
+        const menuButtons = document.querySelectorAll('.status-button');
+        const menu3Buttons = document.querySelectorAll('.menu3-button');
+        const rayModeButton = document.querySelectorAll('.capsule-checkbox-label');
+
         if (!translationLink) return;
-        
+
         apiLinkButton.classList.toggle('active');
         menuButtons.forEach(btn => btn.style.display = isActive ? 'inline-block' : 'none');
+        menu3Buttons.forEach(btn => btn.style.display = isActive ? 'inline-block' : 'none');
+        rayModeButton.forEach(btn => btn.style.display = isActive ? 'flex' : 'none');
+        //rayButtons.style.display = isActive ? 'inline-block' : 'none';
         translationLink.style.display = isActive ? 'none' : 'inline-block';
       });
     }
+  };
+
+  // [新增] 麥克風隱私遮罩處理
+  const setupMicPrivacyHandler = () => {
+    const toggle = document.getElementById('mic-privacy-toggle');
+    const cover = document.getElementById('mic-privacy-cover');
+    const micInfo = document.querySelector('.mic-info');
+
+    if (!toggle || !cover) return;
+
+    // 定義狀態更新邏輯
+    const updatePrivacyState = (isProtected) => {
+      // 顯示或隱藏遮罩
+      cover.style.display = isProtected ? 'flex' : 'none';
+      toggle.checked = isProtected;
+
+      micInfo.style.overflowY = isProtected ? 'hidden' : 'auto';
+
+      // 儲存狀態
+      localStorage.setItem('mic-privacy-enabled', isProtected);
+      console.debug('[DEBUG]', '[UI]', `麥克風隱私模式: ${isProtected ? '開啟' : '關閉'}`);
+    };
+
+    // 初始化：讀取上次設定
+    const savedState = localStorage.getItem('mic-privacy-enabled') === 'true';
+    updatePrivacyState(savedState);
+
+    // 監聽變更
+    toggle.addEventListener('change', (e) => {
+      updatePrivacyState(e.target.checked);
+    });
+  };
+
+  // 翻譯模式下拉選單與輸入框處理
+  const setupTranslationModeHandler = () => {
+    const modeSelect = document.getElementById('translation-mode');
+    
+    // 取得各個區塊
+    const linkWrapper = document.getElementById('link-input-wrapper');
+    const linkInput = document.getElementById('translation-link');
+    const gasWrapper = document.getElementById('gas-input-wrapper');
+    const gasInput = document.getElementById('gas-script-id');
+    const promptDownloadBtn = document.getElementById('prompt-api-download');
+
+    // [新增] 高速翻譯專用控制區
+    const fastModeControls = document.getElementById('fast-mode-controls');
+    const fastModeProgress = document.getElementById('fast-mode-progress');
+
+    // --- 輔助函式：綁定顯示/隱藏密碼的眼睛按鈕 ---
+    const setupToggleVisibility = (btnId, inputId) => {
+      const btn = document.getElementById(btnId);
+      const input = document.getElementById(inputId);
+      
+      if (btn && input) {
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+
+        newBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isPassword = input.type === 'password';
+          input.type = isPassword ? 'text' : 'password';
+          
+          const eyeOpen = `<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+          const eyeClosed = `<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
+          
+          newBtn.innerHTML = isPassword ? eyeOpen : eyeClosed;
+        });
+      }
+    };
+
+    setupToggleVisibility('toggle-link-visibility', 'translation-link');
+    setupToggleVisibility('toggle-gas-visibility', 'gas-script-id');
+
+    if (!modeSelect) return;
+
+    // --- 核心邏輯：應用模式 ---
+    const applyMode = (mode) => {
+      // 1. 重置所有狀態：先隱藏所有
+      if (linkWrapper) linkWrapper.style.display = 'none';
+      if (gasWrapper) gasWrapper.style.display = 'none';
+      if (promptDownloadBtn) promptDownloadBtn.style.display = 'none';
+      if (fastModeControls) fastModeControls.style.display = 'none'; // [確保隱藏]
+      
+      // 清空進度文字
+      if (fastModeProgress) fastModeProgress.textContent = '';
+      
+      localStorage.setItem('local-translation-api-active', 'false');
+      localStorage.setItem('local-prompt-api-active', 'false');
+      
+      updateStatusDisplay('');
+
+      // 2. 根據模式顯示對應介面
+      switch (mode) {
+        case 'gas':
+          if (gasWrapper) { 
+            gasWrapper.style.display = 'block'; 
+            if (gasInput) gasInput.focus();
+          }
+          console.debug('[DEBUG]', '[uiController.js]', '切換至 Google Apps Script 模式');
+          break;
+
+        case 'link':
+          if (linkWrapper) { 
+            linkWrapper.style.display = 'block'; 
+            if (linkInput) linkInput.focus();
+          }
+          console.debug('[DEBUG]', '[uiController.js]', '切換至自訂伺服器模式');
+          break;
+
+        case 'fast': // [修改] 高速翻譯模式
+          if (!browserInfo.isChrome) {
+            alert('高速翻訳はEdgeに対応しておりません。');
+            modeSelect.value = 'link'; 
+            applyMode('link');
+            return;
+          }
+          localStorage.setItem('local-translation-api-active', 'true');
+          
+          // [關鍵] 顯示高速翻譯控制區塊
+          if (fastModeControls) {
+             fastModeControls.style.display = 'flex';
+          }
+          console.debug('[DEBUG]', '[uiController.js]', '切換至高速翻譯模式');
+          break;
+
+        case 'ai':
+          if (!browserInfo.isChrome) {
+            alert('ブラウザAI翻訳はEdgeに対応しておりません。');
+            modeSelect.value = 'link'; 
+            applyMode('link');
+            return;
+          }
+          localStorage.setItem('local-prompt-api-active', 'true');
+          setupPromptModelDownload();
+          console.debug('[DEBUG]', '[uiController.js]', '切換至 Chrome AI 模式');
+          break;
+          
+        default:
+          modeSelect.value = 'link';
+          applyMode('link');
+          break;
+      }
+      
+      Storage.save('translation-mode-selection', mode, 'Translation Mode');
+    };
+
+    // --- 初始化與監聽 ---
+    const savedMode = Storage.load('translation-mode-selection') || 'link';
+    
+    // 檢查瀏覽器相容性
+    if (!browserInfo.isChrome && (savedMode === 'fast' || savedMode === 'ai')) {
+      modeSelect.value = 'link';
+      applyMode('link');
+    } else {
+      modeSelect.value = savedMode;
+      applyMode(savedMode);
+    }
+
+    // 監聽變更事件 (確保這裡有被執行)
+    modeSelect.addEventListener('change', (e) => {
+      applyMode(e.target.value);
+    });
+  };
+
+  // 點擊 Display Panel 切換最小化模式 (不需儲存狀態)
+  const setupDisplayPanelInteraction = () => {
+    const displayPanel = document.getElementById('display-panel');
+    const controlPanel = document.getElementById('control-panel');
+    const statusPanel = document.getElementById('status-panel');
+
+    const minimizeOption = document.getElementById('click-minimize-opt');
+    if (!displayPanel || !controlPanel || !statusPanel) return;
+
+    displayPanel.addEventListener('click', (e) => {
+      if (minimizeOption && minimizeOption.value === 'false') {
+        return;
+      }
+
+      // 判斷目前狀態 (以 controlPanel 是否隱藏為基準)
+      const isHidden = controlPanel.style.display === 'none';
+
+      if (isHidden) {
+        // === 恢復顯示 ===
+        controlPanel.style.display = 'flex';
+        statusPanel.style.display = 'flex'; // status-panel CSS 定義為 flex
+
+        // 恢復原本的高度比例 (依據 CSS :root 定義的 55%)
+        displayPanel.style.setProperty('--display-panel-height', '55%');
+
+        console.debug('[DEBUG]', '[uiController.js]', '介面狀態恢復顯示');
+      } else {
+        // === 隱藏 (最小化) ===
+        controlPanel.style.display = 'none';
+        statusPanel.style.display = 'none';
+
+        // 擴大字幕顯示區，避免下方留白 (設為 95% 或 100%)
+        displayPanel.style.setProperty('--display-panel-height', '95%');
+
+        console.debug('[DEBUG]', '[uiController.js]', '介面狀態隱藏 (最小化)');
+      }
+    });
   };
 
   // 重置所有設定
@@ -553,7 +739,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (resetButton) {
       resetButton.addEventListener('click', (e) => {
         e.stopPropagation();
-        
+
         // 重置所有處理器
         Object.values(handlers).flat().forEach(handler => {
           if (handler.reset) handler.reset();
@@ -567,47 +753,20 @@ document.addEventListener('DOMContentLoaded', async function() {
   const handlers = initializeSettings();
   setupPanelSwitching();
   setupResetButton(handlers);
-  
+
   await setupLanguagePackButton('source-language', updateStatusDisplay);
-
-  // 新增 mini 按鈕相關邏輯
-  const miniStart = document.getElementById('mini-start-recording');
-  const miniStop = document.getElementById('mini-stop-recording');
-  const startButton = document.getElementById('start-recording');
-  const stopButton = document.getElementById('stop-recording');
-  
-  if (miniStart && miniStop && startButton && stopButton) {
-    // 初始化 MutationObserver 監聽 disabled 屬性變化
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach(mutation => {
-        if (mutation.attributeName === 'disabled') {
-          miniStart.disabled = startButton.disabled;
-          miniStop.disabled = stopButton.disabled;
-          console.debug('[DEBUG] [UIController]', '同步 mini 按鈕狀態:', {
-            miniStartDisabled: miniStart.disabled,
-            miniStopDisabled: miniStop.disabled
-          });
-        }
-      });
-    });
-
-    // 設置觀察器，監聽 startButton 和 stopButton 的 disabled 屬性
-    observer.observe(startButton, { attributes: true });
-    observer.observe(stopButton, { attributes: true });
-
-    // 綁定 mini 按鈕點擊事件
-    miniStart.addEventListener('click', () => {
-      startButton.click();
-      console.debug('[DEBUG] [UIController]', '模擬點擊 start-recording');
-    });
-    miniStop.addEventListener('click', () => {
-      stopButton.click();
-      console.debug('[DEBUG] [UIController]', '模擬點擊 stop-recording');
-    });
-  } else {
-    console.error('[ERROR] [UIController]', '無法找到 mini-start-recording, mini-stop-recording, start-recording 或 stop-recording 元素');
-  }
 
   setupPromptModelDownload();
   monitorLocalTranslationAPI();
+
+  setupDisplayPanelInteraction();
+  setupTranslationModeHandler();
+
+  setupMicPrivacyHandler();
+
+  const defaultTab = document.getElementById('Subtitle');
+  if (defaultTab) {
+    console.debug('[DEBUG]', '[uiController.js]', '預設開啟字幕設定面板');
+    defaultTab.click();
+  }
 });

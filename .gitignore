@@ -5,6 +5,7 @@ node_modules/
 .env
 .env.local
 .env.*.local
+.env.sample
 
 # 日誌檔
 logs
@@ -52,3 +53,5 @@ yarn.lock
 .gitconfig
 .gitignore
 
+# 全部的本機BAT都不上傳
+ハムハム字幕アトリエ_translate_localhost*.bat

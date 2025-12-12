@@ -1,5 +1,5 @@
-import { browserInfo, keywordRules } from './speechCapture.js';
-import { getChunkSize, getDisplayTimeRules, getTargetCodeById } from './config.js';
+import { keywordRules } from './speechCapture.js';
+import { browserInfo, getChunkSize, getDisplayTimeRules, getTargetCodeById, isRayModeActive, isPromptApiActive, isTranslationApiActive } from './config.js';
 import { sendLocalTranslation } from './translatorApiService.js';
 import { sendPromptTranslation } from './promptTranslationService.js';
 import { processTranslationUrl } from './remoteTranslationService.js';
@@ -52,9 +52,7 @@ async function pump() {
 
 // 在使用れいーモード的時候進行翻譯後的文字過濾
 function filterTextWithKeywords(text, targetLang) {
-  const rayModeButton = document.getElementById('raymode');
-  const isRayModeActive = rayModeButton?.classList.contains('active') || false;
-  if (!isRayModeActive) return text;
+  if (!isRayModeActive()) return text;
 
   let result = text;
   result = result.replace(/"/g, ''); // 過濾引號
@@ -102,7 +100,6 @@ async function updateTranslationUI(data, targetLangs, minDisplayTime, sequenceId
     target2: document.getElementById('target-text-2'),
     target3: document.getElementById('target-text-3')
   };
-  const isRayModeActive = document.getElementById('raymode')?.classList.contains('active') || false;
 
   console.debug('[DEBUG] [Translation] updateTranslationUI 開始:', { 
     data: data, 
@@ -115,7 +112,7 @@ async function updateTranslationUI(data, targetLangs, minDisplayTime, sequenceId
     const span = spans[`target${index + 1}`];
     const langSelect = document.getElementById(`target${index + 1}-language`)?.value;
     if (span && data?.translations && data.translations[index]) {
-      const filteredText = isRayModeActive ? filterTextWithKeywords(data.translations[index], lang) : data.translations[index];
+      const filteredText = isRayModeActive() ? filterTextWithKeywords(data.translations[index], lang) : data.translations[index];
       
       displayBuffers[`target${index + 1}`].push({
         text: filteredText,
@@ -245,12 +242,46 @@ function processDisplayBuffers() {
 }
 
 // 公開的翻譯請求函數
-async function sendTranslationRequest(text, sourceLang) {
+async function sendTranslationRequest(text, previousText = null, sourceLang) {
   return enqueue(async () => {
     const sequenceId = sequenceCounter++;
 
     try {
-      const serviceUrl = document.getElementById('translation-link').value;
+      // 1. 取得 UI 元素與目前模式
+      const modeSelect = document.getElementById('translation-mode');
+      const currentMode = modeSelect ? modeSelect.value : 'link';
+
+      let serviceUrl = '';
+
+      // 2. 根據模式，從不同的 Input 取得資料並格式化
+      if (currentMode === 'gas') {
+        // [新增] 模式：Google Apps Script
+        // 從新的專用輸入框取值
+        const gasInput = document.getElementById('gas-script-id');
+        const rawId = gasInput ? gasInput.value.trim() : '';
+
+        // 防呆處理：
+        // 如果使用者習慣性貼上 "GAS://abc..."，我們將前綴移除，只留 ID
+        // 然後統一組合成 "GAS://ID" 格式，讓 remoteTranslationService 識別
+        const cleanId = rawId.replace(/^GAS:\/\//i, '');
+        serviceUrl = cleanId ? `GAS://${cleanId}` : '';
+
+        console.debug('[DEBUG] [translationController.js] 模式: GAS, Script ID:', cleanId);
+
+      } else if (currentMode === 'link') {
+        // [原有] 模式：自訂伺服器 (Custom Link)
+        // 從舊的輸入框取值
+        const linkInput = document.getElementById('translation-link');
+        serviceUrl = linkInput ? linkInput.value.trim() : '';
+
+        console.debug('[DEBUG] [translationController.js] 模式: Link, URL:', serviceUrl);
+
+      } else {
+        // 其他模式 (fast, ai) 不需要 URL
+        serviceUrl = '';
+      }
+
+      // 3. 取得並過濾目標語言
       const targetLangs = [
         document.getElementById('target1-language')?.value,
         document.getElementById('target2-language')?.value,
@@ -258,55 +289,68 @@ async function sendTranslationRequest(text, sourceLang) {
       ].filter(lang => lang && lang !== 'none').map(lang => getTargetCodeById(lang));
 
       if (targetLangs.length === 0) {
-        console.debug('[DEBUG] [Translation] 無目標語言，跳過翻譯');
+        console.debug('[DEBUG] [translationController.js] 無目標語言，跳過翻譯');
         return;
       }
 
-      const promptApiButton = document.getElementById('local-prompt-api');
-      const isPromptApiActive = promptApiButton?.classList.contains('active') || false;
+      // 4. 判斷環境變數與顯示規則
+      const isLocalPromptApiActive = isPromptApiActive() || false;
+      const isLocalTranslationActive = isTranslationApiActive() || false;
+      // 判斷是否為 GAS 模式 (根據上一步組裝的 URL)
+      const isGasMode = serviceUrl.startsWith('GAS://');
 
-      const localTranslationButton = document.getElementById('local-translation-api');
-      const isLocalTranslationActive = localTranslationButton?.classList.contains('active') || false;
-
-      // 翻譯後緩衝時間規則
+      // 計算翻譯顯示停留時間 (GAS、本地翻譯通常不需要強制最短時間，設為 0)
       const rules = getDisplayTimeRules(sourceLang) || getDisplayTimeRules('default');
-      const minDisplayTime = serviceUrl.startsWith('GAS://') || isLocalTranslationActive || isPromptApiActive
+      const minDisplayTime = isGasMode || isLocalTranslationActive || isLocalPromptApiActive
         ? 0
         : rules.find(rule => text.length <= rule.maxLength).time;
 
-      //console.debug('[DEBUG] [Translation] 計算顯示時間:', { sourceLang, textLength: text.length, minDisplayTime });
-
       let data;
+
+      // 5. 路由分流邏輯 (執行翻譯)
+      // 優先順序: Prompt API -> 本地 Translator API -> 遠端 (GAS/Link)
       
-      // 根據選擇的翻譯服務進行翻譯
-      // 順序為 Prompt API > 本地翻譯 > 遠端翻譯
-      if (isPromptApiActive && 'LanguageModel' in self) {
-        console.debug('[DEBUG] [Translation] 執行 Prompt API 翻譯:', { sequenceId });
+      if (isLocalPromptApiActive && 'LanguageModel' in self) {
+        // --- 分支 A: Chrome 內建 AI (Prompt API) ---
+        console.debug('[DEBUG] [translationController.js] 執行 Prompt API 翻譯:', { sequenceId });
         try {
           data = await sendPromptTranslation(text, targetLangs, sourceLang);
-          //console.debug('[DEBUG] [Translation] Prompt API 移除回調確認:', { sequenceId });
         } catch (error) {
-          console.error('[ERROR] [Translation] Prompt API 翻譯失敗:', { sequenceId, error: error.message });
-          updateStatusDisplay('翻訳エラー:', { sequenceId, error: error.message });
+          console.error('[ERROR] [translationController.js] Prompt API 翻譯失敗:', { sequenceId, error: error.message });
+          updateStatusDisplay('翻訳エラー (AI):', { sequenceId, error: error.message });
+          // AI 失敗時給予使用者反饋，5秒後清除
           setTimeout(() => updateStatusDisplay(''), 5000);
           throw error;
         }
+
       } else if (isLocalTranslationActive && browserInfo.supportsTranslatorAPI) {
-        console.debug('[DEBUG] [Translation] 執行本地翻譯:', { sequenceId });
-        data = await sendLocalTranslation(text, targetLangs, sourceLang); // 移除回調函數
+        // --- 分支 B: Chrome 內建翻譯 (Translator API) ---
+        console.debug('[DEBUG] [translationController.js] 執行本地翻譯:', { sequenceId });
+        data = await sendLocalTranslation(text, targetLangs, sourceLang);
+
       } else {
-        data = await processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, '', sequenceId);
+        // --- 分支 C: 遠端翻譯 (GAS 或 自訂伺服器) ---
+        // 這裡會將剛才組裝好的 serviceUrl (可能是 GAS://... 或 http://...) 傳入
+        // processTranslationUrl 會負責最後的解析與發送
+        
+        if (!serviceUrl) {
+           console.warn('[WARN] [translationController.js] 翻譯服務網址/ID 為空，跳過請求');
+           return;
+        }
+
+        console.debug('[DEBUG] [translationController.js] 執行遠端翻譯:', { mode: currentMode, url: serviceUrl });
+        data = await processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, '', sequenceId, previousText);
       }
 
-      console.debug('[DEBUG] [Translation] 翻譯結果數據:', { data, sequenceId });
-
+      // 6. 更新 UI 顯示結果
       if (data) {
         await updateTranslationUI(data, targetLangs, minDisplayTime, sequenceId);
       } else {
-        console.warn('[WARN] [Translation] 無有效翻譯結果:', { text, sequenceId });
+        console.warn('[WARN] [translationController.js] 無有效翻譯結果:', { text, sequenceId });
       }
+
     } catch (error) {
-      console.error('[ERROR] [Translation] 翻譯失敗:', { sequenceId, error: error.message });
+      console.error('[ERROR] [translationController.js] 翻譯請求異常:', { sequenceId, error: error.message });
       updateStatusDisplay('翻訳エラー:', { sequenceId, error: error.message });
       setTimeout(() => updateStatusDisplay(''), 5000);
       throw error;

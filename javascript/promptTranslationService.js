@@ -1,5 +1,5 @@
 //promptTranslationService.js
-import { getPromptApiCode } from './config.js';
+import { getPromptApiCode, isPromptApiActive } from './config.js';
 import { updateStatusDisplay } from './translationController.js';
 
 
@@ -241,8 +241,7 @@ async function sendPromptTranslation(text, targetLangs, sourceLang) {
 // 預下載語言模型（綁定到按鈕點擊）
 async function setupPromptModelDownload() {
   
-  const promptApiButtonStatus = document.getElementById('local-prompt-api');
-  if (!promptApiButtonStatus?.classList.contains('active')) {
+  if (!isPromptApiActive()) {
     console.debug('[DEBUG] [promptTranslationService]', 'Prompt API 功能未啟用，跳過模型下載按鍵設定');
     return;
   }
@@ -298,7 +297,7 @@ async function setupPromptModelDownload() {
     downloadButton.addEventListener('click', async () => {
       if (!('LanguageModel' in self)) {
         console.debug('[DEBUG] [promptTranslationService]', 'LanguageModel API 不支援');
-        updateStatusDisplay(`この機能は現在ご利用いただけません。`);
+        updateStatusDisplay(`この機能は、現在ブラウザがまだ対応していないため、ご利用いただけません。`);
         setTimeout(() => updateStatusDisplay(''), 5000);
         return;
       }
@@ -310,7 +309,7 @@ async function setupPromptModelDownload() {
               const progress = Math.round(e.loaded * 100);
               console.debug('[DEBUG] [promptTranslationService]', '模型下載進度:', { progress });
               if (progress >= 90) {
-                updateStatusDisplay('モデルダウンロード：${progress}%、90％以降は完了までに少し時間がかかります。しばらくお待ちください...');
+                updateStatusDisplay(`モデルダウンロード：${progress}%、90％以降は完了までに少し時間がかかります。しばらくお待ちください...`);
               } else {
                 updateStatusDisplay(`モデルダウンロード：${progress}%、しばらくお待ちください...`);
               }

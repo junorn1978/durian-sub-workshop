@@ -5,7 +5,7 @@
       "label": "日本語",
       "asSource": true,
       "asTarget": true,
-      "chunkSize": 35,
+      "chunkSize": 45,
       "displayTimeRules": [
         { "maxLength": 20, "time": 1 },
         { "maxLength": 40, "time": 2 },

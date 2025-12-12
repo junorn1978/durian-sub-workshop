@@ -23,6 +23,7 @@
 語音擷取：speechCapture.js 建立並管理 SpeechRecognition，依瀏覽器（Chrome/Edge）與本地模型可用性決定 continuous 與處理策略，同步更新「來源字幕」。
 
 （可選）RayMode 前處理：載入 ray_mode_keywords.json，對輸入語句進行輕量替換或過濾，降低誤聽造成的可讀性問題。
+ deepgramService.js: 從web speech api改走使用getusermedia傳送音訊至deepgram伺服器進行辨識後回傳轉文字結果。(可選)
 
 翻譯管線分流：translationController.js 的 sendTranslationRequest() 依 UI 狀態與可用性決策路徑：
 
