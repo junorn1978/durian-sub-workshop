@@ -334,8 +334,7 @@ document.addEventListener('DOMContentLoaded', async function () {
           // force-single-line-opt 和 deepgram-enabled 預設應該是 'false'
           // click-minimize-opt 預設是 'true'
           let defaultValue = 'true';
-          //if (config.id === 'force-single-line-opt' || config.id === 'deepgram-enabled') {
-          if (config.id === 'force-single-line-opt') {
+          if (config.id === 'force-single-line-opt' || config.id === 'deepgram-enabled') {
             defaultValue = 'false';
           }
 
@@ -343,15 +342,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             defaultValue = '1'; 
           }
           
-          //const value = saved ? saved : defaultValue;
-          let value = saved ? saved : defaultValue;
-
-          // === [暫時修改] 強制 Deepgram 啟動，無視儲存值 ===
-          if (config.id === 'deepgram-enabled') {
-            value = 'true';
-          }
-          // ============================================
-          
+          const value = saved ? saved : defaultValue;
           element.value = value;
 
           // 針對強制單行，直接操作 CSS Class
