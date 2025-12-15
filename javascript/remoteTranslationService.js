@@ -1,3 +1,5 @@
+import { Logger } from './logger.js';
+
 // 遠端翻譯服務模組，處理所有遠端請求邏輯
 
 // 遠端請求超時輔助函式
@@ -16,7 +18,7 @@ async function fetchWithTimeout(input, init = {}, ms = 10000) {
 async function sendTranslation(text, targetLangs, serviceUrl, serviceKey, sequenceId, previousText = null) {
   // 1. 基礎參數檢核
   if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') {
-    console.debug('[DEBUG]', '[remoteTranslationService.js]', '無效文字，跳過翻譯:', text);
+    Logger.debug('[DEBUG]', '[remoteTranslationService.js]', '無效文字，跳過翻譯:', text);
     return null;
   }
 
@@ -68,7 +70,7 @@ async function sendTranslation(text, targetLangs, serviceUrl, serviceKey, sequen
     previousText: previousText || null // 若未提供則為 null
   };
 
-  console.debug('[DEBUG]', '[remoteTranslationService.js]', '發送翻譯請求 (含 Context):', { url: finalUrl, sequenceId, hasContext: !!previousText });
+  Logger.debug('[DEBUG]', '[remoteTranslationService.js]', '發送翻譯請求 (含 Context):', { url: finalUrl, sequenceId, hasContext: !!previousText });
 
   const response = await fetchWithTimeout(finalUrl, {
     method: 'POST',
@@ -86,12 +88,12 @@ async function sendTranslation(text, targetLangs, serviceUrl, serviceKey, sequen
 // 發送翻譯請求的 GET 方式（適用於 Google Apps Script）
 async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl, sequenceId) {
   if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') {
-    console.debug('[DEBUG] [remoteTranslationService] 無效文字，跳過翻譯:', text);
+    Logger.debug('[DEBUG] [remoteTranslationService] 無效文字，跳過翻譯:', text);
     return null;
   }
 
   if (!serviceUrl.match(/^https:\/\/script\.google\.com\/macros\/s\/[^\/]+\/exec$/)) {
-    console.error('[ERROR] [remoteTranslationService] 無效的 Google Apps Script URL:', serviceUrl);
+    Logger.error('[ERROR] [remoteTranslationService] 無效的 Google Apps Script URL:', serviceUrl);
     throw new Error('無效的 Google Apps Script URL');
   }
 
@@ -99,7 +101,7 @@ async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl, seq
   const url = `${serviceUrl}?${queryParams}`;
 
   if (url.length > 20000) {
-    console.error('[ERROR] [remoteTranslationService] URL 過長:', url.length);
+    Logger.error('[ERROR] [remoteTranslationService] URL 過長:', url.length);
     throw new Error('請求資料過長，請縮短文字內容');
   }
 
@@ -116,14 +118,14 @@ async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl, seq
 // 處理 URL 並選擇 GET 或 POST 方式
 async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, serviceKey, sequenceId, previousText = null) {
   if (!serviceUrl) {
-    console.error('[ERROR]', '[remoteTranslationService.js]', 'URL 為空');
+    Logger.error('[ERROR]', '[remoteTranslationService.js]', 'URL 為空');
     throw new Error('有効な翻訳サービスの URL を入力してください。');
   }
 
   if (serviceUrl.startsWith('GAS://')) {
     const scriptId = serviceUrl.replace('GAS://', '');
     if (!scriptId.match(/^[a-zA-Z0-9_-]+$/)) {
-      console.error('[ERROR]', '[remoteTranslationService.js]', '無效的 Google Apps Script ID:', scriptId);
+      Logger.error('[ERROR]', '[remoteTranslationService.js]', '無效的 Google Apps Script ID:', scriptId);
       throw new Error('Google Apps Script ID 只能包含字母、數字和連字符');
     }
     const gasUrl = `https://script.google.com/macros/s/${scriptId}/exec`;

@@ -1,6 +1,7 @@
 // translatorApiService.js
 import { getLanguageModelApiCode } from './config.js';
 import { sequenceCounter, translatorCache, updateStatusDisplay, updateTranslationUI } from './translationController.js';
+import { Logger } from './logger.js';
 
 // 用來追蹤待下載的語言對佇列
 let downloadQueue = [];
@@ -12,7 +13,7 @@ function monitorLocalTranslationAPI() {
   const progressSpan = document.getElementById('fast-mode-progress');
 
   if (!downloadBtn) {
-    console.debug('[DEBUG] [Translator API] 未找到 fast-mode-download-btn 元素');
+    Logger.debug('[DEBUG] [Translator API] 未找到 fast-mode-download-btn 元素');
     return;
   }
 
@@ -63,11 +64,11 @@ function monitorLocalTranslationAPI() {
         // 下載成功，從佇列移除
         downloadQueue.shift();
       } else {
-        console.error(`[ERROR] [Translator API] ${label} 下載失敗`);
+        Logger.error(`[ERROR] [Translator API] ${label} 下載失敗`);
       }
 
     } catch (e) {
-      console.error('[ERROR] [Translator API] 下載過程發生錯誤:', e);
+      Logger.error('[ERROR] [Translator API] 下載過程發生錯誤:', e);
     } finally {
       // 4. 下載結束後的 UI 更新
       downloadBtn.disabled = false;
@@ -109,9 +110,9 @@ async function initializeQueue(progressSpan) {
       const availability = await Translator.availability({ sourceLanguage: sourceCode, targetLanguage: targetCode });
       
       if (availability === 'available') {
-        console.debug(`[DEBUG] [Translator API] ${sourceCode}->${targetCode} 已就緒`);
+        Logger.debug(`[DEBUG] [Translator API] ${sourceCode}->${targetCode} 已就緒`);
       } else if (availability === 'no') {
-        console.warn(`[WARN] [Translator API] ${sourceCode}->${targetCode} 不支援`);
+        Logger.warn(`[WARN] [Translator API] ${sourceCode}->${targetCode} 不支援`);
       } else {
         // 需要下載 (downloadable 或 downloading)
         downloadQueue.push({
@@ -121,11 +122,11 @@ async function initializeQueue(progressSpan) {
         });
       }
     } catch (e) {
-      console.warn(`[WARN] [Translator API] 檢查 ${sourceCode}->${targetCode} 失敗:`, e);
+      Logger.warn(`[WARN] [Translator API] 檢查 ${sourceCode}->${targetCode} 失敗:`, e);
     }
   }
 
-  console.debug('[DEBUG] [Translator API] 下載佇列初始化:', downloadQueue);
+  Logger.debug('[DEBUG] [Translator API] 下載佇列初始化:', downloadQueue);
 }
 
 // 更新按鈕與文字狀態
@@ -174,7 +175,7 @@ async function ensureModelLoaded(sourceLanguage, targetLanguage, label = '') {
     }
     
     // 開始下載
-    console.debug(`[DEBUG] [Translator API] 開始下載 ${pairName}`);
+    Logger.debug(`[DEBUG] [Translator API] 開始下載 ${pairName}`);
     if (progressSpan) progressSpan.textContent = `${pairName} DL開始...`;
     
     await Translator.create({
@@ -190,11 +191,11 @@ async function ensureModelLoaded(sourceLanguage, targetLanguage, label = '') {
       }
     });
 
-    console.info(`[INFO] [Translator API] ${pairName} 下載完成`);
+    Logger.info(`[INFO] [Translator API] ${pairName} 下載完成`);
     return true;
 
   } catch (error) {
-    console.error('[ERROR] [Translator API] 下載失敗:', error);
+    Logger.error('[ERROR] [Translator API] 下載失敗:', error);
     
     if (error.name === 'NotAllowedError') {
        if (progressSpan) progressSpan.textContent = 'クリックが必要です';
@@ -234,7 +235,7 @@ async function sendLocalTranslation(text, targetLangs, sourceLang) {
     try {
       const availability = await Translator.availability({ sourceLanguage, targetLanguage });
       if (availability !== 'available') {
-        console.warn(`[WARN] [Translator API] ${sourceLanguage}->${targetLanguage} 未就緒，跳過翻譯`);
+        Logger.warn(`[WARN] [Translator API] ${sourceLanguage}->${targetLanguage} 未就緒，跳過翻譯`);
         allAvailable = false;
         continue;
       }
@@ -248,7 +249,7 @@ async function sendLocalTranslation(text, targetLangs, sourceLang) {
       const result = await translator.translate(text);
       translations[i] = result;
     } catch (error) {
-      console.error('[ERROR] [Translator API] 翻譯異常:', error);
+      Logger.error('[ERROR] [Translator API] 翻譯異常:', error);
       translations[i] = '';
     }
   }

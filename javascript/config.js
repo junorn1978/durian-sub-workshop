@@ -1,6 +1,8 @@
 // config.js
 // 目的：呼叫端可以傳語言 ID（如 'en-US'、'zh-TW'）或短碼（如 'en'、'id'），
 
+import { Logger } from './logger.js';
+
 let _config /** @type {LanguageConfig|null} */ = null;
 
 let _isRayModeActive = false;
@@ -36,7 +38,7 @@ function detectBrowser() {
     // 檢查 Translator API 是否存在於 window/self
     supportsTranslatorAPI = 'Translator' in self;
   } else {
-    console.warn('[WARN] [config.js] 未檢測到 Chrome 或 Edge 瀏覽器:', userAgent);
+    Logger.warn('[WARN] [config.js] 未檢測到 Chrome 或 Edge 瀏覽器:', userAgent);
   }
 
   return { browser, isChrome, supportsTranslatorAPI };
@@ -89,7 +91,7 @@ export async function loadLanguageConfig(url = './data/language_config.json') {
     throw new Error('[config.js] 非法的語言設定物件');
   }
   _config = json;
-  console.debug('[DEBUG] [config] 已載入語言設定，語言數量:', json.languages?.length ?? 0);
+  Logger.debug('[DEBUG] [config] 已載入語言設定，語言數量:', json.languages?.length ?? 0);
   return json;
 }
 
@@ -139,11 +141,11 @@ export function getTargetCodeForTranslator(idOrCode /** @type {string} */) /** @
  */
 export function getPromptApiCode(idOrCode /** @type {string} */) /** @type {string} */ {
   ensureLoaded();
-  //console.debug('[DEBUG] [Config] getPromptApiCode 代碼:', { id: idOrCode });
+  //Logger.debug('[DEBUG] [Config] getPromptApiCode 代碼:', { id: idOrCode });
   const resolvedId = resolveLangId(idOrCode);
   const lang = getLangById(resolvedId);
   if (!lang?.promptApiCode) {
-    console.warn('[WARN] [Translation] 未找到 promptApiCode，使用輸入值:', { id: idOrCode });
+    Logger.warn('[WARN] [Translation] 未找到 promptApiCode，使用輸入值:', { id: idOrCode });
     return idOrCode; // 保守退回原輸入，避免阻斷流程
   }
   return lang.promptApiCode;
@@ -158,7 +160,7 @@ export function getLanguageModelApiCode(idOrCode /** @type {string} */) /** @typ
   const resolvedId = resolveLangId(idOrCode);
   const lang = getLangById(resolvedId);
   if (!lang?.languageModelApiCode) {
-    console.warn('[WARN] [Translation] 未找到 languageModelApiCode，使用輸入值:', { id: idOrCode });
+    Logger.warn('[WARN] [Translation] 未找到 languageModelApiCode，使用輸入值:', { id: idOrCode });
     return idOrCode;
   }
   return lang.languageModelApiCode;
@@ -264,4 +266,8 @@ export function getDeepgramCode(id) {
   
   // 如果有找到就用 map 的值，沒找到就回傳原始 id (例如 zh-TW 在 map 裡可能就是 zh-TW)
   return code || id;
+}
+
+export async function getSourceLanguaage() {
+  return document.getElementById('source-language')?.value;
 }

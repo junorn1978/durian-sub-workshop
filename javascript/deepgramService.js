@@ -2,33 +2,31 @@
 // 職責：管理 Deepgram WebSocket 連線與音訊串流
 // 依賴：config.js (取得設定), translationController.js (發送結果)
 
-import { setRecognitionControlsState, clearAllTextElements } from './speechCapture.js';
-import { sendTranslationRequest, updateStatusDisplay } from './translationController.js'; // [修改] 引入 updateStatusDisplay 用於通知
-import { getDeepgramCode } from './config.js'; 
+import { setRecognitionControlsState, clearAllTextElements, } from "./speechCapture.js";
+import { sendTranslationRequest, updateStatusDisplay, } from "./translationController.js"; // [修改] 引入 updateStatusDisplay 用於通知
+import { getDeepgramCode } from "./config.js";
+import { Logger } from "./logger.js";
 
 let socket = null;
 let mediaRecorder = null;
 let isRunning = false;
 let keepAliveInterval = null;
-let finalTranscriptBuffer = ""; 
+let finalTranscriptBuffer = "";
 
 let deepgramKeywordConfig = null;
+let deepgramPreviousText = null;
 
 // === [設定區] ===
 
 // Nova-3 支援的語言白名單
-const NOVA3_SUPPORTED_LANGS = [
-    'en', 'ja', 'ko', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'id', 'vi', 
-    'ru', 'uk', 'pl', 'hi', 'tr'
-];
-
+const NOVA3_SUPPORTED_LANGS = [ "en", "ja", "ko", "es", "fr", "de", "it", "pt", "nl", "id", "vi", "ru", "uk", "pl", "hi", "tr", ];
 // 支援 Code Switching (Multi模式) 的語言
-const MULTI_SUPPORTED_LANGS = ['en', 'es', 'ko'];
-//const MULTI_SUPPORTED_LANGS = ['ja', 'en', 'es', 'ko'];
+//const MULTI_SUPPORTED_LANGS = ["en", "es", "ko"];
+const MULTI_SUPPORTED_LANGS = ['ja', 'en', 'es', 'ko'];
 
 // [新增] 自動停止設定
 const AUTO_STOP_TIMEOUT = 10 * 60 * 1000; // 10 分鐘無語音則自動停止
-let lastSpeechTime = 0;      // 最後一次偵測到語音的時間
+let lastSpeechTime = 0; // 最後一次偵測到語音的時間
 let watchdogInterval = null; // 看門狗計時器
 
 // =================
@@ -36,48 +34,43 @@ let watchdogInterval = null; // 看門狗計時器
 // 取得後端提供的 API Key
 async function fetchDeepgramKey() {
   try {
-    const linkInput = document.getElementById('translation-link');
-    if (!linkInput) throw new Error('找不到 translation-link 元素');
+    const linkInput = document.getElementById("translation-link");
+    if (!linkInput) throw new Error("找不到 translation-link 元素");
 
     let rawInput = linkInput.value.trim();
     if (!rawInput) {
-      console.warn('[WARN]', '[deepgramService.js]', '未輸入後端網址');
+      Logger.warn("[WARN]", "[deepgramService.js]", "未輸入後端網址");
       return null;
     }
 
     let serviceHost = rawInput;
     const urlPattern = /^\s*(\w+):\/\/(.+)$/;
     const match = rawInput.match(urlPattern);
-    
-    if (match) {
-      serviceHost = match[2];
-    }
+    if (match) { serviceHost = match[2]; }
 
-    let protocol = 'https';
-    if (serviceHost.startsWith('localhost:8083')) {
-      protocol = 'http';
-    }
+    let protocol = "https";
+    if (serviceHost.startsWith("localhost:8083")) { protocol = "http"; }
 
     let tempUrlStr = `${protocol}://${serviceHost}`;
     let urlObj;
     try {
-        urlObj = new URL(tempUrlStr);
+      urlObj = new URL(tempUrlStr);
     } catch (e) {
-        console.warn('[WARN]', '[deepgramService.js]', 'URL 解析微調', tempUrlStr);
-        urlObj = new URL(tempUrlStr + '/'); 
+      Logger.warn("[WARN]", "[deepgramService.js]", "URL 解析微調", tempUrlStr);
+      urlObj = new URL(tempUrlStr + "/");
     }
 
     const tokenUrl = `${urlObj.origin}/deepgram/token`;
-    // console.debug('[DEBUG]', '[deepgramService.js]', `解析後的 Token 請求位址: ${tokenUrl}`);
+    // Logger.debug('[DEBUG]', '[deepgramService.js]', `解析後的 Token 請求位址: ${tokenUrl}`);
 
     const response = await fetch(tokenUrl);
-    if (!response.ok) throw new Error(`HTTP ${response.status} - ${response.statusText}`);
-    
+    if (!response.ok)
+      throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+
     const data = await response.json();
     return data.key;
-
   } catch (error) {
-    console.error('[ERROR]', '[deepgramService.js]', '取得 Key 失敗', error);
+    Logger.error("[ERROR]", "[deepgramService.js]", "取得 Key 失敗", error);
     return null;
   }
 }
@@ -85,18 +78,18 @@ async function fetchDeepgramKey() {
 // 載入 Deepgram 專用關鍵字
 async function loadDeepgramKeywords() {
   if (deepgramKeywordConfig) return deepgramKeywordConfig;
-  
+
   try {
-    const response = await fetch('data/deepgram_keywords.json');
+    const response = await fetch("data/deepgram_keywords.json");
     if (!response.ok) {
-        console.warn('[WARN]', '[deepgramService.js]', '無法讀取 deepgram_keywords.json，將不使用增強關鍵字');
-        return {};
+      Logger.warn("[WARN]", "[deepgramService.js]", "無法讀取 deepgram_keywords.json，將不使用增強關鍵字");
+      return {};
     }
     deepgramKeywordConfig = await response.json();
-    console.info('[INFO]', '[deepgramService.js]', 'Deepgram 關鍵字設定已載入');
+    Logger.info("[INFO]", "[deepgramService.js]", "Deepgram 關鍵字設定已載入");
     return deepgramKeywordConfig;
   } catch (error) {
-    console.error('[ERROR]', '[deepgramService.js]', '載入關鍵字設定失敗', error);
+    Logger.error("[ERROR]", "[deepgramService.js]", "載入關鍵字設定失敗", error);
     return {};
   }
 }
@@ -106,16 +99,17 @@ async function loadDeepgramKeywords() {
  */
 function removeJapaneseSpaces(text) {
   if (!text) return "";
-  
-  const jpChar = '\\u3000-\\u303f\\u3040-\\u309f\\u30a0-\\u30ff\\uff00-\\uff9f\\u4e00-\\u9faf';
-  const pattern = new RegExp(`([${jpChar}])\\s+([${jpChar}])`, 'g');
+
+  const jpChar =
+    "\\u3000-\\u303f\\u3040-\\u309f\\u30a0-\\u30ff\\uff00-\\uff9f\\u4e00-\\u9faf";
+  const pattern = new RegExp(`([${jpChar}])\\s+([${jpChar}])`, "g");
 
   let current = text;
   let previous;
-  
+
   do {
     previous = current;
-    current = current.replace(pattern, '$1$2');
+    current = current.replace(pattern, "$1$2");
   } while (current !== previous);
 
   return current;
@@ -125,18 +119,21 @@ function removeJapaneseSpaces(text) {
  * 緩衝區清洗函式
  */
 function flushBuffer(langCode) {
-    if (!finalTranscriptBuffer || finalTranscriptBuffer.trim().length === 0) {
-        return;
-    }
+  if (!finalTranscriptBuffer || finalTranscriptBuffer.trim().length === 0) {
+    return;
+  }
 
-    const cleanText = finalTranscriptBuffer.replace(/^[、。？,.\s]+$/, ' ');
-    
-    if (cleanText.length > 0) {
-        console.info('[INFO]', '[deepgramService.js]', '語句結束，發送翻譯緩衝區:', finalTranscriptBuffer);
-        sendTranslationRequest(finalTranscriptBuffer, langCode);
-    } 
+  const cleanText = finalTranscriptBuffer.replace(/^[、。？,.\s]+$/, " ");
 
-    finalTranscriptBuffer = "";
+  if (cleanText.replace(/^ +$/, "").length > 0) {
+    Logger.info("[INFO]", "[deepgramService.js]", "語句結束，發送翻譯緩衝區:", cleanText);
+    // sendTranslationRequest(cleanText, deepgramPreviousText, langCode);
+    sendTranslationRequest(cleanText, null, langCode); //因為deepgram的字處理方式和web speech api有一點不同所以先不用上文
+
+    deepgramPreviousText = cleanText;
+  }
+
+  finalTranscriptBuffer = "";
 }
 
 /**
@@ -144,139 +141,139 @@ function flushBuffer(langCode) {
  */
 export async function startDeepgram(langCode, onTranscriptUpdate) {
   if (isRunning) return;
-  
+
   finalTranscriptBuffer = "";
-  
-  // [新增] 重置看門狗計時
+
+  // 重置看門狗計時
   lastSpeechTime = Date.now();
 
   const apiKey = await fetchDeepgramKey();
   if (!apiKey) {
-    alert('Deepgram API Key 取得失敗，請確認後端設定。');
-    return;
+    Logger.warn("[WARN]", "[deepgramService.js]", "無法取得 API Key，將退回 Web Speech API");
+    updateStatusDisplay("Deepgram Key 取得失敗、Web Speech API へ切り替えます..."); 
+    return false; 
   }
 
   const keywordConfig = await loadDeepgramKeywords();
 
   try {
-    
     // === [修改] 增強音訊處理參數 ===
     const audioConstraints = {
-        // 基本設定
-        channelCount: 1,      // 強制單聲道 (Deepgram 處理單聲道效率較好)
-        sampleRate: 48000,    // 標準採樣率
+      // 基本設定
+      channelCount: 1, // 強制單聲道 (Deepgram 處理單聲道效率較好)
+      sampleRate: 48000, // 標準採樣率
 
-        // 訊號處理 (針對高噪音環境)
-        echoCancellation: 'remote-only',  // 回音消除 (建議開啟)
-        noiseSuppression: true,  // 降噪 (務必開啟)
-        
-        // 自動增益 (AGC)
-        // 如果發現背景噪音在你不講話時會忽大忽小，請嘗試改成 false
-        autoGainControl: true    
+      // 訊號處理 (針對高噪音環境)
+      echoCancellation: "remote-only", // 回音消除 (建議開啟)
+      noiseSuppression: true, // 降噪 (務必開啟)
+
+      // 自動增益 (AGC)
+      // 如果發現背景噪音在你不講話時會忽大忽小，請嘗試改成 false
+      autoGainControl: true,
     };
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
-    
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false, });
+
     // === 語言與模型判斷邏輯 ===
     let deepgramLang = getDeepgramCode(langCode);
-    let selectedModel = 'nova-2';
+    let selectedModel = "nova-2";
 
     if (NOVA3_SUPPORTED_LANGS.includes(deepgramLang)) {
-        selectedModel = 'nova-3';
+      selectedModel = "nova-3";
     }
 
     let finalLangParam = deepgramLang;
     if (MULTI_SUPPORTED_LANGS.includes(deepgramLang)) {
-        console.info('[INFO]', '[deepgramService.js]', `語言 ${deepgramLang} 支援 Code Switching，切換至 multi 模式`);
-        finalLangParam = 'multi';
+      Logger.info("[INFO]", "[deepgramService.js]", `語言 ${deepgramLang} 支援 Code Switching，切換至 multi 模式`);
+      finalLangParam = "multi";
     } else {
-        console.info('[INFO]', '[deepgramService.js]', `語言 ${deepgramLang} 使用專用模型模式`);
+      Logger.info("[INFO]", "[deepgramService.js]", `語言 ${deepgramLang} 使用專用模型模式`);
     }
 
-    console.info('[INFO]', '[deepgramService.js]', `啟動參數: Model=${selectedModel}, Lang=${finalLangParam}`);
+    Logger.info("[INFO]", "[deepgramService.js]", `啟動參數: Model=${selectedModel}, Lang=${finalLangParam}`);
     // ===========================
 
-    const baseUrl = 'wss://api.deepgram.com/v1/listen';
+    const baseUrl = "wss://api.deepgram.com/v1/listen";
     const params = new URLSearchParams({
-      model: selectedModel,       
-      language: finalLangParam,   
-      smart_format: 'true',
-      interim_results: 'true',
-      utterance_end_ms: '1000', 
-      endpointing: 'false',     
-      vad_events: 'true',  // 必須開啟，用於偵測語音活動     
-      diarize: 'false'
+      model: selectedModel,
+      language: finalLangParam,
+      smart_format: "true",
+      interim_results: "true",
+      utterance_end_ms: "1000",
+      endpointing: "false",
+      vad_events: "true", // 必須開啟，用於偵測語音活動
+      diarize: "false",
     });
 
     // === [新增] 注入關鍵字邏輯 ===
     // 1. 加入全域關鍵字
-// 判斷是否為 Nova-3 模型
-    const isNova3 = selectedModel.includes('nova-3');
-    
+    // 判斷是否為 Nova-3 模型
+    const isNova3 = selectedModel.includes("nova-3");
+
     // 定義要使用的參數名稱 (Nova-3 用 keyterm, 舊版用 keywords)
-    const paramName = isNova3 ? 'keyterm' : 'keywords';
+    const paramName = isNova3 ? "keyterm" : "keywords";
 
     // 輔助函式：處理關鍵字格式
     const addKeyword = (item) => {
-        if (isNova3) {
-            // Nova-3: 僅支援純文字，移除權重 (例如 "Hamham:10" -> "Hamham")
-            // 且 Nova-3 支援短語 (包含空格)，所以直接傳入 word 即可
-            params.append(paramName, item.word);
-        } else {
-            // Nova-2: 維持 "單字:權重" 格式
-            // Nova-2 不支援空格，若有空格通常建議拆開或不使用，但這裡先照傳
-            params.append(paramName, `${item.word}:${item.boost}`);
-        }
+      if (isNova3) {
+        // Nova-3: 僅支援純文字，移除權重 (例如 "Hamham:10" -> "Hamham")
+        // 且 Nova-3 支援短語 (包含空格)，所以直接傳入 word 即可
+        params.append(paramName, item.word);
+      } else {
+        // Nova-2: 維持 "單字:權重" 格式
+        // Nova-2 不支援空格，若有空格通常建議拆開或不使用，但這裡先照傳
+        params.append(paramName, `${item.word}:${item.boost}`);
+      }
     };
 
     // 1. 加入全域關鍵字
     if (keywordConfig.global) {
-        keywordConfig.global.forEach(item => addKeyword(item));
+      keywordConfig.global.forEach((item) => addKeyword(item));
     }
 
     // 2. 加入特定語言關鍵字
     if (keywordConfig[deepgramLang]) {
-        keywordConfig[deepgramLang].forEach(item => addKeyword(item));
+      keywordConfig[deepgramLang].forEach((item) => addKeyword(item));
     }
-    
+
     // 記錄一下 (方便除錯)
     const keywordsCount = params.getAll(paramName).length;
-    console.info('[INFO]', '[deepgramService.js]', `已載入 ${keywordsCount} 個強化關鍵字 (Model: ${selectedModel}, Param: ${paramName})`);
-    
+    Logger.info("[INFO]", "[deepgramService.js]", `已載入 ${keywordsCount} 個強化關鍵字 (Model: ${selectedModel}, Param: ${paramName})`);
+
     // ===========================
 
-    socket = new WebSocket(`${baseUrl}?${params.toString()}`, ['token', apiKey]);
+    socket = new WebSocket(`${baseUrl}?${params.toString()}`, [ "token", apiKey, ]);
 
     socket.onopen = () => {
-      console.info('[INFO]', '[deepgramService.js]', `Deepgram 連線已建立`);
+      Logger.info("[INFO]", "[deepgramService.js]", `Deepgram 連線已建立`);
       isRunning = true;
-      updateStatusDisplay('Deepgram 接続成功 (待機中...)'); // UI 提示
+      updateStatusDisplay("Deepgram 接続成功 (待機中...)"); // UI 提示
 
-      mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      mediaRecorder.addEventListener('dataavailable', event => {
+      mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      mediaRecorder.addEventListener("dataavailable", (event) => {
         if (event.data.size > 0 && socket && socket.readyState === 1) {
           socket.send(event.data);
         }
       });
 
-      mediaRecorder.start(250); 
+      mediaRecorder.start(250);
 
       // KeepAlive (每 3 秒)
       keepAliveInterval = setInterval(() => {
         if (socket && socket.readyState === 1) {
-          socket.send(JSON.stringify({ type: 'KeepAlive' }));
+          socket.send(JSON.stringify({ type: "KeepAlive" }));
         }
       }, 3000);
 
       // [新增] 啟動看門狗 (每 10 秒檢查一次)
       watchdogInterval = setInterval(() => {
-          const idleTime = Date.now() - lastSpeechTime;
-          if (idleTime > AUTO_STOP_TIMEOUT) {
-              console.warn('[WARN]', '[deepgramService.js]', `超過 ${AUTO_STOP_TIMEOUT/1000} 秒未偵測到語音，自動斷線以節省費用。`);
-              stopDeepgram();
-              updateStatusDisplay('⚠️ 長時間無音のため、自動的に切断しました (コスト節約)。');
-              alert('長時間音声を検知しなかったため、Deepgramを自動停止しました。\n(自動停止：10分)');
-          }
+        const idleTime = Date.now() - lastSpeechTime;
+        if (idleTime > AUTO_STOP_TIMEOUT) {
+          Logger.warn("[WARN]", "[deepgramService.js]", `超過 ${  AUTO_STOP_TIMEOUT / 1000 } 秒未偵測到語音，自動斷線以節省費用。`);
+          stopDeepgram();
+          updateStatusDisplay("⚠️ 長時間無音のため、自動的に切断しました (コスト節約)。");
+          //alert("長時間音声を検知しなかったため、Deepgramを自動停止しました。\n(自動停止：10分)");
+        }
       }, 10000);
     };
 
@@ -286,14 +283,17 @@ export async function startDeepgram(langCode, onTranscriptUpdate) {
 
         // [新增] 看門狗重置邏輯：只要有語音活動 (SpeechStarted) 或 有文字產生，就重置計時器
         // SpeechStarted 比 transcript 更靈敏，只要有人出聲就算，不用等字出來
-        if (received.type === 'SpeechStarted' || (received.channel && received.channel.alternatives?.[0]?.transcript)) {
-            lastSpeechTime = Date.now();
+        if (
+          received.type === "SpeechStarted" ||
+          (received.channel && received.channel.alternatives?.[0]?.transcript)
+        ) {
+          lastSpeechTime = Date.now();
         }
 
-        if (received.type === 'UtteranceEnd') {
-            // console.debug('[DEBUG]', '[deepgramService.js]', '收到斷句訊號');
-            flushBuffer(langCode); 
-            return;
+        if (received.type === "UtteranceEnd") {
+          // Logger.debug('[DEBUG]', '[deepgramService.js]', '收到斷句訊號');
+          flushBuffer(langCode);
+          return;
         }
 
         if (!received.channel) return;
@@ -302,44 +302,43 @@ export async function startDeepgram(langCode, onTranscriptUpdate) {
         const isFinal = received.is_final;
 
         if (transcript && transcript.trim().length > 0) {
-          
           transcript = removeJapaneseSpaces(transcript);
 
           if (isFinal) {
-            const isCJK = ['ja', 'zh-TW', 'zh-HK', 'ko', 'th'].includes(deepgramLang);
-            if (isCJK) {
-                finalTranscriptBuffer += transcript;
-            } else {
-                finalTranscriptBuffer += (finalTranscriptBuffer ? " " : "") + transcript;
-            }
+            const isCJK = ["ja", "zh-TW", "zh-HK", "ko", "th"].includes(
+              deepgramLang
+            );
+            if (isCJK) { finalTranscriptBuffer += transcript; }
+            else       { finalTranscriptBuffer += (finalTranscriptBuffer ? " " : "") + transcript;}
 
-            // console.debug('[DEBUG]', '[deepgramService.js]', '緩衝區:', finalTranscriptBuffer);
+            // Logger.debug('[DEBUG]', '[deepgramService.js]', '緩衝區:', finalTranscriptBuffer);
             if (onTranscriptUpdate) onTranscriptUpdate(finalTranscriptBuffer, true);
-            
           } else {
             const displayTemp = finalTranscriptBuffer + transcript;
             if (onTranscriptUpdate) onTranscriptUpdate(displayTemp, false);
           }
         }
       } catch (parseError) {
-        console.error('[ERROR]', '[deepgramService.js]', '解析訊息失敗', parseError);
+        Logger.error("[ERROR]", "[deepgramService.js]", "解析訊息失敗", parseError);
       }
     };
 
     socket.onclose = () => {
-      console.info('[INFO]', '[deepgramService.js]', 'Deepgram 連線已關閉');
-      stopDeepgram(); 
+      Logger.info("[INFO]", "[deepgramService.js]", "Deepgram 連線已關閉");
+      stopDeepgram();
     };
 
     socket.onerror = (error) => {
-      console.error('[ERROR]', '[deepgramService.js]', 'Deepgram Socket 錯誤', error);
-      updateStatusDisplay('Deepgram 連線錯誤，請檢查後端或網路');
+      Logger.error("[ERROR]", "[deepgramService.js]", "Deepgram Socket 錯誤", error);
+      updateStatusDisplay("Deepgram 連線錯誤，請檢查後端或網路");
     };
-
   } catch (error) {
-    console.error('[ERROR]', '[deepgramService.js]', '啟動失敗', error);
+    Logger.error("[ERROR]", "[deepgramService.js]", "啟動失敗", error);
     stopDeepgram();
+    return false;
   }
+
+  return true;
 }
 
 export function stopDeepgram() {
@@ -357,9 +356,9 @@ export function stopDeepgram() {
 
   // 停止錄音與軌道
   if (mediaRecorder) {
-    if (mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
     if (mediaRecorder.stream) {
-        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+      mediaRecorder.stream.getTracks().forEach((track) => track.stop());
     }
     mediaRecorder = null;
   }
@@ -367,14 +366,14 @@ export function stopDeepgram() {
   // 停止 Socket
   if (socket) {
     if (socket.readyState === 1) {
-       socket.send(JSON.stringify({ type: 'CloseStream' }));
+      socket.send(JSON.stringify({ type: "CloseStream" }));
     }
     socket.close();
     socket = null;
   }
-  
-  finalTranscriptBuffer = ""; 
-  console.info('[INFO]', '[deepgramService.js]', 'Deepgram 服務已完全停止');
+
+  finalTranscriptBuffer = "";
+  Logger.info("[INFO]", "[deepgramService.js]", "Deepgram 服務已完全停止");
 
   setRecognitionControlsState(false); //調用開關函式切換到停止狀態
   clearAllTextElements();

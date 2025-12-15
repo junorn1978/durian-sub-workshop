@@ -4,8 +4,17 @@ import { setupPromptModelDownload } from './promptTranslationService.js';
 import { setupLanguagePackButton } from './languagePackManager.js';
 import { monitorLocalTranslationAPI } from './translatorApiService.js';
 import { browserInfo } from './config.js';
+import { Logger, LogLevel, setLogLevel } from './logger.js';
 
 document.addEventListener('DOMContentLoaded', async function () {
+  const urlParams = new URLSearchParams(window.location.search);
+  const isDebugMode = urlParams.get('debug') === 'true';
+  
+  // 如果網址有 debug=true 則顯示 DEBUG，否則只顯示 INFO 以上
+  setLogLevel(isDebugMode ? LogLevel.DEBUG : LogLevel.INFO);
+  
+  Logger.info('UI', '應用程式初始化開始...');
+
   // 7秒後清除狀態顯示
   setTimeout(() => {
     const statusDisplay = document.getElementById('status-display');
@@ -72,6 +81,7 @@ document.addEventListener('DOMContentLoaded', async function () {
       { id: 'click-minimize-opt', type: 'select', key: 'click-minimize-enabled', desc: 'Display panel click minimize' },
       { id: 'force-single-line-opt', type: 'select', key: 'force-single-line-enabled', desc: 'Force single line display' },
       { id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state' },
+      { id: 'log-level-opt', type: 'select', key: 'log-level-preference', desc: 'Console Log Level' },
     ],
 
     // 面板對應
@@ -83,7 +93,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
   // 瀏覽器檢查
   if (!browserInfo.isChrome) {
-    console.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
+    Logger.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
     document.getElementById('status-display').textContent = '高速翻訳とブラウザAI翻訳はEdgeに対応しておりません。ご了承ください。';
 
     const downloadButton = document.getElementById('prompt-api-download');
@@ -101,7 +111,7 @@ document.addEventListener('DOMContentLoaded', async function () {
   const Storage = {
     save: (key, value, desc) => {
       localStorage.setItem(key, value);
-      //console.debug('[DEBUG] [UIController]', `${desc} 已儲存至 localStorage`);
+      //Logger.debug('[DEBUG] [UIController]', `${desc} 已儲存至 localStorage`);
     },
 
     load: (key, defaultValue = null) => {
@@ -324,11 +334,24 @@ document.addEventListener('DOMContentLoaded', async function () {
           // force-single-line-opt 和 deepgram-enabled 預設應該是 'false'
           // click-minimize-opt 預設是 'true'
           let defaultValue = 'true';
-          if (config.id === 'force-single-line-opt' || config.id === 'deepgram-enabled') {
+          //if (config.id === 'force-single-line-opt' || config.id === 'deepgram-enabled') {
+          if (config.id === 'force-single-line-opt') {
             defaultValue = 'false';
           }
+
+          if (config.id === 'log-level-opt') {
+            defaultValue = '1'; 
+          }
           
-          const value = saved ? saved : defaultValue;
+          //const value = saved ? saved : defaultValue;
+          let value = saved ? saved : defaultValue;
+
+          // === [暫時修改] 強制 Deepgram 啟動，無視儲存值 ===
+          if (config.id === 'deepgram-enabled') {
+            value = 'true';
+          }
+          // ============================================
+          
           element.value = value;
 
           // 針對強制單行，直接操作 CSS Class
@@ -347,13 +370,18 @@ document.addEventListener('DOMContentLoaded', async function () {
           if (config.id === 'deepgram-enabled') {
             setDeepgramStatus(element.value);
           }
+
+          if (config.id === 'log-level-opt') {
+            // 注意：從 localStorage 讀出來的是字串，建議轉數字，不過 logger.js 比較運算時通常會自動轉型，保險起見用 parseInt
+            setLogLevel(parseInt(value, 10));
+          }
         },
 
         setupListener(element) {
           element.addEventListener('change', (e) => {
             const value = e.target.value;
             Storage.save(config.key, value, config.desc);
-            console.debug('[DEBUG] [UI]', `${config.desc} 設定變更: ${value}`);
+            Logger.debug('[DEBUG] [UI]', `${config.desc} 設定變更: ${value}`);
 
             if (config.id === 'force-single-line-opt') {
               const sourceText = document.getElementById('source-text');
@@ -369,7 +397,13 @@ document.addEventListener('DOMContentLoaded', async function () {
 
             if (config.id === 'deepgram-enabled') {
               setDeepgramStatus(value);
-              console.debug('[DEBUG]', '[UI]', `Deepgram 狀態變更: ${value}`);
+              Logger.debug('[DEBUG]', '[uiController.js]', `Deepgram 狀態變更: ${value}`);
+            }
+
+            if (config.id === 'log-level-opt') {
+              setLogLevel(parseInt(value, 10));
+              // 可以在這裡印一行測試，確認切換成功
+              console.info(`[INFO] [uiController.js] Log Level changed to: ${value}`);
             }
           });
         },
@@ -394,6 +428,12 @@ document.addEventListener('DOMContentLoaded', async function () {
           // 重置時關閉 Deepgram
           if (config.id === 'deepgram-enabled') {
             setDeepgramStatus('false');
+          }
+
+          if (config.id === 'log-level-opt') {
+                 element.value = '1'; // 預設 INFO
+                 Storage.save(config.key, '1', config.desc);
+                 setLogLevel(1);
           }
         }
       },
@@ -422,35 +462,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     };
   };
 
-  // 動態填充語言選單
-  const populateLanguageSelects = () => {
-    CONFIG.languages.forEach(config => {
-      const select = document.getElementById(config.id);
-      if (!select) return;
-
-      // 清空現有選項
-      select.innerHTML = config.id === 'source-language'
-        ? '<option value="">言語を選択</option>'
-        : '<option value="none">翻訳しない</option>';
-
-      // 從 getAllLanguages 獲取語言列表
-      const role = config.id === 'source-language' ? 'source' : 'target';
-      const languages = getAllLanguages(role);
-      languages.forEach(lang => {
-        const option = document.createElement('option');
-        option.value = lang.id; // 使用完整 id (如 "ja-JP")
-        option.textContent = lang.label; // 使用 label 作為顯示文字
-        select.appendChild(option);
-      });
-
-      //console.debug('[DEBUG] [UIController]', `已填充 ${config.id} 選單，使用 id 作為 value`);
-    });
-  };
-
   // 初始化所有設定
   const initializeSettings = () => {
-    // 填充語言選單
-    populateLanguageSelects();
 
     // 樣式設定
     const styleHandlers = CONFIG.styles.map(config => {
@@ -550,7 +563,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
       // 儲存狀態
       localStorage.setItem('mic-privacy-enabled', isProtected);
-      console.debug('[DEBUG]', '[UI]', `麥克風隱私模式: ${isProtected ? '開啟' : '關閉'}`);
+      Logger.debug('[DEBUG]', '[UI]', `麥克風隱私模式: ${isProtected ? '開啟' : '關閉'}`);
     };
 
     // 初始化：讀取上次設定
@@ -584,18 +597,30 @@ document.addEventListener('DOMContentLoaded', async function () {
       const input = document.getElementById(inputId);
       
       if (btn && input) {
+        // 複製按鈕以移除舊的 EventListener (保持原邏輯)
         const newBtn = btn.cloneNode(true);
         btn.parentNode.replaceChild(newBtn, btn);
 
         newBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          const isPassword = input.type === 'password';
-          input.type = isPassword ? 'text' : 'password';
           
+          // [修改點] 不再切換 type，而是切換 CSS class
+          // 檢查目前是否為遮蔽狀態
+          const isMasked = input.classList.contains('input-masked');
+          
+          if (isMasked) {
+            // 切換為顯示
+            input.classList.remove('input-masked');
+            input.classList.add('input-visible');
+          } else {
+            // 切換為遮蔽
+            input.classList.remove('input-visible');
+            input.classList.add('input-masked');
+          }
+
           const eyeOpen = `<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
           const eyeClosed = `<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
-          
-          newBtn.innerHTML = isPassword ? eyeOpen : eyeClosed;
+          newBtn.innerHTML = isMasked ? eyeOpen : eyeClosed;
         });
       }
     };
@@ -628,7 +653,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             gasWrapper.style.display = 'block'; 
             if (gasInput) gasInput.focus();
           }
-          console.debug('[DEBUG]', '[uiController.js]', '切換至 Google Apps Script 模式');
+          Logger.debug('[DEBUG]', '[uiController.js]', '切換至 Google Apps Script 模式');
           break;
 
         case 'link':
@@ -636,7 +661,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             linkWrapper.style.display = 'block'; 
             if (linkInput) linkInput.focus();
           }
-          console.debug('[DEBUG]', '[uiController.js]', '切換至自訂伺服器模式');
+          Logger.debug('[DEBUG]', '[uiController.js]', '切換至自訂伺服器模式');
           break;
 
         case 'fast': // [修改] 高速翻譯模式
@@ -652,7 +677,7 @@ document.addEventListener('DOMContentLoaded', async function () {
           if (fastModeControls) {
              fastModeControls.style.display = 'flex';
           }
-          console.debug('[DEBUG]', '[uiController.js]', '切換至高速翻譯模式');
+          Logger.debug('[DEBUG]', '[uiController.js]', '切換至高速翻譯模式');
           break;
 
         case 'ai':
@@ -664,7 +689,7 @@ document.addEventListener('DOMContentLoaded', async function () {
           }
           localStorage.setItem('local-prompt-api-active', 'true');
           setupPromptModelDownload();
-          console.debug('[DEBUG]', '[uiController.js]', '切換至 Chrome AI 模式');
+          Logger.debug('[DEBUG]', '[uiController.js]', '切換至 Chrome AI 模式');
           break;
           
         default:
@@ -719,7 +744,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         // 恢復原本的高度比例 (依據 CSS :root 定義的 55%)
         displayPanel.style.setProperty('--display-panel-height', '55%');
 
-        console.debug('[DEBUG]', '[uiController.js]', '介面狀態恢復顯示');
+        Logger.debug('[DEBUG]', '[uiController.js]', '介面狀態恢復顯示');
       } else {
         // === 隱藏 (最小化) ===
         controlPanel.style.display = 'none';
@@ -728,7 +753,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         // 擴大字幕顯示區，避免下方留白 (設為 95% 或 100%)
         displayPanel.style.setProperty('--display-panel-height', '95%');
 
-        console.debug('[DEBUG]', '[uiController.js]', '介面狀態隱藏 (最小化)');
+        Logger.debug('[DEBUG]', '[uiController.js]', '介面狀態隱藏 (最小化)');
       }
     });
   };
@@ -766,7 +791,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
   const defaultTab = document.getElementById('Subtitle');
   if (defaultTab) {
-    console.debug('[DEBUG]', '[uiController.js]', '預設開啟字幕設定面板');
+    Logger.debug('[DEBUG]', '[uiController.js]', '預設開啟字幕設定面板');
     defaultTab.click();
   }
 });
