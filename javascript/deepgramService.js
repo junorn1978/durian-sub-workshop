@@ -21,8 +21,8 @@ let deepgramPreviousText = null;
 // Nova-3 支援的語言白名單
 const NOVA3_SUPPORTED_LANGS = [ "en", "ja", "ko", "es", "fr", "de", "it", "pt", "nl", "id", "vi", "ru", "uk", "pl", "hi", "tr", ];
 // 支援 Code Switching (Multi模式) 的語言
-//const MULTI_SUPPORTED_LANGS = ["en", "es", "ko"];
-const MULTI_SUPPORTED_LANGS = ['ja', 'en', 'es', 'ko'];
+const MULTI_SUPPORTED_LANGS = ["en", "es", "ko"];
+//const MULTI_SUPPORTED_LANGS = ['ja', 'en', 'es', 'ko'];
 
 // [新增] 自動停止設定
 const AUTO_STOP_TIMEOUT = 10 * 60 * 1000; // 10 分鐘無語音則自動停止
