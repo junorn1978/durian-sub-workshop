@@ -21,8 +21,8 @@
     <div id="target-text-1" data-stroke="開発者：乙夏れいのファン・ジュノーン（GrokとChatGPTを利用）">
       開発者：乙夏れいのファン・ジュノーン（GrokとChatGPTを利用）
     </div>
-    <div id="target-text-2" data-stroke="2025.12.03">
-      2025.12.03
+    <div id="target-text-2" data-stroke="2025.12.12">
+      2025.12.12
     </div>
     <div id="target-text-3" data-stroke="自動翻訳によるもので、精度は保証できません。ご了承ください。">
       自動翻訳によるもので、精度は保証できません。ご了承ください。
@@ -45,18 +45,45 @@
           <label for="translation-mode">翻訳モード</label>
           <select id="translation-mode" title="翻訳エンジンの選択">
             <option value="link" selected>翻訳クラウド接続</option>
-            <option value="fast">高速翻訳 (非推奨)</option>
-            <option value="ai">ブラウザAI (実験機能)</option>
+            <option value="gas">Google翻訳 (無料)</option>
+            <option value="fast">高速翻訳 (無料非推奨)</option>
+            <option value="ai" disabled>ブラウザAI (実験機能)</option>
           </select>
         </div>
 
+        <div id="fast-mode-controls" style="display: none; align-items: center; gap: 8px; margin-left: 5px;">
+           <button id="fast-mode-download-btn" class="menu3-button" style="width: auto; padding: 0 10px; min-width: 80px;">モデルDL</button>
+           <span id="fast-mode-progress" style="font-size: 12px; color: #6d1313; font-weight: bold; white-space: nowrap;"></span>
+        </div>
+
         <form id="link-input-wrapper" class="link-wrapper" style="display:none;" onsubmit="return false;">
-          <input type="password" class="t-link" placeholder="翻訳クラウド接続用リンク" id="translation-link" value="" autocomplete="off">
+          <a href="guide.html" target="_blank" class="link-help-btn" title="接続ガイドを見る">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </a>
+          <input type="text" class="t-link input-masked" placeholder="翻訳クラウド接続用リンク" id="translation-link" value="" autocomplete="off" spellcheck="false" autocorrect="off">
           <button type="button" id="toggle-link-visibility" class="visibility-btn" title="表示/非表示">
             <svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
               <line x1="1" y1="1" x2="23" y2="23"></line>
             </svg>
+          </button>
+        </form>
+
+        <form id="gas-input-wrapper" class="link-wrapper" style="display:none;" onsubmit="return false;">
+          <a href="guide.html" target="_blank" class="link-help-btn" title="接続ガイドを見る">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </a>
+          <input type="text" class="t-link input-masked" placeholder="Google Apps Script ID" id="gas-script-id" value="" autocomplete="off" spellcheck="false" autocorrect="off">
+          <button type="button" id="toggle-gas-visibility" class="visibility-btn" title="表示/非表示">
+            <svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
           </button>
         </form>
 
@@ -81,7 +108,16 @@
           <div class="setting-row source-row">
             <div class="row-label">音声認識</div>
             <select id="source-language" title="音声認識言語">
-              <option value="ja">日本語</option>
+              <option value="" selected>言語を選択</option>
+              <option value="ja-JP">日本語</option>
+              <option value="zh-TW">中国語(台湾)</option>
+              <!--- <option value="zh-HK">中国語(香港-粵語)</option> --->
+              <option value="en-US">英語</option>
+              <option value="es-ES">スペイン語</option>
+              <option value="id-ID">インドネシア語</option>
+              <option value="ko-KR">韓国語</option>
+              <option value="th-TH">タイ語</option>
+              <option value="vi-VN">ベトナム語</option>
             </select>
             <div class="control-group">
               <input type="color" id="source-font-color" list="color-list" title="文字色">
@@ -100,7 +136,16 @@
           <div class="setting-row">
             <div class="row-label">翻訳 1</div>
             <select id="target1-language" title="翻訳言語1">
-              <option value="none">翻訳しない</option>
+              <option value="none" selected>翻訳しない</option>
+              <option value="ja-JP">日本語</option>
+              <option value="zh-TW">中国語(台湾)</option>
+              <!--- <option value="zh-HK">中国語(香港-粵語)</option> --->
+              <option value="en-US">英語</option>
+              <option value="es-ES">スペイン語</option>
+              <option value="id-ID">インドネシア語</option>
+              <option value="ko-KR">韓国語</option>
+              <option value="th-TH">タイ語</option>
+              <option value="vi-VN">ベトナム語</option>
             </select>
             <div class="control-group">
               <input type="color" id="target1-font-color" list="color-list" value="#FFFFFF" title="文字色">
@@ -119,7 +164,16 @@
           <div class="setting-row">
             <div class="row-label">翻訳 2</div>
             <select id="target2-language" title="翻訳言語2">
-              <option value="none">翻訳しない</option>
+              <option value="none" selected>翻訳しない</option>
+              <option value="ja-JP">日本語</option>
+              <option value="zh-TW">中国語(台湾)</option>
+              <!--- <option value="zh-HK">中国語(香港-粵語)</option> --->
+              <option value="en-US">英語</option>
+              <option value="es-ES">スペイン語</option>
+              <option value="id-ID">インドネシア語</option>
+              <option value="ko-KR">韓国語</option>
+              <option value="th-TH">タイ語</option>
+              <option value="vi-VN">ベトナム語</option>
             </select>
             <div class="control-group">
               <input type="color" id="target2-font-color" list="color-list" value="#FFFFFF" title="文字色">
@@ -138,7 +192,16 @@
           <div class="setting-row">
             <div class="row-label">翻訳 3</div>
             <select id="target3-language" title="翻訳言語3">
-              <option value="none">翻訳しない</option>
+              <option value="none" selected>翻訳しない</option>
+              <option value="ja-JP">日本語</option>
+              <option value="zh-TW">中国語(台湾)</option>
+              <!--- <option value="zh-HK">中国語(香港-粵語)</option> --->
+              <option value="en-US">英語</option>
+              <option value="es-ES">スペイン語</option>
+              <option value="id-ID">インドネシア語</option>
+              <option value="ko-KR">韓国語</option>
+              <option value="th-TH">タイ語</option>
+              <option value="vi-VN">ベトナム語</option>
             </select>
             <div class="control-group">
               <input type="color" id="target3-font-color" list="color-list" value="#FFFFFF" title="文字色">
@@ -195,6 +258,18 @@
               <input type="color" id="display-panel-color" list="display-color-list" value="#00FF00" class="option-color-picker">
             </div>
           </div>
+
+          <div class="option-card">
+            <div class="card-title">Advanced音声認識 (翻訳クラウド接続のみ)</div>
+            
+            <div class="card-row">
+              <span class="card-label">Deepgram API (有料)</span>
+              <select id="deepgram-enabled" class="card-select" title="Deepgramの有効化">
+                <option value="false" selected>無効 (Disable)</option>
+                <option value="true">有効 (Enable)</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div class="options-column">
@@ -225,6 +300,17 @@
             <div class="card-row">
               <span class="card-label">設定リセット</span>
               <button class="options-button danger-zone" id="reset-settings">初期化</button>
+            </div>
+
+            <div class="card-row">
+              <span class="card-label">ログレベル (Debug)</span>
+              <select id="log-level-opt" class="card-select" title="コンソールの出力詳細度">
+                <option value="0">DEBUG (全て)</option>
+                <option value="1" selected>INFO (情報)</option>
+                <option value="2">WARN (警告)</option>
+                <option value="3">ERROR (エラー)</option>
+                <option value="99">NONE (なし)</option>
+              </select>
             </div>
           </div>
         </div>

@@ -1,0 +1,24 @@
+{
+  "global": [
+    { "word": "Hamham", "boost": 10 },
+    { "word": "Deepgram", "boost": 5 }
+  ],
+  "ja": [
+    { "word": "ハムハム", "boost": 15 },
+    { "word": "初見さん", "boost": 5 },
+    { "word": "スパチャ", "boost": 5 },
+    { "word": "れいちゃん", "boost": 7 },
+    { "word": "れいかちゃん", "boost": 8 },
+    { "word": "弾幕", "boost": 5 },
+    { "word": "あつもり", "boost": 5 },
+    { "word": "同接", "boost": 5 },
+    { "word": "メンギフ", "boost": 5 }
+  ],
+  "zh-TW": [
+    { "word": "哈姆哈姆", "boost": 10 },
+    { "word": "乙夏鈴", "boost": 10 }
+  ],
+  "en": [
+    { "word": "Ray", "boost": 5 }
+  ]
+}

@@ -1,99 +1,221 @@
 // translatorApiService.js
 import { getLanguageModelApiCode } from './config.js';
 import { sequenceCounter, translatorCache, updateStatusDisplay, updateTranslationUI } from './translationController.js';
+import { Logger } from './logger.js';
 
+// 用來追蹤待下載的語言對佇列
+let downloadQueue = [];
+let isQueueInitialized = false;
 
-// 監聽 local-translation-api 狀態變化
+// 監聽 local-translation-api 狀態與綁定下載按鈕
 function monitorLocalTranslationAPI() {
-  const localTranslationButton = document.getElementById('local-translation-api');
-  if (!localTranslationButton) {
-    console.debug('[DEBUG] [Translator API] 未找到 local-translation-api 元素');
+  const downloadBtn = document.getElementById('fast-mode-download-btn');
+  const progressSpan = document.getElementById('fast-mode-progress');
+
+  if (!downloadBtn) {
+    Logger.debug('[DEBUG] [Translator API] 未找到 fast-mode-download-btn 元素');
     return;
   }
 
-  const checkAndPreload = () => {
-    if (!localTranslationButton?.classList.contains('active')) {
-      console.debug('[DEBUG] [Translator API] local-translation-api 未啟用');
-      return;
+  // 處理點擊事件：這是唯一的驅動入口
+  const handleDownloadClick = async () => {
+    // 1. 如果佇列尚未初始化（第一次點擊），先掃描所有語言
+    if (!isQueueInitialized) {
+      await initializeQueue(progressSpan);
+      isQueueInitialized = true;
     }
 
-    const sourceLang = document.getElementById('source-language')?.value;  // 移除預設 'ja-JP'，若無選擇則為空字串
-    const targetLangs = [
-      document.getElementById('target1-language')?.value,
-      document.getElementById('target2-language')?.value,
-      document.getElementById('target3-language')?.value
-    ].filter(lang => lang && lang !== 'none');
-    //].filter(lang => lang && lang !== 'none').map(lang => getLanguageModelApiCode(lang));
+    // 2. 檢查佇列狀態
+    if (downloadQueue.length === 0) {
+      // 再次確認狀態 (防止使用者切換語言後再次點擊)
+      await initializeQueue(progressSpan); 
+      
+      // [修正] 判斷是「全部下載完」還是「根本沒選語言」
+      const targetLangs = [
+        document.getElementById('target1-language')?.value,
+        document.getElementById('target2-language')?.value,
+        document.getElementById('target3-language')?.value
+      ].filter(lang => lang && lang !== 'none');
 
-    if (!sourceLang) {
-      console.debug("[DEBUG]", "[translatorApiService.js]", "來源語言未選擇，跳過預載", { sourceLang });
-      return;  // 無來源語言時直接結束，不執行後續
+      if (targetLangs.length === 0) {
+        if (progressSpan) progressSpan.textContent = '言語を選択してください';
+        return; // 沒選語言，直接結束，不顯示 Ready
+      }
+
+      // 確實有選語言，且佇列為空 -> 代表全部已就緒
+      if (downloadQueue.length === 0) {
+        if (progressSpan) progressSpan.textContent = '準備完了 (All Ready)';
+        return;
+      }
     }
 
-    if (localTranslationButton.classList.contains('active') && targetLangs.length > 0) {
-      console.debug("[DEBUG]", "[translatorApiService.js]", "檢測到 local-translation-api 啟用，開始預下載模型", { sourceLang, targetLangs });
-      preloadTranslationModels(sourceLang, targetLangs);
-    } else {
-      console.debug("[DEBUG]", "[translatorApiService.js]", "local-translation-api 未啟用或無目標語言", { sourceLang, targetLangs });
+    // 3. 取出下一個要下載的任務
+    const nextTask = downloadQueue[0]; // 先不移除，等下載成功再移除
+    const { source, target, label } = nextTask;
+
+    // 更新按鈕狀態
+    downloadBtn.disabled = true; 
+    
+    try {
+      // 執行下載
+      const success = await ensureModelLoaded(source, target, label);
+      
+      if (success) {
+        // 下載成功，從佇列移除
+        downloadQueue.shift();
+      } else {
+        Logger.error(`[ERROR] [Translator API] ${label} 下載失敗`);
+      }
+
+    } catch (e) {
+      Logger.error('[ERROR] [Translator API] 下載過程發生錯誤:', e);
+    } finally {
+      // 4. 下載結束後的 UI 更新
+      downloadBtn.disabled = false;
+      updateQueueUI(downloadBtn, progressSpan);
     }
   };
   
-  localTranslationButton.addEventListener('click', () => {
-    setTimeout(checkAndPreload, 0);
-  });
-
-  checkAndPreload();
-
-  ['source-language', 'target1-language', 'target2-language', 'target3-language'].forEach(id => {
-    const select = document.getElementById(id);
-    if (select) {
-      select.addEventListener('change', checkAndPreload);
-    }
+  // 綁定按鈕點擊事件
+  downloadBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    handleDownloadClick();
   });
 }
 
-// 確保語言模型已載入
-async function ensureModelLoaded(sourceLanguage, targetLanguage) {
-  try {
-    //console.debug('[DEBUG] [Translator API] 檢查語言模型可用性:', { sourceLanguage, targetLanguage });
-    const availability = await Translator.availability({ sourceLanguage, targetLanguage });
-    if (availability === 'available') {
-      console.debug('[DEBUG] [Translator API] 語言模型已準備好:', { sourceLanguage, targetLanguage });
-      return true;
+// 初始化佇列：檢查哪些語言還沒下載
+async function initializeQueue(progressSpan) {
+  if (progressSpan) progressSpan.textContent = '確認中...';
+  
+  const sourceLang = document.getElementById('source-language')?.value;
+  const targetLangs = [
+    document.getElementById('target1-language')?.value,
+    document.getElementById('target2-language')?.value,
+    document.getElementById('target3-language')?.value
+  ].filter(lang => lang && lang !== 'none');
+
+  if (!sourceLang || targetLangs.length === 0) {
+    if (progressSpan) progressSpan.textContent = '言語を選択してください';
+    downloadQueue = [];
+    return;
+  }
+
+  const sourceCode = getLanguageModelApiCode(sourceLang);
+  downloadQueue = []; // 重置佇列
+
+  // 檢查每一個目標語言
+  for (const lang of targetLangs) {
+    const targetCode = getLanguageModelApiCode(lang);
+    try {
+      const availability = await Translator.availability({ sourceLanguage: sourceCode, targetLanguage: targetCode });
+      
+      if (availability === 'available') {
+        Logger.debug(`[DEBUG] [Translator API] ${sourceCode}->${targetCode} 已就緒`);
+      } else if (availability === 'no') {
+        Logger.warn(`[WARN] [Translator API] ${sourceCode}->${targetCode} 不支援`);
+      } else {
+        // 需要下載 (downloadable 或 downloading)
+        downloadQueue.push({
+          source: sourceCode,
+          target: targetCode,
+          label: `${targetCode}` // 顯示用的簡稱
+        });
+      }
+    } catch (e) {
+      Logger.warn(`[WARN] [Translator API] 檢查 ${sourceCode}->${targetCode} 失敗:`, e);
     }
-    if (availability !== 'downloadable') {
-      console.error('[ERROR] [Translator API] 語言模型不可下載:', { sourceLanguage, targetLanguage, availability });
-      return false;
+  }
+
+  Logger.debug('[DEBUG] [Translator API] 下載佇列初始化:', downloadQueue);
+}
+
+// 更新按鈕與文字狀態
+function updateQueueUI(btn, span) {
+  if (downloadQueue.length === 0) {
+    // 這裡也要做防呆，避免最後一個下載完後文字顯示錯誤
+    // 但因為 handleDownloadClick 會再次檢查，這裡主要負責下載成功後的恢復
+    const targetLangs = [
+        document.getElementById('target1-language')?.value,
+        document.getElementById('target2-language')?.value,
+        document.getElementById('target3-language')?.value
+      ].filter(lang => lang && lang !== 'none');
+
+    if (targetLangs.length === 0) {
+         span.textContent = '言語を選択してください';
+         btn.textContent = 'モデルDL';
+         return;
     }
 
-    updateStatusDisplay(`翻訳モデル（${sourceLanguage} → ${targetLanguage}）をダウンロード中…`);
+    btn.textContent = 'モデルDL'; // 恢復預設
+    span.textContent = '準備完了 (All Ready)';
+    
+    // 3秒後清除
+    setTimeout(() => { if (span.textContent.includes('Ready')) span.textContent = '準備完了'; }, 3000);
+  } else {
+    // 還有剩餘任務
+    const nextItem = downloadQueue[0];
+    const remainingCount = downloadQueue.length;
+    
+    // 按鈕變成引導使用者點擊
+    btn.textContent = `次へ (${remainingCount})`;
+    span.textContent = `待機中: ${nextItem.label}`;
+  }
+}
+
+// 確保語言模型已載入 (單次下載邏輯)
+async function ensureModelLoaded(sourceLanguage, targetLanguage, label = '') {
+  const progressSpan = document.getElementById('fast-mode-progress');
+  const pairName = label || `${sourceLanguage}->${targetLanguage}`;
+  
+  try {
+    const availability = await Translator.availability({ sourceLanguage, targetLanguage });
+    
+    if (availability === 'available') {
+      return true; // 已經好了
+    }
+    
+    // 開始下載
+    Logger.debug(`[DEBUG] [Translator API] 開始下載 ${pairName}`);
+    if (progressSpan) progressSpan.textContent = `${pairName} DL開始...`;
+    
     await Translator.create({
       sourceLanguage,
       targetLanguage,
       monitor(m) {
         m.addEventListener('downloadprogress', (e) => {
           const progress = Math.round(e.loaded * 100);
-          console.debug('[DEBUG] [Translator API] 模型下載進度:', { sourceLanguage, targetLanguage, progress });
-          updateStatusDisplay(`翻訳モデル（${sourceLanguage} → ${targetLanguage}）をダウンロード中：${progress}%`);
+          if (progressSpan) {
+             progressSpan.textContent = `${pairName} DL: ${progress}%`;
+          }
         });
       }
     });
-    console.info('[INFO] [Translator API] 語言模型下載完成:', { sourceLanguage, targetLanguage });
-    updateStatusDisplay(`翻訳モデル（${sourceLanguage} → ${targetLanguage}）のダウンロードが完了しました。`);
-    setTimeout(() => updateStatusDisplay(''), 5000);
+
+    Logger.info(`[INFO] [Translator API] ${pairName} 下載完成`);
     return true;
+
   } catch (error) {
-    console.error('[ERROR] [Translator API] 語言模型下載失敗:', { sourceLanguage, targetLanguage, error: error.message });
-    updateStatusDisplay('翻訳モデルを読み込めなかったため、リモートサービスを利用します。');
-    setTimeout(() => updateStatusDisplay(''), 5000);
+    Logger.error('[ERROR] [Translator API] 下載失敗:', error);
+    
+    if (error.name === 'NotAllowedError') {
+       if (progressSpan) progressSpan.textContent = 'クリックが必要です';
+       alert('ブラウザのセキュリティ制限により、モデルのダウンロードにはクリックが必要です。\nもう一度「次へ」ボタンを押してください。');
+    } else {
+       if (progressSpan) progressSpan.textContent = `エラー: ${error.message}`;
+    }
     return false;
   }
 }
 
-// 使用 Chrome Translator API 進行翻譯（加入斷句、分批與組合邏輯，針對日語）
+// 預下載語言模型 (此函式現在只做檢查，不再負責下載迴圈)
+async function preloadTranslationModels(sourceLang, targetLangs) {
+  const progressSpan = document.getElementById('fast-mode-progress');
+  if (progressSpan) progressSpan.textContent = 'ボタンを押してDLしてください';
+}
+
+// 使用 Chrome Translator API 進行翻譯
 async function sendLocalTranslation(text, targetLangs, sourceLang) {
   if (!text || text.trim() === '' || text.trim() === 'っ') {
-    console.debug('[DEBUG] [Translator API] 無效文字，跳過翻譯:', text);
     return null;
   }
 
@@ -111,9 +233,9 @@ async function sendLocalTranslation(text, targetLangs, sourceLang) {
     const cacheKey = `${sourceLanguage}-${targetLanguage}`;
 
     try {
-      const isAvailable = await ensureModelLoaded(sourceLanguage, targetLanguage);
-      if (!isAvailable) {
-        console.error('[ERROR] [Translator API] 語言對不可用:', { sourceLanguage, targetLanguage });
+      const availability = await Translator.availability({ sourceLanguage, targetLanguage });
+      if (availability !== 'available') {
+        Logger.warn(`[WARN] [Translator API] ${sourceLanguage}->${targetLanguage} 未就緒，跳過翻譯`);
         allAvailable = false;
         continue;
       }
@@ -122,38 +244,21 @@ async function sendLocalTranslation(text, targetLangs, sourceLang) {
       if (!translator) {
         translator = await Translator.create({ sourceLanguage, targetLanguage });
         translatorCache.set(cacheKey, translator);
-        console.debug('[DEBUG] [Translator API] 創建並快取 Translator:', { cacheKey });
-      } else {
-        console.debug('[DEBUG] [Translator API] 重用快取中的 Translator:', { cacheKey });
       }
 
-      try {
-        const result = await translator.translate(text);
-        //console.debug('[DEBUG] [Translator API] 翻譯結果:', { text, result });
-        translations[i] = result;
-      } catch (error) {
-        console.error('[ERROR] [Translator API] 翻譯失敗:', { text, error: error.message });
-        updateStatusDisplay('翻訳エラー:', { error: error.message });
-        setTimeout(() => updateStatusDisplay(''), 5000);
-        translations[i] = '';
-      }
+      const result = await translator.translate(text);
+      translations[i] = result;
     } catch (error) {
-      console.error('[ERROR] [Translator API] 翻譯初始化失敗:', { sourceLanguage, targetLanguage, error: error.message });
-      allAvailable = false;
+      Logger.error('[ERROR] [Translator API] 翻譯異常:', error);
+      translations[i] = '';
     }
-  }
-
-  if (!allAvailable) {
-    updateStatusDisplay('翻訳は利用できません。リモートサービスを使用します。');
-    setTimeout(() => updateStatusDisplay(''), 5000);
-    return null;
   }
 
   if (translations.some(t => t !== '')) {
     await updateTranslationUI(
       { translations, sequenceId: sequenceCounter },
       targetLangs,
-      0.5,
+      0, 
       sequenceCounter
     );
   }
@@ -161,114 +266,46 @@ async function sendLocalTranslation(text, targetLangs, sourceLang) {
   return { translations, sequenceId: sequenceCounter };
 }
 
-// 預下載語言模型
-async function preloadTranslationModels(sourceLang, targetLangs) {
-  if (!('Translator' in self)) {
-    console.debug('[DEBUG] [Translator API] Translator API 不支援');
-    updateStatusDisplay('新しい Translator API はサポートされていないため、翻訳リンクを利用します。');
-    setTimeout(() => updateStatusDisplay(''), 5000);
-    return;
-  }
-
-  for (const targetLang of targetLangs) {
-    const sourceLanguage = getLanguageModelApiCode(sourceLang);
-    const targetLanguage = getLanguageModelApiCode(targetLang);
-    await ensureModelLoaded(sourceLanguage, targetLanguage);
-  }
-}
-
 // 文字翻譯前的語句標點符號加入
-// 因為沒有加入表點符號的話這個 API 翻譯會很容易去中間只翻譯頭尾，所以需要加入標點符號盡可能讓他翻譯稍微好一點，但只能說能不要用這個API就不要用
 function preprocessJapaneseText(text) {
-  try {
-    if (typeof text !== 'string' || text.trim().length < 5) {
-      console.debug('[DEBUG] [Translator API] 文字過短或非字串，跳過日語前處理:', { text });
-      return text;
-    }
-
-    // 常見「句末」形式（遇到這些且目前未有終止符，補「。」）
-    const END_FORMS = new Set([
-      'です', 'ます', 'だ', 'である', 'でした', 'だった', 'でしょう', 'だろう',
-      'ですよ', 'ですね', 'ますね', 'かも', 'かな'
-    ]);
-
-    // 常見「句中」助詞（遇到這些且非最後一個 token、且未有停頓符，補「、」）
-    const MID_PARTS = new Set([
-      'は','が','を','に','で','と','へ','や','から','まで','も','より','しか','こそ','でも','など','ね','よ'
-    ]);
-
-    // 以空白切分（將全角/半角空白都視為分隔）
+    if (typeof text !== 'string' || text.trim().length < 5) return text;
+    const END_FORMS = new Set(['です', 'ます', 'だ', 'である', 'でした', 'だった', 'でしょう', 'だろう', 'ですよ', 'ですね', 'ますね', 'かも', 'かな']);
+    const MID_PARTS = new Set(['は','が','を','に','で','と','へ','や','から','まで','も','より','しか','こそ','でも','など','ね','よ']);
     const tokens = text.trim().split(/\s+/u);
-    if (tokens.length === 1) return text; // 單一 token 不做
+    if (tokens.length === 1) return text;
 
-    let hasEndForm = false; // 追蹤是否遇到 END_FORMS
-
+    let hasEndForm = false;
     for (let i = 0; i < tokens.length; i++) {
       const tk = tokens[i];
       if (!tk) continue;
-
-      // 去掉尾端既有標點後的「純詞形」（簡化版，無 HAS_PUNCT_TAIL 檢查）
       const base = tk.replace(/[。！？!?、，｡､]+$/gu, '');
-
-      // 補句末「。」：僅在最後一個 token，或 base 屬於 END_FORMS 時
       if (i === tokens.length - 1) {
-        if (END_FORMS.has(base)) {
-          tokens[i] = `${base}。`;
-          hasEndForm = true;
-        } else {
-          // 最後一個 token 不是句中助詞，且沒有任何標點時，可視需求選擇是否強制補「。」。
-          // 若不想強制，可註解下一行。
-          tokens[i] = `${tk}。`;
-        }
+        if (END_FORMS.has(base)) { tokens[i] = `${base}。`; hasEndForm = true; } 
+        else { tokens[i] = `${tk}。`; }
         continue;
       }
-
-      // 補句中「、」：僅在非最後一個 token 且為明確的助詞時
-      if (MID_PARTS.has(base)) {
-        tokens[i] = `${base}、`;
-      }
-
-      // 檢查是否為 END_FORMS（非最後 token 也可能有）
-      if (END_FORMS.has(base)) {
-        tokens[i] = `${base}。`;
-        hasEndForm = true;
-      }
+      if (MID_PARTS.has(base)) { tokens[i] = `${base}、`; }
+      if (END_FORMS.has(base)) { tokens[i] = `${base}。`; hasEndForm = true; }
     }
-
     let processed = tokens.join(' ');
-
-    // 若無任何 END_FORMS 符合，則將空格改為「、」，但排除片假名和英文 token 間
     if (!hasEndForm) {
-      // 判斷片假名/英文 token 的正則（片假名：カタカナ、英文：A-Z a-z）
       const isKatakanaOrEnglish = /^[\u30A0-\u30FF\uFF00-\uFFEF\uFF65-\uFF9F\uFF9E\uFF9F]+|[A-Za-z]+$/u;
-      
-      // 檢查相鄰 token 是否皆為片假名/英文，若是則保持空格連接，否則用「、」連接
       const newTokens = [];
       for (let j = 0; j < tokens.length; j++) {
-        if (j === 0) {
-          newTokens.push(tokens[j]);
-          continue;
-        }
+        if (j === 0) { newTokens.push(tokens[j]); continue; }
         const prevToken = tokens[j - 1];
         const currToken = tokens[j];
-        // 若前一個 token 為片假名/英文，且當前 token 為片假名/英文，則用空格連接
         if (isKatakanaOrEnglish.test(prevToken.replace(/[。！？!?、，｡､]+$/gu, '')) && 
             isKatakanaOrEnglish.test(currToken.replace(/[。！？!?、，｡､]+$/gu, ''))) {
           newTokens.push(' ' + currToken);
         } else {
           newTokens[newTokens.length - 1] += '、';
-          newTokens.push(currToken.replace(/^[、\s]+/gu, '')); // 避免重複
+          newTokens.push(currToken.replace(/^[、\s]+/gu, ''));
         }
       }
       processed = newTokens.join('').trim();
     }
-
-    console.debug('[DEBUG] [Translator API] 日語前處理完成:', { originalText: text, processedText: processed });
     return processed;
-  } catch (error) {
-    console.error('[ERROR] [Translator API] 日語前處理失敗，使用原文字:', { text, error: error.message });
-    return text;
-  }
 }
 
 export { monitorLocalTranslationAPI, sendLocalTranslation };

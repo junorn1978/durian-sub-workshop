@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ハムハム字幕アトリエ | 接続設定ガイド</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-color: #F8E6F0;
+      --card-bg: #FFFFFF;
+      --primary-color: #8B4513;
+      --accent-color: #D28BC4;
+      --highlight-bg: #FFF2DE;
+      --code-bg: #282c34;
+      --code-text: #abb2bf;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 40px 20px;
+      font-family: "Huninn", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--primary-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 30px;
+      animation: fadeInDown 0.6s ease;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin: 0 0 10px 0;
+      color: #6d1313;
+    }
+
+    p.subtitle {
+      font-size: 14px;
+      color: #666;
+      line-height: 1.6;
+    }
+
+    /* Tab Styles */
+    .tab-container {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 25px;
+      background: rgba(255,255,255,0.6);
+      padding: 5px;
+      border-radius: 50px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+
+    .tab-btn {
+      padding: 10px 25px;
+      border: none;
+      background: transparent;
+      border-radius: 25px;
+      font-family: inherit;
+      font-size: 15px;
+      cursor: pointer;
+      color: #888;
+      font-weight: bold;
+      transition: all 0.3s ease;
+    }
+
+    .tab-btn:hover { color: var(--accent-color); }
+
+    .tab-btn.active {
+      background-color: var(--accent-color);
+      color: white;
+      box-shadow: 0 4px 10px rgba(210, 139, 196, 0.4);
+    }
+
+    /* Model Selector */
+    .model-selector {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px dashed #F1C6D2;
+    }
+
+    .model-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 20px;
+      border: 2px solid #ddd;
+      background-color: #f9f9f9;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: bold;
+      color: #666;
+      transition: all 0.2s;
+    }
+
+    .model-btn:hover { border-color: var(--accent-color); color: var(--accent-color); }
+    
+    .model-btn.active {
+      border-color: var(--primary-color);
+      background-color: var(--highlight-bg);
+      color: var(--primary-color);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .model-icon { font-size: 18px; }
+
+    /* Card & Content */
+    .guide-card {
+      background-color: var(--card-bg);
+      width: 100%;
+      max-width: 850px;
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 10px 30px rgba(139, 69, 19, 0.08);
+      display: none;
+      border: 2px solid white;
+    }
+    .guide-card.active { display: block; animation: fadeInUp 0.5s ease; }
+
+    .model-content { display: none; animation: fadeIn 0.4s ease; }
+    .model-content.active { display: block; }
+
+    h2 {
+      font-size: 20px;
+      border-bottom: 2px dashed #F1C6D2;
+      padding-bottom: 15px;
+      margin-top: 0;
+      color: var(--primary-color);
+    }
+
+    /* Steps */
+    .step-list { margin-top: 20px; }
+
+    .step-item {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      background-color: var(--highlight-bg);
+      color: var(--primary-color);
+      border: 2px solid var(--accent-color);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 16px;
+    }
+
+    .step-content { flex: 1; }
+
+    .step-title {
+      font-weight: bold;
+      font-size: 17px;
+      margin-bottom: 8px;
+      display: block;
+      color: #444;
+    }
+
+    .step-desc { font-size: 14px; color: #666; line-height: 1.7; }
+    
+    .highlight-link {
+      color: var(--accent-color); text-decoration: none; font-weight: bold;
+      border-bottom: 1px dotted var(--accent-color);
+    }
+
+    /* Code Block */
+    .code-container {
+      position: relative; margin-top: 15px; border-radius: 10px;
+      overflow: hidden; background-color: var(--code-bg);
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
+    }
+    .copy-btn {
+      position: absolute; top: 10px; right: 25px;
+      background-color: rgba(255,255,255,0.1); color: #fff;
+      border: 1px solid rgba(255,255,255,0.2); padding: 6px 12px;
+      border-radius: 6px; font-size: 12px; cursor: pointer; transition: all 0.2s;
+    }
+    pre {
+      margin: 0; padding: 20px; overflow-x: auto; color: var(--code-text);
+      font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; line-height: 1.5;
+    }
+
+    /* Note Box */
+    .note-box {
+      background-color: #FFF9E6; border-left: 4px solid #FFD700;
+      padding: 15px; border-radius: 0 8px 8px 0; margin-top: 10px; font-size: 13px;
+    }
+
+    /* URL Copy Box (New) */
+    .url-box {
+      display: flex; align-items: center; gap: 10px;
+      background-color: #f5f5f5; border: 1px solid #ddd;
+      border-radius: 8px; padding: 10px 15px; margin-top: 15px;
+    }
+    .url-text {
+      flex: 1; font-family: 'Consolas', monospace; font-size: 13px; color: #555;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .url-copy-btn {
+      background-color: #fff; border: 1px solid #ccc;
+      border-radius: 4px; padding: 5px 10px; font-size: 12px;
+      cursor: pointer; color: #333; transition: all 0.2s; white-space: nowrap;
+    }
+    .url-copy-btn:hover { background-color: #f0f0f0; border-color: #bbb; }
+
+    /* Download Button */
+    .download-btn {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 12px 25px; text-decoration: none; border-radius: 8px;
+      font-weight: bold; margin-top: 10px; transition: transform 0.2s, box-shadow 0.2s;
+      font-size: 14px; background-color: var(--primary-color); color: white;
+    }
+    .download-btn:hover {
+      transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    footer { margin-top: 50px; font-size: 12px; color: #aaa; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>⚙️ 接続設定ガイド</h1>
+    <p class="subtitle">バックエンドサーバーの設定ガイドです。<br>初心者の方は「Google翻訳 (GAS)」がおすすめです。</p>
+  </header>
+
+  <div class="tab-container">
+    <button class="tab-btn active" onclick="switchTab('gas')">☁️ 方法A：Google翻訳 (無料)</button>
+    <button class="tab-btn" onclick="switchTab('local')">💻 方法B：ローカルAI (高精度)</button>
+  </div>
+
+  <div id="gas-tab" class="guide-card active">
+    <h2>☁️ Google翻訳字幕の作成手順（無料・1日5000回まで）</h2>
+    <div class="step-desc" style="margin-bottom: 20px;">
+      Googleの無料サーバーを使用します。PCへのインストール不要で手軽です。<br>
+      <span style="color: #E91E63; font-size: 12px;">※ Googleアカウントが必要です。</span>
+    </div>
+
+    <div class="step-list">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <span class="step-title">GASプロジェクトの作成</span>
+          <div class="step-desc">
+            普段お使いのブラウザ（Google アカウントにログイン済み）で以下のURLにアクセスし、「新しいプロジェクト」を作成します。
+          </div>
+          <div class="url-box">
+            <span class="url-text">https://script.google.com</span>
+            <button class="url-copy-btn" onclick="copyText('https://script.google.com', this)">📋 URLをコピー</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <span class="step-title">コードの貼り付け</span>
+          <div class="step-desc">
+            エディタの内容を全て削除し、以下のコードを貼り付けてください。
+          </div>
+          <div class="code-container">
+            <button class="copy-btn" onclick="copyCode('gas-code-block')">📋 コピー</button>
+            <pre id="gas-code-block">/* ==============================================
+   Hamham Subtitle Atelier (Backend Script)
+   Version: 2025.12
+   ============================================== */
+
+/**
+ * メイン処理: 外部からのリクエストを受け取ります
+ */
+function doGet(e) {
+  try {
+    const params = e.parameter;
+    const text = params.text || '';
+    const targetLangs = params.targetLangs ? JSON.parse(params.targetLangs) : [];
+    const sequenceId = params.sequenceId ? parseInt(params.sequenceId) : null; 
+    const sourceLang = ''; 
+
+    const translations = targetLangs.map(lang => {
+      return translateWithGoogle(text, lang, sourceLang);
+    });
+
+    const result = { translations, sequenceId };
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    return ContentService.createTextOutput(
+      JSON.stringify({ 
+        error: 'Translation Error: ' + error.message, 
+        sequenceId: e.parameter.sequenceId ? parseInt(e.parameter.sequenceId) : null 
+      })
+    ).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function translateWithGoogle(text, targetLang, sourceLang) {
+  if (!text || text.trim() === '') return '';
+  try {
+    return LanguageApp.translate(text, sourceLang, targetLang);
+  } catch (error) {
+    return `[Error] ${error.message}`;
+  }
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <span class="step-title">デプロイ (設定注意)</span>
+          <div class="step-desc">
+            右上の「デプロイ」→「新しいデプロイ」→種類の選択→「ウェブアプリ」を選択。<br>
+            <strong>アクセスできるユーザー：全員</strong> に設定してデプロイします。
+          </div>
+        </div>
+      </div>
+
+      <div class="step-item">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <span class="step-title">IDの取得</span>
+          <div class="step-desc">
+            発行された「デプロイ ID」をコピーし、字幕ツールの設定欄に貼り付けてください。
+          </div>
+          <img src="images/guide_paste_id_gas.png" alt="GAS ID貼り付け場所" 
+               style="width: 100%; max-width: 500px; margin-top: 15px; border-radius: 8px; border: 2px solid #eee; display: block;">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="local-tab" class="guide-card">
+    <h2>💻 ローカルサーバー (Windows PC / Node.js)</h2>
+    <div class="step-desc">
+      PC上でAIサーバーを動かします。使用するAIモデルを選択してください。
+    </div>
+
+    <div class="model-selector">
+      <div class="model-btn active" onclick="switchModel('gemini')">
+        <span class="model-icon">♊</span> Gemini (Google)
+      </div>
+      <div class="model-btn" onclick="switchModel('openai')">
+        <span class="model-icon">🤖</span> OpenAI (ChatGPT)
+      </div>
+    </div>
+
+    <div id="content-gemini" class="model-content active">
+      <div class="step-list">
+        <div class="step-item">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <span class="step-title">Gemini版のダウンロード</span>
+            <div class="step-desc">
+              Google 2.5 flash モデルを使用します。高速ですが、従量課金（Pay-as-you-go）の設定が必須となります。
+            </div>
+            <a href="https://github.com/junorn1978/ai-translator-proxy/archive/refs/heads/main.zip" class="download-btn">
+              <span>📥 Gemini版 ZIPをダウンロード</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <span class="step-title">APIキーの取得設定</span>
+            <div class="step-desc">
+              <strong>Google AI Studio</strong> にアクセスしてキーを取得します。<br>
+              字幕はリクエスト頻度が高いため、<strong>必ずクレジットカードを登録し、課金設定（Set up billing）を行ってください。</strong>
+            </div>
+            
+            <div class="note-box" style="background-color: #ffebee; border-left-color: #f44336; color: #b71c1c;">
+              <strong>⚠️ 重要：</strong><br>
+              無料プランのままでは、数秒で「制限超過エラー」が発生し字幕が停止します。
+            </div>
+
+            <div class="step-desc" style="margin-top:10px;">
+              以下のURLをコピーし、お使いのブラウザで開いてください：
+            </div>
+            <div class="url-box">
+              <span class="url-text">https://aistudio.google.com/app/apikey</span>
+              <button class="url-copy-btn" onclick="copyText('https://aistudio.google.com/app/apikey', this)">📋 URLをコピー</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <span class="step-title">設定ファイルの編集</span>
+            <div class="step-desc">
+              解凍したフォルダにある <strong>.env.example</strong> というファイルをメモ帳で開きます。<br>
+              以下の2か所を書き換えて、そのまま上書き保存してください。
+              <span style="font-size:12px; color:#888;">（※ファイル名を .env に変更する必要はありません。起動時に自動処理されます）</span>
+            </div>
+            <div class="code-container" style="background:#FFF9E6; color:#333; padding:15px; border:1px solid #FFD700;">
+              <strong>GEMINI_API_KEY=</strong>(コピーしたGoogleのキー)<br>
+              <strong>VALID_API_KEY=</strong>(自分で決めたパスワード)<br>
+              <strong>AI_PROVIDER=</strong>gemini
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="content-openai" class="model-content">
+      <div class="step-list">
+        <div class="step-item">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <span class="step-title">OpenAI版のダウンロード</span>
+            <div class="step-desc">
+              ChatGPT (GPT-4o/mini) を使用します。従量課金制ですが非常に高精度です。
+            </div>
+            <a href="https://github.com/junorn1978/ai-translator-proxy/archive/refs/heads/main.zip" class="download-btn" style="background-color: #10a37f;">
+              <span>📥 OpenAI版 ZIPをダウンロード</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <span class="step-title">APIキーの取得</span>
+            <div class="step-desc">
+              <strong>OpenAI Platform</strong> にアクセスしてキー（要クレジットカード登録）を取得してください。
+            </div>
+            
+            <div class="step-desc" style="margin-top:10px;">
+              以下のURLをコピーし、お使いのブラウザで開いてください：
+            </div>
+            <div class="url-box">
+              <span class="url-text">https://platform.openai.com/api-keys</span>
+              <button class="url-copy-btn" onclick="copyText('https://platform.openai.com/api-keys', this)">📋 URLをコピー</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <span class="step-title">設定ファイルの編集</span>
+            <div class="step-desc">
+              解凍したフォルダにある <strong>.env.example</strong> というファイルをメモ帳で開きます。<br>
+              以下の2か所を書き換えて、そのまま上書き保存してください。
+            </div>
+            <div class="code-container" style="background:#FFF9E6; color:#333; padding:15px; border:1px solid #FFD700;">
+              <strong>OPENAI_API_KEY=</strong>(sk-から始まるキー)<br>
+              <strong>VALID_API_KEY=</strong>(自分で決めたパスワード)<br>
+              <strong>AI_PROVIDER=</strong>openai
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-item" style="margin-top: 30px; border-top: 1px dashed #ccc; padding-top: 30px;">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <span class="step-title">起動と接続</span>
+        <div class="step-desc">
+          <strong>startapi.bat</strong> をダブルクリックして実行します。<br>
+          <span style="font-size:13px; color:#555;">※ 初回起動時に、編集した .env.example が自動的に読み込まれます。</span><br>
+          黒い画面に表示された接続URLをコピーして、字幕ツールに入力してください。<br><br>
+
+          <strong>2回目以降</strong>は <strong>startapi.bat</strong> を実行するだけで起動できます。
+        </div>
+        <div class="code-container" style="background:#222; color:#0f0; padding:10px; font-family:monospace; margin-top:10px;">
+          ハムハム字幕アトリエ：翻訳クラウド接続に入力 → <span style="color:#fff; background:#555;">パスワード://localhost:8083</span>
+        </div>
+        <img src="images/guide_paste_id_local.png" alt="Localリンク貼り付け場所" 
+             style="width: 100%; max-width: 500px; margin-top: 15px; border-radius: 8px; border: 2px solid #eee; display: block;">
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    &copy; 2025 Hamham Subtitle Atelier.
+  </footer>
+
+  <script>
+    // Tab Switching
+    function switchTab(mode) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.guide-card').forEach(c => c.classList.remove('active'));
+      
+      if(mode === 'gas') {
+        document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+        document.getElementById('gas-tab').classList.add('active');
+      } else {
+        document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+        document.getElementById('local-tab').classList.add('active');
+      }
+    }
+
+    // Model Switching
+    function switchModel(model) {
+      document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.model-content').forEach(c => c.classList.remove('active'));
+
+      if (model === 'gemini') {
+        document.querySelector('.model-btn:nth-child(1)').classList.add('active');
+        document.getElementById('content-gemini').classList.add('active');
+      } else {
+        document.querySelector('.model-btn:nth-child(2)').classList.add('active');
+        document.getElementById('content-openai').classList.add('active');
+      }
+    }
+
+    // Copy Code Block (by ID)
+    function copyCode(elementId) {
+      const code = document.getElementById(elementId).innerText;
+      copyToClipboard(code, document.querySelector('.copy-btn')); // Selects first copy btn (safe for GAS tab)
+    }
+
+    // Copy Direct Text (for URLs)
+    function copyText(text, btnElement) {
+      copyToClipboard(text, btnElement);
+    }
+
+    // Helper Function
+    function copyToClipboard(text, btnElement) {
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = btnElement.innerText;
+        btnElement.innerText = "✅ OK!";
+        btnElement.style.background = "#4CAF50";
+        btnElement.style.color = "#fff";
+        setTimeout(() => {
+          btnElement.innerText = originalText;
+          btnElement.style.background = "";
+          btnElement.style.color = "";
+        }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>
