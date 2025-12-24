@@ -16,6 +16,7 @@
       { "phrase": "あつ森", "boost": 3.0 },
       { "phrase": "感じ", "boost": 3.0 },
       { "phrase": "初見さん", "boost": 4.0 },
+      { "phrase": "オタマートン", "boost": 4.0 },
       { "phrase": "電球", "boost": 0.7 }
     ],
     "en-US": [
