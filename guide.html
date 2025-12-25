@@ -246,7 +246,7 @@
 
   <header>
     <h1>⚙️ 接続設定ガイド</h1>
-    <p class="subtitle">バックエンドサーバーの設定ガイドです。<br>初心者の方は「Google翻訳 (GAS)」がおすすめです。</p>
+    <p class="subtitle">バックエンドサーバーの設定ガイドです。<br>初心者の方には「Google翻訳 (GAS)」がおすすめです。</p>
   </header>
 
   <div class="tab-container">
@@ -257,7 +257,7 @@
   <div id="gas-tab" class="guide-card active">
     <h2>☁️ Google翻訳字幕の作成手順（無料・1日5000回まで）</h2>
     <div class="step-desc" style="margin-bottom: 20px;">
-      Googleの無料サーバーを使用します。PCへのインストール不要で手軽です。<br>
+      Google Script Appsの翻訳APIを使用します。PCへのインストール不要で手軽です。<br>
       <span style="color: #E91E63; font-size: 12px;">※ Googleアカウントが必要です。</span>
     </div>
 
@@ -378,7 +378,7 @@ function translateWithGoogle(text, targetLang, sourceLang) {
           <div class="step-content">
             <span class="step-title">Gemini版のダウンロード</span>
             <div class="step-desc">
-              Google 2.5 flash モデルを使用します。高速ですが、従量課金（Pay-as-you-go）の設定が必須となります。
+              Google Gemini 2.5 Flash モデルを使用します。高速ですが、従量課金（Pay-as-you-go）の設定が必須です。
             </div>
             <a href="https://github.com/junorn1978/ai-translator-proxy/archive/refs/heads/main.zip" class="download-btn">
               <span>📥 Gemini版 ZIPをダウンロード</span>
@@ -389,7 +389,7 @@ function translateWithGoogle(text, targetLang, sourceLang) {
         <div class="step-item">
           <div class="step-num">2</div>
           <div class="step-content">
-            <span class="step-title">APIキーの取得設定</span>
+            <span class="step-title">APIキーの取得と設定</span>
             <div class="step-desc">
               <strong>Google AI Studio</strong> にアクセスしてキーを取得します。<br>
               字幕はリクエスト頻度が高いため、<strong>必ずクレジットカードを登録し、課金設定（Set up billing）を行ってください。</strong>
@@ -397,7 +397,7 @@ function translateWithGoogle(text, targetLang, sourceLang) {
             
             <div class="note-box" style="background-color: #ffebee; border-left-color: #f44336; color: #b71c1c;">
               <strong>⚠️ 重要：</strong><br>
-              無料プランのままでは、数秒で「制限超過エラー」が発生し字幕が停止します。
+              無料プランのままだと、すぐに「制限超過」エラーが発生して字幕生成が停止します。
             </div>
 
             <div class="step-desc" style="margin-top:10px;">
