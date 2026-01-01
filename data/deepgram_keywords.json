@@ -13,9 +13,9 @@
       { "boost": 7,  "word": "れいかちゃん" }, 
       { "boost": 8,  "word": "弾幕" }, 
       { "boost": 6,  "word": "あつもり" }, 
-      { "boost": 8,  "word": "同接" }, 
-      { "boost": 6,  "word": "ゆとは" }, 
-      { "boost": 8,  "word": "メンギフ" }
+      { "boost": 8,  "word": "同接" },
+      { "boost": 8,  "word": "メンギフ" },
+      { "boost": 7,  "word": "おつかれい" }
   ], 
   "zh-TW":
   [

@@ -94,16 +94,6 @@ export function setDeepgramStatus(status) { _isDeepgramActive = String(status) =
 export function getAlignment() { return _currentAlignment; }
 export function setAlignment(align) { _currentAlignment = align; }
 
-export function isPromptApiActive() {
-  const modeSelect = document.getElementById('translation-mode');
-  return modeSelect ? modeSelect.value === 'ai' : false;
-}
-
-export function isTranslationApiActive() {
-  const modeSelect = document.getElementById('translation-mode');
-  return modeSelect ? modeSelect.value === 'fast' : false;
-}
-
 export async function getSourceLanguage() {
   return document.getElementById('source-language')?.value || null;
 }

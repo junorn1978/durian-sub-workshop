@@ -5,7 +5,7 @@
  */
 
 import { keywordRules } from './speechCapture.js';
-import { browserInfo, getLang, isRayModeActive, isPromptApiActive, isTranslationApiActive } from './config.js'; // [修改] 統一引入 getLang
+import { browserInfo, getLang, isRayModeActive, isDeepgramActive } from './config.js'; // [修改] 統一引入 getLang
 import { sendLocalTranslation } from './translatorApiService.js';
 import { sendPromptTranslation } from './promptTranslationService.js';
 import { processTranslationUrl } from './remoteTranslationService.js';
@@ -15,8 +15,8 @@ import { Logger } from './logger.js';
 const translatorCache = new Map();
 let sequenceCounter = 0;
 let bufferCheckInterval = null;
-let lastLogTime = 0;
-const LOG_THROTTLE_MS = 1000;
+let _cachedTargetSpans  = null;
+let _cachedLangInputs   = null;
 
 const displayBuffers = { target1: [], target2: [], target3: [] };
 const currentDisplays = { target1: null, target2: null, target3: null };
@@ -91,7 +91,30 @@ function updateStatusDisplay(text, details = null) {
 // #endregion
 
 // #region [緩衝顯示控制 (Subtitle Timing)]
-
+/**
+ * 取得字幕顯示元素 (含快取機制)
+ * 
+ */
+function getTargetSpans() {
+  if (!_cachedTargetSpans) {
+    _cachedTargetSpans = {
+      target1: document.getElementById('target-text-1'),
+      target2: document.getElementById('target-text-2'),
+      target3: document.getElementById('target-text-3')
+    };
+  }
+  return _cachedTargetSpans;
+}
+function getLangInputs() {
+  if (!_cachedLangInputs) {
+    _cachedLangInputs = {
+      target1: document.getElementById('target1-language'),
+      target2: document.getElementById('target2-language'),
+      target3: document.getElementById('target3-language')
+    };
+  }
+  return _cachedLangInputs;
+}
 /**
  * 更新翻譯 UI 的緩衝邏輯
  * @param {Array<string>} targetLangIds - 目標語言 ID 列表
@@ -100,11 +123,7 @@ async function updateTranslationUI(data, targetLangIds, minDisplayTime, sequence
   const stopbutton = document.getElementById('stop-recording');
   if (stopbutton.disabled) return;
 
-  const spans = {
-    target1: document.getElementById('target-text-1'),
-    target2: document.getElementById('target-text-2'),
-    target3: document.getElementById('target-text-3')
-  };
+  const spans = getTargetSpans();
 
   targetLangIds.forEach((langId, index) => {
     const span = spans[`target${index + 1}`];
@@ -128,30 +147,39 @@ async function updateTranslationUI(data, targetLangIds, minDisplayTime, sequence
 
 function processDisplayBuffers() {
   const now = Date.now();
-  const spans = {
-    target1: document.getElementById('target-text-1'),
-    target2: document.getElementById('target-text-2'),
-    target3: document.getElementById('target-text-3')
-  };
+  // [優化 1] 取得 DOM 快取，避免重複查詢
+  const spans = getTargetSpans();
+  const langInputs = getLangInputs(); 
 
   ['target1', 'target2', 'target3'].forEach(key => {
     const span = spans[key];
+    // 檢查 buffer 是否為空，若為空直接跳過，省去後續計算
     if (!span || displayBuffers[key].length === 0) return;
 
     try {
-      displayBuffers[key].sort((a, b) => (a.sequenceId ?? 0) - (b.sequenceId ?? 0));
-      displayBuffers[key] = displayBuffers[key].filter(item => now - item.timestamp < 10000);
-      if (displayBuffers[key].length > 10) displayBuffers[key] = displayBuffers[key].slice(-10);
+      const buffer = displayBuffers[key];
 
+      let validStartIndex = 0;
+      while (validStartIndex < buffer.length) {
+        if (now - buffer[validStartIndex].timestamp < 10000) break;
+        validStartIndex++;
+      }
+      if (validStartIndex > 0) { buffer.splice(0, validStartIndex); }
+      if (buffer.length > 1  ) { buffer.sort((a, b) => (a.sequenceId ?? 0) - (b.sequenceId ?? 0)); }
+      if (buffer.length > 10 ) { buffer.splice(0, buffer.length - 10); }
+      if (buffer.length === 0) return;
+
+      // --- 顯示判斷邏輯 ---
       if (currentDisplays[key] && now - currentDisplays[key].startTime < currentDisplays[key].minDisplayTime * 1000) {
         return;
       }
 
       const lastSequenceId = currentDisplays[key]?.sequenceId ?? -1;
-      const nextIndex = displayBuffers[key].findIndex(item => item.sequenceId > lastSequenceId);
+      const nextIndex = buffer.findIndex(item => item.sequenceId > lastSequenceId);
       
       if (nextIndex !== -1) {
-        const next = displayBuffers[key].splice(nextIndex, 1)[0];
+        const next = buffer.splice(nextIndex, 1)[0];
+        
         currentDisplays[key] = {
           text: next.text,
           startTime: now,
@@ -159,6 +187,7 @@ function processDisplayBuffers() {
           sequenceId: next.sequenceId
         };
         
+        // 更新 DOM
         span.textContent = next.text;
         span.dataset.stroke = next.text;
 
@@ -166,8 +195,7 @@ function processDisplayBuffers() {
         span.classList.remove('flash');
         requestAnimationFrame(() => span.classList.add('flash'));
 
-        // [修改] 直接從物件獲取該語系的 chunkSize
-        const langId = document.getElementById(`${key}-language`)?.value;
+        const langId = langInputs[key]?.value; 
         const langObj = getLang(langId);
         const chunkSize = langObj?.chunkSize || 40;
         span.classList.toggle('multi-line', next.text.length > chunkSize);
@@ -198,12 +226,21 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
 
     try {
       const modeSelect = document.getElementById('translation-mode');
-      const currentMode = modeSelect ? modeSelect.value : 'link';
+      const currentMode = modeSelect ? modeSelect.value : 'none';
+      if (currentMode === 'none') { Logger.error('[ERROR] [TranslationController], 無效的翻譯模式'); return; }
+
       let serviceUrl = '';
 
       if (currentMode === 'gas') {
-        const rawId = document.getElementById('gas-script-id')?.value.trim() || '';
-        serviceUrl = rawId ? `GAS://${rawId.replace(/^GAS:\/\//i, '')}` : '';
+        const gasId = document.getElementById('gas-script-id')?.value.trim() || '';
+        if (!gasId.match(/^[a-zA-Z0-9_-]+$/)) {
+          Logger.error('[ERROR] [TranslationController], 無效的 GAS ID:', gasId);
+          updateStatusDisplay('無效的 Google Apps Script ID');
+          setTimeout(() => updateStatusDisplay(''), 5000);
+          return;
+        }
+        serviceUrl = `https://script.google.com/macros/s/${gasId}/exec`;
+
       } else if (currentMode === 'link') {
         serviceUrl = document.getElementById('translation-link')?.value.trim() || '';
       }
@@ -217,27 +254,23 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
 
       if (targetLangIds.length === 0) return;
 
-      const isLocalPromptApiActive = isPromptApiActive();
-      const isLocalTranslationActive = isTranslationApiActive();
-      const isGasMode = serviceUrl.startsWith('GAS://');
-
       // [修改] 取得來源語系物件以獲取時長規則
       const sourceLangObj = getLang(sourceLangId);
       const rules = sourceLangObj?.displayTimeRules || [];
-      
-      const minDisplayTime = (isGasMode || isLocalTranslationActive || isLocalPromptApiActive)
+
+      const minDisplayTime = (currentMode !== 'link' || isDeepgramActive())
         ? 0
         : (rules.find(rule => text.length <= rule.maxLength)?.time || 3);
 
       let data;
 
       // --- 路由分流 ---
-      
-      if (isLocalPromptApiActive && 'LanguageModel' in self) {
+
+      if (currentMode === 'prompt' && 'LanguageModel' in self) {
         // 分支 A: AI 模式 (傳遞 IDs，由 Service 內部處理物件取值)
         data = await sendPromptTranslation(text, targetLangIds, sourceLangId);
 
-      } else if (isLocalTranslationActive && browserInfo.supportsTranslatorAPI) {
+      } else if (currentMode === 'fast' && browserInfo.supportsTranslatorAPI) {
         // 分支 B: Fast 模式 (準備改為傳遞 IDs)
         data = await sendLocalTranslation(text, targetLangIds, sourceLangId);
 
@@ -245,7 +278,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
         // 分支 C: 遠端模式 (需要轉換為 API 代碼以便後端識別)
         if (!serviceUrl) return;
         const targetCodes = targetLangIds.map(id => getLang(id)?.id || id);
-        data = await processTranslationUrl(text, targetCodes, sourceLangId, serviceUrl, '', sequenceId, previousText);
+        data = await processTranslationUrl(text, targetCodes, sourceLangId, serviceUrl, currentMode, sequenceId, previousText);
       }
 
       if (data) {

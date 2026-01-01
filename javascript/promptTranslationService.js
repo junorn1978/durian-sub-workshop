@@ -4,7 +4,7 @@
  * 2025 優化版：採用統一語系物件存取模式，確保 Prompt 指令一致性。
  */
 
-import { getLang, isPromptApiActive } from './config.js'; // [修改] 引入 getLang
+import { getLang } from './config.js'; // [修改] 引入 getLang
 import { updateStatusDisplay } from './translationController.js';
 import { Logger } from './logger.js';
 
@@ -193,7 +193,6 @@ export async function sendPromptTranslation(text, targetLangIds, sourceLangId) {
 // #region [初始化與預載邏輯]
 
 export async function setupPromptModelDownload() {
-  if (!isPromptApiActive()) return;
 
   const downloadButton = document.getElementById('prompt-api-download');
   if (!downloadButton) return;
@@ -202,7 +201,6 @@ export async function setupPromptModelDownload() {
   
   if (status === 'available') {
     try {
-      // [修改] 預熱邏輯同樣改用 getLang
       const currentTargetLangIds = ['target1-language', 'target2-language', 'target3-language']
         .map(id => document.getElementById(id)?.value)
         .filter(id => id && id !== 'none');
@@ -216,10 +214,5 @@ export async function setupPromptModelDownload() {
       Logger.debug('[DEBUG] [promptTranslationService]', '預初始化失敗');
     }
   }
-
-  // 下載按鈕事件處理 (維持原狀)
-  downloadButton.addEventListener('click', async () => {
-    // ... 原有邏輯
-  });
 }
 // #endregion

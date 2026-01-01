@@ -119,8 +119,18 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
       },
       { 
-        id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state', default: 'false',
-        onChange: (val) => setDeepgramStatus(val), onLoad: (val) => setDeepgramStatus(val)
+        id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state', default: 'true',
+        onChange: (val) => setDeepgramStatus(val), onLoad: (val) => {
+          // 此處先強制覆蓋，因為要測試，之後測試效果OK就修改為之前的設定，之前的設定只留setDeepgramStatus(val)這一行而以其他刪除
+          //setDeepgramStatus(val)
+
+          setDeepgramStatus('true');
+          const el = document.getElementById('deepgram-enabled');
+           if (el) el.value = 'true';
+
+           //寫回localstore
+           localStorage.setItem('deepgram-enabled', 'true');
+        }
       },
       { 
         id: 'log-level-opt', type: 'select', key: 'log-level-preference', desc: 'Console Log Level', default: '1',
@@ -222,7 +232,6 @@ document.addEventListener('DOMContentLoaded', async function () {
       const targetEl = document.getElementById(config.clearTarget);
       if (!targetEl) return;
       targetEl.textContent = '\u200B';
-      targetEl.setAttribute("data-stroke", "\u200B");
     },
     reset() {
       if (!config.css) return;
@@ -420,12 +429,22 @@ document.addEventListener('DOMContentLoaded', async function () {
     const toggle = document.getElementById('mic-privacy-toggle');
     const cover = document.getElementById('mic-privacy-cover');
     const micInfo = document.querySelector('.mic-info');
+    
+    const defaultMicEl = document.getElementById('default-mic');
+    const otherMicEl = document.getElementById('other-mic');
+
     if (!toggle || !cover) return;
 
     const updatePrivacyState = (isProtected) => {
       cover.style.display = isProtected ? 'flex' : 'none';
       toggle.checked = isProtected;
+
       if (micInfo) micInfo.style.overflowY = isProtected ? 'hidden' : 'auto';
+
+      const contentVisibility = isProtected ? 'hidden' : 'visible';
+      if (defaultMicEl) defaultMicEl.style.visibility = contentVisibility;
+      if (otherMicEl) otherMicEl.style.visibility = contentVisibility;
+
       localStorage.setItem('mic-privacy-enabled', isProtected);
     };
 
@@ -434,7 +453,7 @@ document.addEventListener('DOMContentLoaded', async function () {
   };
 
   /** 翻譯模式（GAS, Link, Fast, AI）切換邏輯 */
-const setupTranslationModeHandler = () => {
+  const setupTranslationModeHandler = () => {
     const modeSelect = document.getElementById('translation-mode');
     const linkWrapper = document.getElementById('link-input-wrapper');
     const gasWrapper = document.getElementById('gas-input-wrapper');

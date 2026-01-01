@@ -22,6 +22,8 @@
   { "lang": "ja-JP", "note": "【名稱修正：乙夏れい/れいか相關】", "source": "メーカーちゃん", "target": "(れいかちゃん)" },
   { "lang": "ja-JP", "note": "【名稱修正：乙夏れい/れいか相關】", "source": "メーカー", "target": "(れいかちゃん)" },
   { "lang": "ja-JP", "note": "【名稱修正：乙夏れい/れいか相關】", "source": "レイカ", "target": "(れいか)" },
+  { "lang": "ja-JP", "note": "【名稱修正：乙夏れい/れいか相關】", "source": "麗華", "target": "(れいか)" },
+  { "lang": "ja-JP", "note": "【名稱修正：乙夏れい/れいか相關】", "source": "玲香", "target": "(れいか)" },
   { "lang": "ja-JP", "note": "【名稱修正：乙夏れい/れいか相關】", "source": "レイカちゃん", "target": "(れいかちゃん)" },
   { "lang": "ja-JP", "note": "【名稱修正：乙夏れい/れいか相關】", "source": "めかちゃん", "target": "(れいかちゃん)" },
   { "lang": "ja-JP", "note": "【名稱修正：乙夏れい/れいか相關】", "source": "めがちゃん", "target": "(れいかちゃん)" },
@@ -66,11 +68,14 @@
   { "lang": "ja-JP", "note": "【敏感術語遮蔽】", "source": "トランプ", "target": "(ト○ンプ)" },
   { "lang": "ja-JP", "note": "【敏感術語遮蔽】", "source": "從軍慰安婦", "target": "\\*\\*\\*" },
   { "lang": "ja-JP", "note": "【敏感術語遮蔽】", "source": "慰安婦", "target": "\\*\\*\\*" },
+  { "lang": "ja-JP", "note": "【敏感術語遮蔽】", "source": "種付け", "target": "\\*\\*" },
   { "lang": "ja-JP", "note": "【敏感術語遮蔽】", "source": "從軍", "target": "\\*\\*\\*" },
 
   { "lang": "zh-TW", "source": "特普朗", "target": "\\*\\*\\*" },
   { "lang": "zh-TW", "source": "希特勒", "target": "\\*\\*\\*" },
   { "lang": "zh-TW", "source": "川普", "target": "\\*\\*" },
+  { "lang": "zh-TW", "source": "種付", "target": "\\*\\*" },
+  { "lang": "zh-TW", "source": "哈希標籤", "target": "標籤" },
 
   { "lang": "en-US", "source": "Trump", "target": "\\*\\*\\*" },
   { "lang": "en-US", "source": "Hitler", "target": "\\*\\*\\*" },
