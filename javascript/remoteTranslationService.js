@@ -41,7 +41,7 @@ async function fetchWithTimeout(input, init = {}, ms = 10000) {
  * @param {string|null} previousText - 上文脈絡 (Context)
  * @returns {Promise<Object|null>} 翻譯結果物件
  */
-async function sendTranslation(text, targetLangs, serviceUrl, serviceKey, sequenceId, previousText = null) {
+async function sendTranslation(text, targetLangs, serviceUrl, sequenceId, previousText = null) {
   if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') {
     Logger.debug('[DEBUG]', '[remoteTranslationService.js]', '無效文字，跳過翻譯:', text);
     return null;
@@ -50,13 +50,14 @@ async function sendTranslation(text, targetLangs, serviceUrl, serviceKey, sequen
   if (!serviceUrl) throw new Error('Service URL is empty.');
 
   let finalUrl = serviceUrl.trim();
+  let serviceKey = '';
 
   /* 技術備註：解析自訂協議格式 (如 key://url)，自動提取 API Key 並存入 localStorage */
   const protocolMatch = finalUrl.match(/^([a-zA-Z0-9-]+):\/\/(.+)$/);
   if (protocolMatch) {
     const scheme = protocolMatch[1].toLowerCase();
     if (scheme !== 'http' && scheme !== 'https') {
-      serviceKey = protocolMatch[1]; 
+      serviceKey = protocolMatch[1];
       finalUrl = protocolMatch[2];   
       localStorage.setItem('api-key-value', serviceKey);
     }
@@ -113,7 +114,7 @@ async function sendTranslation(text, targetLangs, serviceUrl, serviceKey, sequen
  * @param {number} sequenceId 
  * @returns {Promise<Object|null>}
  */
-async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl, sequenceId) {
+async function sendTranslationToGas(text, targetLangs, sourceLang, serviceUrl, sequenceId) {
   if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') {
     Logger.debug('[DEBUG] [remoteTranslationService] 無效文字，跳過翻譯:', text);
     return null;
@@ -151,29 +152,26 @@ async function sendTranslationGet(text, targetLangs, sourceLang, serviceUrl, seq
  * @async
  * @param {string} text - 待翻譯文字
  * @param {Array<string>} targetLangs - 目標語言
- * @param {string} sourceLang - 來源語言
- * @param {string} serviceUrl - 原始網址或 GAS ID (GAS://...)
- * @param {string} serviceKey - API Key
- * @param {number} sequenceId - 序號
+ * @param {string} sourceLang  - 來源語言
+ * @param {string} serviceUrl  - 原始網址或 GAS ID
+ * @param {string} serviceType - 翻譯服務類型
+ * @param {number} sequenceId  - 序號
  * @param {string|null} previousText - 上文
  * @returns {Promise<Object>}
  */
-async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, serviceKey, sequenceId, previousText = null) {
+async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, serviceType, sequenceId, previousText = null) {
   if (!serviceUrl) {
     Logger.error('[ERROR]', '[remoteTranslationService.js]', 'URL 為空');
     throw new Error('有効な翻訳サービスの URL を入力してください。');
   }
 
-  if (serviceUrl.startsWith('GAS://')) {
-    const scriptId = serviceUrl.replace('GAS://', '');
-    if (!scriptId.match(/^[a-zA-Z0-9_-]+$/)) {
-      Logger.error('[ERROR]', '[remoteTranslationService.js]', '無效的 GAS ID:', scriptId);
-      throw new Error('Google Apps Script ID 只能包含字母、數字和連字符');
-    }
-    const gasUrl = `https://script.google.com/macros/s/${scriptId}/exec`;
-    return await sendTranslationGet(text, targetLangs, sourceLang, gasUrl, sequenceId);
+  if (serviceType === 'gas') {
+    return await sendTranslationToGas(text, targetLangs, sourceLang, serviceUrl, sequenceId);
+  } else if (serviceType === 'link') {
+    return await sendTranslation(text, targetLangs, serviceUrl, sequenceId, previousText);
   } else {
-    return await sendTranslation(text, targetLangs, serviceUrl, serviceKey, sequenceId, previousText);
+    Logger.error('[ERROR]', '[remoteTranslationService.js]', '無效的服務類型:', serviceType);
+    throw new Error('無效的服務類型');
   }
 }
 // #endregion

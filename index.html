@@ -21,8 +21,8 @@
     <div id="target-text-1" data-stroke="開発者：乙夏れいのファン・ジュノーン（GrokとChatGPTを利用）">
       開発者：乙夏れいのファン・ジュノーン（GrokとChatGPTを利用）
     </div>
-    <div id="target-text-2" data-stroke="2025.12.21">
-      2025.12.21
+    <div id="target-text-2" data-stroke="2026.01.01">
+      2026.01.01
     </div>
     <div id="target-text-3" data-stroke="自動翻訳によるもので、精度は保証できません。ご了承ください。">
       自動翻訳によるもので、精度は保証できません。ご了承ください。
@@ -129,7 +129,7 @@
             </div>
             <div class="slider-group">
               <span class="tiny-label">縁取り</span>
-              <input type="range" id="source-font-stroke-size" min="2" max="10" value="5" title="縁取りサイズ">
+              <input type="range" id="source-font-stroke-size" min="2" max="8" value="4" title="縁取りサイズ">
             </div>
           </div>
 
@@ -157,7 +157,7 @@
             </div>
             <div class="slider-group">
               <span class="tiny-label">縁取り</span>
-              <input type="range" id="target1-font-stroke-size" min="2" max="10" value="5" title="縁取りサイズ">
+              <input type="range" id="target1-font-stroke-size" min="2" max="8" value="4" title="縁取りサイズ">
             </div>
           </div>
 
@@ -185,7 +185,7 @@
             </div>
             <div class="slider-group">
               <span class="tiny-label">縁取り</span>
-              <input type="range" id="target2-font-stroke-size" min="2" max="10" value="5" title="縁取りサイズ">
+              <input type="range" id="target2-font-stroke-size" min="2" max="8" value="4" title="縁取りサイズ">
             </div>
           </div>
 
@@ -213,7 +213,7 @@
             </div>
             <div class="slider-group">
               <span class="tiny-label">縁取り</span>
-              <input type="range" id="target3-font-stroke-size" min="2" max="10" value="5" title="縁取りサイズ">
+              <input type="range" id="target3-font-stroke-size" min="2" max="8" value="4" title="縁取りサイズ">
             </div>
           </div>
         </div>
@@ -263,10 +263,22 @@
             <div class="card-title">Advanced音声認識 (翻訳クラウド接続のみ)</div>
             
             <div class="card-row">
-              <span class="card-label">Deepgram API (有料)</span>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span class="card-label" style="margin-right: 0;">Deepgram API (有料)</span>
+                
+                <a href="guide_deepgram.html" target="_blank" class="link-help-btn" title="設定ガイドを見る" 
+                   style="position: static; transform: none; display: inline-flex; align-items: center; color: #888; margin: 0; padding: 0; background: none; border: none; height: auto; width: auto;">
+                  <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg>
+                </a>
+              </div>
+
               <select id="deepgram-enabled" class="card-select" title="Deepgramの有効化">
-                <option value="false" selected>無効 (Disable)</option>
-                <option value="true">有効 (Enable)</option>
+                <option value="false">無効 (Disable)</option>
+                <option value="true" selected>有効 (Enable)</option>
               </select>
             </div>
           </div>

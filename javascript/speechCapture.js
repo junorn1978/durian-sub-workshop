@@ -4,7 +4,7 @@
  * 針對 Gemini 3.0 翻譯引擎進行了前置文字清理優化。
  */
 
-import { isRayModeActive, isDeepgramActive, browserInfo, getSourceLanguage, getLang } from './config.js';
+import { isRayModeActive, isDeepgramActive, browserInfo, getSourceLanguage, getLang, getAlignment } from './config.js';
 import { sendTranslationRequest, updateStatusDisplay } from './translationController.js';
 import { startDeepgram, stopDeepgram } from './deepgramService.js';
 import { Logger } from './logger.js';
@@ -159,13 +159,15 @@ async function configureRecognition(recognition, sourceLanguage) {
 async function handleDeepgramTranscript(text, isFinal, shouldTranslate) {
   const currentLang = await getSourceLanguage();
   let processedText = isRayModeActive() ? processRayModeTranscript(text, currentLang) : text;
-  
+  if (processedText.trim().replace(/[、。？\s]+/g, ' ').trim() === '') return;
   if (!isFinal) { processedText = wrapWithNoteByAlignment(processedText); }
   updateSourceText(processedText.replace(/[、。？\s]+/g, ' ').trim());
 
   if (shouldTranslate) {
     const textToTranslate = processedText.trim();
-    if (textToTranslate) {
+    const isJustPunctuation = /^[\p{P}\p{S}\s]+$/u.test(textToTranslate);
+    
+    if (textToTranslate && !isJustPunctuation) {
         Logger.info('[INFO] [Deepgram] 收到 Service 指令，執行翻譯:', textToTranslate);
         
         sendTranslationRequest(textToTranslate, previousText, currentLang);
@@ -244,7 +246,7 @@ function filterRayModeText(text, sourceLang) {
     return '';
   }
 
-  let result = text.replace(/[、。？,.]/g, ' '); // 預先移除標點以利 Gemini 語意切分
+  let result = text.replace(/[、。？,.]/g, ' ');
   const rules = generateRayModeRules(sourceLang);
   rules.forEach(rule => { result = result.replace(rule.source, rule.target); });
 
@@ -271,13 +273,22 @@ async function decideProcessLocally(lang) {
  * 更新字幕顯示區域
  * @param {string} text - 辨識文字
  */
-function updateSourceText(text) {
-  const el = document.getElementById('source-text');
-  if (!el || !text || text.trim().length === 0 || el.textContent === text) return;
+const updateSourceText = (() => {
+  let el = null; 
+  let lastRenderedText = '';
 
-  el.textContent = text;
-  el.dataset.stroke = text;
-}
+  return (text) => {
+    if (!el) {
+      el = document.getElementById('source-text');
+      if (!el) return;
+    }
+    if (!text || text.trim().length === 0) return;
+    if (text === lastRenderedText) { return; }
+    el.textContent = text;
+    el.dataset.stroke = text; 
+    lastRenderedText = text;
+  };
+})();
 
 /**
  * 根據視覺對齊方式添加動態音符裝飾
@@ -285,10 +296,17 @@ function updateSourceText(text) {
  * @returns {string} 裝飾後的文字
  */
 function wrapWithNoteByAlignment(baseText) {
-  const alignment = document.querySelector('input[name="alignment"]:checked')?.value || 'left';
-  return alignment === 'center' ? `🎼️${baseText}🎼` :
-         alignment === 'right'  ? `🎼${baseText}` :
-                                  `${baseText}🎼`;
+  const alignment = getAlignment();
+  // deepgram api            → 🐹 
+  // web speech api → Chrome → 🎵
+  // web speech api → Edge   → 🎼️
+  const symbolText = isDeepgramActive() ? '🐹' 
+                                        : browserInfo.isChrome ? '​​🎵'
+                                                               : '🎼️';
+  
+  return alignment === 'center' ? `${symbolText}${baseText}${symbolText}` :
+         alignment === 'right'  ? `${symbolText}${baseText}` :
+                                  `${baseText}${symbolText}`;
 }
 
 /** 重置所有字幕顯示欄位 */

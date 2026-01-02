@@ -19,7 +19,7 @@ let isQueueInitialized = false;
 // #region [UI 監控與初始化]
 
 /**
- * [核心改進] 檢查目前選擇的語系組合是否需要下載模型，並更新 UI。
+ * 檢查目前選擇的語系組合是否需要下載模型，並更新 UI。
  * 可由外部 (uiController) 在模式切換或語系變更時主動呼叫。
  * @async
  */
@@ -186,11 +186,7 @@ export async function sendLocalTranslation(text, targetLangs, sourceLang) {
     }
   }
 
-  if (translations.some(t => t !== '')) {
-    await updateTranslationUI({ translations, sequenceId: sequenceCounter }, targetLangs, 0, sequenceCounter);
-  }
-
-  return { translations, sequenceId: sequenceCounter };
+  return { translations };
 }
 
 /**

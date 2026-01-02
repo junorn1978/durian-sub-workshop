@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deepgram設定ガイド | ハムハム字幕アトリエ</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+
+  <style>
+    /* 保持原有的樣式設定 */
+    :root {
+      --bg-color: #F8E6F0;
+      --card-bg: #FFFFFF;
+      --primary-color: #8B4513;
+      --accent-color: #D28BC4;
+      --deepgram-color: #13ef93;
+      --deepgram-dark: #0fb36f;
+      --highlight-bg: #FFF2DE;
+      --code-bg: #282c34;
+      --code-text: #abb2bf;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 40px 20px;
+      font-family: "Huninn", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--primary-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 30px;
+      animation: fadeInDown 0.6s ease;
+    }
+
+    h1 { font-size: 28px; margin: 0 0 10px 0; color: #6d1313; }
+    p.subtitle { font-size: 14px; color: #666; line-height: 1.6; }
+
+    .guide-card {
+      background-color: var(--card-bg);
+      width: 100%;
+      max-width: 800px;
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 10px 30px rgba(139, 69, 19, 0.08);
+      border: 2px solid white;
+      animation: fadeInUp 0.5s ease;
+    }
+
+    h2 {
+      font-size: 20px;
+      border-bottom: 2px dashed #b5ead7;
+      padding-bottom: 15px;
+      margin-top: 0;
+      color: var(--deepgram-dark);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .step-list { margin-top: 20px; }
+    .step-item { display: flex; gap: 20px; margin-bottom: 30px; }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 36px; height: 36px;
+      background-color: #e0fdf4;
+      color: var(--deepgram-dark);
+      border: 2px solid var(--deepgram-color);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: bold; font-size: 16px;
+    }
+
+    .step-content { flex: 1; }
+    .step-title { font-weight: bold; font-size: 17px; margin-bottom: 8px; display: block; color: #444; }
+    .step-desc { font-size: 14px; color: #666; line-height: 1.7; }
+
+    .code-container {
+      background-color: var(--code-bg); border-radius: 10px; margin-top: 10px;
+      padding: 15px; color: var(--code-text); font-family: 'Consolas', monospace; font-size: 13px;
+      border-left: 4px solid var(--deepgram-color);
+      overflow-x: auto;
+    }
+
+    .url-box {
+      display: flex; align-items: center; gap: 10px;
+      background-color: #f5f5f5; border: 1px solid #ddd;
+      border-radius: 8px; padding: 10px 15px; margin-top: 10px;
+    }
+    .url-text {
+      flex: 1; font-family: 'Consolas', monospace; font-size: 13px; color: #555;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .url-copy-btn {
+      background-color: #fff; border: 1px solid #ccc;
+      border-radius: 4px; padding: 5px 10px; font-size: 12px;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .url-copy-btn:hover { background-color: #f0f0f0; }
+
+    .note-box {
+      background-color: #ffebee; border-left: 4px solid #f44336;
+      padding: 15px; border-radius: 0 8px 8px 0; margin-top: 15px; font-size: 13px; color: #b71c1c;
+    }
+    
+    /* 連結到 guide.html 的提示樣式 */
+    .prerequisite-box {
+      background-color: #e3f2fd; border-left: 4px solid #2196f3;
+      padding: 15px; border-radius: 4px; margin-bottom: 30px;
+      font-size: 14px; color: #0d47a1;
+    }
+    .prerequisite-box a {
+      color: #2196f3; font-weight: bold; text-decoration: none; border-bottom: 1px dotted #2196f3;
+    }
+
+    .link-back {
+      display: inline-block; margin-top: 20px; text-decoration: none;
+      color: #888; font-size: 14px; border-bottom: 1px dotted #ccc;
+    }
+
+    @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>⚡ Deepgram 設定ガイド</h1>
+    <p class="subtitle">超高速・高精度な音声認識AI「Deepgram」の導入手順です。</p>
+  </header>
+
+  <div class="guide-card">
+    
+    <div class="prerequisite-box">
+      <strong>💡 事前準備：</strong><br>
+      この機能を利用するには、ローカルサーバー（Backend）の導入が必要です。<br>
+      まだダウンロードしていない場合は、先に 
+      <a href="guide.html" target="_blank">接続設定ガイド (guide.html)</a> 
+      の「方法B：ローカルAI」からダウンロードしてください。
+    </div>
+
+    <h2>🚀 設定の流れ (Backend)</h2>
+    <div class="step-desc" style="margin-bottom: 25px;">
+      APIキーを取得し、ローカルサーバーの設定ファイル(.env)に追記することで有効化されます。
+    </div>
+
+    <div class="step-list">
+      
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <span class="step-title">アカウント作成とAPIキー取得</span>
+          <div class="step-desc">
+            Deepgramの公式サイト（コンソール）にアクセスし、Googleアカウント等でサインアップします。<br>
+            メニューから「API Keys」→「Create New API Key」を選択してキーを発行してください。
+          </div>
+          <div class="note-box">
+            <strong>⚠️ 注意：</strong><br>
+            発行されたキー（Token）は一度しか表示されません。必ずコピーして控えてください。<br>
+            また、本格利用にはクレジットカード登録（従量課金）が必要です。
+          </div>
+          <div class="url-box">
+            <span class="url-text">https://console.deepgram.com/</span>
+            <button class="url-copy-btn" onclick="copyText('https://console.deepgram.com/', this)">📋 URLをコピー</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <span class="step-title">バックエンド設定ファイルの編集</span>
+          <div class="step-desc">
+            ダウンロードしたローカルサーバー（AI Translator Proxy）のフォルダにある <strong>.env</strong> ファイルをメモ帳で開きます。<br>
+            一番下の行に、以下の形式でAPIキーを追記して保存してください。
+          </div>
+          <div class="code-container">
+            # 既存の設定の下に追加してください<br>
+            <span style="color: #13ef93;">DEEPGRAM_API_KEY</span>=<span style="color: #e06c75;">ここにコピーしたキーを貼り付け</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <span class="step-title">サーバーの再起動</span>
+          <div class="step-desc">
+            設定を反映させるため、起動中の黒い画面（startapi.bat）を一度閉じて、<strong>もう一度 startapi.bat を実行</strong>してください。<br>
+            Deepgramモードが有効になった状態でサーバーが起動します。
+          </div>
+        </div>
+      </div>
+
+      <div class="step-item" style="border-top: 2px dashed #eee; padding-top: 30px; margin-top: 30px;">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <span class="step-title">字幕ツールへの接続</span>
+          <div class="step-desc">
+            サーバー（黒い画面）に表示された接続用URL（例: <code>password://localhost:8083</code>）をコピーします。<br>
+            字幕ツールの<strong>「翻訳クラウド接続」</strong>欄にペーストしてください。
+          </div>
+          <div class="step-desc" style="margin-top: 10px;">
+            最後に、オプション設定で「Deepgram API」を<strong>「有効 (Enable)」</strong>にすれば完了です。
+          </div>
+          <img src="images/guide_paste_id_local.png" alt="接続URLの入力場所" 
+               style="width: 100%; max-width: 500px; margin-top: 15px; border-radius: 8px; border: 2px solid #eee; display: block;">
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <a href="javascript:window.close();" class="link-back">× 閉じる</a>
+
+  <script>
+    function copyText(text, btnElement) {
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = btnElement.innerText;
+        btnElement.innerText = "✅ OK!";
+        setTimeout(() => { btnElement.innerText = originalText; }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>

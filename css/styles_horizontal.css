@@ -37,7 +37,7 @@ body {
   display: flex;
   flex-direction: column;
   padding: 20px;
-  gap: 5px;
+  gap: 0px;
   margin: 0 auto;
   width: 100%;
   background-color: transparent;
@@ -53,27 +53,21 @@ body {
   align-items: var(--text-align);
   text-align: var(--text-align);
   z-index: 1;
+  
+  /* 字體設定 */
   color: var(--text-color);
-  font-size: var(--text-font-size);
-  background-color: transparent;
-  position: relative;
   font-family: "Huninn", Arial, sans-serif;
-  line-height: 1.2em;
+  font-size: var(--text-font-size);
+  line-height: 1.3em;
+    
+  -webkit-text-stroke: calc(var(--stroke-width)) var(--stroke-color);
+  paint-order: stroke fill;
+  /* ----------------------- */
+
+  background-color: transparent;
+  position: relative; /* 雖不再需要給偽元素定位，但保留作為其他可能的定位基準 */
   overflow: hidden;
   flex-shrink: 0;
-}
-
-#source-text::before, #target-text-1::before, #target-text-2::before, #target-text-3::before {
-  content: attr(data-stroke);
-  position: absolute;
-  z-index: -1;
-  -webkit-text-stroke: var(--stroke-width) var(--stroke-color);
-  width: 100%;
-  text-align: var(--text-align);
-  font-size: var(--text-font-size);
-  font-family: "Huninn", Arial, sans-serif;
-  line-height: 1.2em;
-  overflow: hidden;
 }
 
 /* =========================================
@@ -88,10 +82,9 @@ body {
   font-size: var(--text-font-size);
 }
 
-#source-text.overflow-truncate, #source-text.overflow-truncate::before { line-clamp: 1; -webkit-line-clamp: 1; }
+#source-text.overflow-truncate { line-clamp: 1; -webkit-line-clamp: 1; }
 
-#target-text-1.overflow-truncate, #target-text-2.overflow-truncate, #target-text-3.overflow-truncate,
-#target-text-1.overflow-truncate::before, #target-text-2.overflow-truncate::before, #target-text-3.overflow-truncate::before {
+#target-text-1.overflow-truncate, #target-text-2.overflow-truncate, #target-text-3.overflow-truncate {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   text-overflow: ellipsis;
@@ -100,8 +93,7 @@ body {
   -webkit-line-clamp: 1;
 }
 
-#target-text-1.overflow-shrink, #target-text-2.overflow-shrink, #target-text-3.overflow-shrink,
-#target-text-1.overflow-shrink::before, #target-text-2.overflow-shrink::before, #target-text-3.overflow-shrink::before {
+#target-text-1.overflow-shrink, #target-text-2.overflow-shrink, #target-text-3.overflow-shrink {
   display: -webkit-box;
   line-clamp: 2;
   -webkit-line-clamp: 2;
@@ -111,9 +103,7 @@ body {
 }
 
 /* 與 multi-line 狀態連動進行二次縮放 */
-#target-text-1.overflow-shrink.multi-line, #target-text-2.overflow-shrink.multi-line, #target-text-3.overflow-shrink.multi-line,
-#target-text-1.overflow-shrink.multi-line::before, #target-text-2.overflow-shrink.multi-line::before,
-#target-text-3.overflow-shrink.multi-line::before {
+#target-text-1.overflow-shrink.multi-line, #target-text-2.overflow-shrink.multi-line, #target-text-3.overflow-shrink.multi-line {
   font-size: var(--font-size-half);
 }
 
@@ -131,7 +121,6 @@ body {
   min-height: 30px;
   background-color: #FFF2DE;
   padding: 0 20px;
-  align-items: center;
   gap: 5px;
   z-index: 2;
 }
@@ -562,16 +551,6 @@ body {
   /* 鎖定固定高度並強制底部對齊，利用 Overflow 推升舊文字 */
   height: calc(var(--text-font-size) * 1.2) !important; 
   overflow: hidden !important;
-  justify-content: flex-end !important;
-}
-
-.visual-single-line::before {
-  top: auto !important;  
-  bottom: 0 !important;  
-  height: auto !important; 
-  min-height: 100%;
-  display: flex !important;
-  flex-direction: column !important;
   justify-content: flex-end !important;
 }
 

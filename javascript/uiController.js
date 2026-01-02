@@ -3,13 +3,33 @@
  * @description UI 介面控制核心，管理所有樣式設定、語言選單、翻譯模式切換及 localStorage 持久化。
  */
 
+// uiController.js 頂部
 import { updateStatusDisplay } from './translationController.js';
-import { loadLanguageConfig, setRayModeStatus, setForceSingleLineStatus, setDeepgramStatus } from './config.js';
 import { setupPromptModelDownload } from './promptTranslationService.js';
 import { setupLanguagePackButton } from './languagePackManager.js';
 import { checkTranslationAvailability, monitorLocalTranslationAPI } from './translatorApiService.js';
-import { browserInfo } from './config.js';
+import { browserInfo, loadLanguageConfig, setAlignment, setRayModeStatus, setForceSingleLineStatus, setDeepgramStatus } from './config.js';
 import { Logger, LogLevel, setLogLevel } from './logger.js';
+
+const setupToggleVisibility = (btnId, inputId) => {
+  const btn = document.getElementById(btnId);
+  const input = document.getElementById(inputId);
+  if (btn && input) {
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    
+    newBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isMasked = input.classList.contains('input-masked');
+      input.classList.toggle('input-masked', !isMasked);
+      input.classList.toggle('input-visible', isMasked);
+      
+      const eyeOpen = `<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+      const eyeClosed = `<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
+      newBtn.innerHTML = isMasked ? eyeOpen : eyeClosed;
+    });
+  }
+};
 
 document.addEventListener('DOMContentLoaded', async function () {
   const urlParams = new URLSearchParams(window.location.search);
@@ -51,23 +71,73 @@ document.addEventListener('DOMContentLoaded', async function () {
       { id: 'target3-language', type: 'select', desc: 'Target language 3', clearTarget: 'target-text-3' }
     ],
     radioGroups: [
-      { name: 'alignment', key: 'text-alignment', default: 'center', targets: ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'], css: '--text-align', desc: 'Text alignment' },
-      { name: 'overflow', key: 'overflow-mode', default: 'normal', targets: ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'], desc: 'Overflow mode' }
+      { 
+        name: 'alignment', key: 'text-alignment', default: 'center', 
+        targets: ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'], 
+        css: '--text-align', desc: 'Text alignment',
+        onChange: (val) => setAlignment(val), onLoad: (val) => setAlignment(val)
+      },
+      { 
+        name: 'overflow', key: 'overflow-mode', default: 'normal', 
+        targets: ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'], desc: 'Overflow mode',
+        onChange: (val, targets) => {
+          targets.forEach(tId => {
+            const el = document.getElementById(tId);
+            if (el) {
+              el.classList.remove('overflow-normal', 'overflow-truncate', 'overflow-shrink');
+              el.classList.add(`overflow-${val}`);
+            }
+          });
+        },
+        onLoad: (val, targets) => { /* 這裡複用 onChange 邏輯即可，或者在這裡不寫，因為 RadioHandler 預設會處理 */ }
+      }
     ],
     special: [
       { id: 'display-panel-color', type: 'body-color', css: '--body-background', desc: 'Body background color' },
       { id: 'translation-link', type: 'text', desc: 'Translation link' },
       { id: 'gas-script-id', type: 'text', desc: 'GAS Script ID' },
-      { id: 'raymode', type: 'checkbox', key: 'raymode-active', desc: 'Raymode active state' },
-      { id: 'click-minimize-opt', type: 'select', key: 'click-minimize-enabled', desc: 'Display panel click minimize' },
-      { id: 'force-single-line-opt', type: 'select', key: 'force-single-line-enabled', desc: 'Force single line display' },
-      { id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state' },
-      { id: 'log-level-opt', type: 'select', key: 'log-level-preference', desc: 'Console Log Level' },
+      { 
+        id: 'raymode', type: 'checkbox', key: 'raymode-active', desc: 'Raymode active state',
+        onChange: (checked) => setRayModeStatus(checked),
+        onLoad: (checked) => setRayModeStatus(checked)
+      },
+      { 
+        id: 'click-minimize-opt', type: 'select', key: 'click-minimize-enabled', desc: 'Display panel click minimize', default: 'true'
+      },
+      { 
+        id: 'force-single-line-opt', type: 'select', key: 'force-single-line-enabled', 
+        desc: 'Force single line display', default: 'false',
+        onChange: (val) => {
+          const isEnabled = val === 'true';
+          setForceSingleLineStatus(isEnabled);
+          document.getElementById('source-text')?.classList.toggle('visual-single-line', isEnabled);
+        },
+        onLoad: (val) => {
+          const isEnabled = val === 'true';
+          setForceSingleLineStatus(isEnabled);
+          document.getElementById('source-text')?.classList.toggle('visual-single-line', isEnabled);
+        }
+      },
+      { 
+        id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state', default: 'true',
+        onChange: (val) => setDeepgramStatus(val), onLoad: (val) => {
+          // 此處先強制覆蓋，因為要測試，之後測試效果OK就修改為之前的設定，之前的設定只留setDeepgramStatus(val)這一行而以其他刪除
+          //setDeepgramStatus(val)
+
+          setDeepgramStatus('true');
+          const el = document.getElementById('deepgram-enabled');
+           if (el) el.value = 'true';
+
+           //寫回localstore
+           localStorage.setItem('deepgram-enabled', 'true');
+        }
+      },
+      { 
+        id: 'log-level-opt', type: 'select', key: 'log-level-preference', desc: 'Console Log Level', default: '1',
+        onChange: (val) => setLogLevel(parseInt(val, 10)), onLoad: (val) => setLogLevel(parseInt(val, 10))
+      },
     ],
-    panels: {
-      'Subtitle': 'source-styles-panel',
-      'options': 'options-panel'
-    }
+    panels: { 'Subtitle': 'source-styles-panel', 'options': 'options-panel' }
   };
   // #endregion
 
@@ -134,7 +204,6 @@ document.addEventListener('DOMContentLoaded', async function () {
         this.syncFontSizeProps(target, config.id, parseFloat(value));
       }
     },
-    /** 同步更新縮放比例相關 CSS 變數 */
     syncFontSizeProps(target, id, fontSize) {
       const overflowHeight = `${fontSize * 1.2}px`;
       const fontSizeHalf = `${fontSize * 0.75}px`;
@@ -163,7 +232,6 @@ document.addEventListener('DOMContentLoaded', async function () {
       const targetEl = document.getElementById(config.clearTarget);
       if (!targetEl) return;
       targetEl.textContent = '\u200B';
-      targetEl.setAttribute("data-stroke", "\u200B");
     },
     reset() {
       if (!config.css) return;
@@ -182,37 +250,45 @@ document.addEventListener('DOMContentLoaded', async function () {
   const createRadioHandler = (config) => ({
     load() {
       const saved = Storage.load(config.key, config.default);
+      
+      // 執行注入的 onLoad 邏輯
+      if (config.onLoad) config.onLoad(saved, config.targets);
+
       const radio = document.querySelector(`input[name="${config.name}"][value="${saved}"]`);
       if (radio) {
         radio.checked = true;
-        this.save(saved);
+        this.save(saved, false); // false = 載入時不再次觸發 onChange，避免重複執行
       }
     },
     setupListener() {
       document.querySelectorAll(`input[name="${config.name}"]`).forEach(radio => {
         radio.addEventListener('change', (e) => {
-          if (e.target.checked) this.save(e.target.value);
+          if (e.target.checked) this.save(e.target.value, true);
         });
       });
     },
-    save(value) {
+    save(value, triggerCallback = true) {
       Storage.save(config.key, value, config.desc);
-      config.targets.forEach(targetId => {
-        const target = document.getElementById(targetId);
-        if (target) {
-          if (config.css) target.style.setProperty(config.css, value);
-          if (config.name === 'overflow') {
-            target.classList.remove('overflow-normal', 'overflow-truncate', 'overflow-shrink');
-            target.classList.add(`overflow-${value}`);
-          }
-        }
-      });
+
+      // 執行注入的 onChange 邏輯
+      if (triggerCallback && config.onChange) config.onChange(value, config.targets);
+
+      // 通用的 CSS 變數處理
+      if (config.css && config.targets) {
+        config.targets.forEach(targetId => {
+          const target = document.getElementById(targetId);
+          if (target) target.style.setProperty(config.css, value);
+        });
+      }
     },
     reset() {
+      // 重置時也觸發 onLoad/onChange 來還原狀態
+      if (config.onLoad) config.onLoad(config.default, config.targets);
+
       const defaultRadio = document.querySelector(`input[name="${config.name}"][value="${config.default}"]`);
       if (defaultRadio) {
         defaultRadio.checked = true;
-        this.save(config.default);
+        this.save(config.default, false);
       }
     }
   });
@@ -256,66 +332,41 @@ document.addEventListener('DOMContentLoaded', async function () {
         load(el) {
           const saved = Storage.load(config.key) === 'true';
           el.checked = saved;
-          if (config.id === 'raymode') setRayModeStatus(saved);
+          if (config.onLoad) config.onLoad(saved);
         },
         setupListener(el) {
           el.addEventListener('change', (e) => {
             const checked = e.target.checked;
             Storage.save(config.key, checked.toString(), config.desc);
-            if (config.id === 'raymode') setRayModeStatus(checked);
+            if (config.onChange) config.onChange(checked);
           });
         },
         reset(el) {
           el.checked = false;
           Storage.save(config.key, 'false', config.desc);
-          if (config.id === 'raymode') setRayModeStatus(false);
+          if (config.onChange) config.onChange(false);
         }
       },
       'select': {
         load(el) {
           const saved = Storage.load(config.key);
-          let def = 'true';
-          if (['force-single-line-opt', 'deepgram-enabled'].includes(config.id)) def = 'false';
-          if (config.id === 'log-level-opt') def = '1';
-          
-          const val = saved || def;
+          const val = saved || config.default || 'false';
           el.value = val;
 
-          if (config.id === 'force-single-line-opt') {
-            const sText = document.getElementById('source-text');
-            if (sText) sText.classList.toggle('visual-single-line', val === 'true');
-            setForceSingleLineStatus(val === 'true');
-          }
-          if (config.id === 'deepgram-enabled') setDeepgramStatus(el.value);
-          if (config.id === 'log-level-opt') setLogLevel(parseInt(val, 10));
+          if (config.onLoad) config.onLoad(val);
         },
         setupListener(el) {
           el.addEventListener('change', (e) => {
             const val = e.target.value;
             Storage.save(config.key, val, config.desc);
-            if (config.id === 'force-single-line-opt') {
-              const sText = document.getElementById('source-text');
-              if (sText) sText.classList.toggle('visual-single-line', val === 'true');
-              setForceSingleLineStatus(val === 'true');
-            }
-            if (config.id === 'deepgram-enabled') setDeepgramStatus(val);
-            if (config.id === 'log-level-opt') setLogLevel(parseInt(val, 10));
+            if (config.onChange) config.onChange(val);
           });
         },
         reset(el) {
-          let def = 'true';
-          if (['force-single-line-opt', 'deepgram-enabled'].includes(config.id)) def = 'false';
-          if (config.id === 'log-level-opt') def = '1';
-
+          const def = config.default || 'false';
           el.value = def;
           Storage.save(config.key, def, config.desc);
-          if (config.id === 'force-single-line-opt') {
-            const sText = document.getElementById('source-text');
-            if (sText) sText.classList.remove('visual-single-line');
-            setForceSingleLineStatus(false);
-          }
-          if (config.id === 'deepgram-enabled') setDeepgramStatus('false');
-          if (config.id === 'log-level-opt') setLogLevel(1);
+          if (config.onLoad) config.onLoad(def);
         }
       },
     };
@@ -378,12 +429,22 @@ document.addEventListener('DOMContentLoaded', async function () {
     const toggle = document.getElementById('mic-privacy-toggle');
     const cover = document.getElementById('mic-privacy-cover');
     const micInfo = document.querySelector('.mic-info');
+    
+    const defaultMicEl = document.getElementById('default-mic');
+    const otherMicEl = document.getElementById('other-mic');
+
     if (!toggle || !cover) return;
 
     const updatePrivacyState = (isProtected) => {
       cover.style.display = isProtected ? 'flex' : 'none';
       toggle.checked = isProtected;
+
       if (micInfo) micInfo.style.overflowY = isProtected ? 'hidden' : 'auto';
+
+      const contentVisibility = isProtected ? 'hidden' : 'visible';
+      if (defaultMicEl) defaultMicEl.style.visibility = contentVisibility;
+      if (otherMicEl) otherMicEl.style.visibility = contentVisibility;
+
       localStorage.setItem('mic-privacy-enabled', isProtected);
     };
 
@@ -400,27 +461,9 @@ document.addEventListener('DOMContentLoaded', async function () {
     const fastModeControls = document.getElementById('fast-mode-controls');
     const fastModeProgress = document.getElementById('fast-mode-progress');
 
-    /** 密碼可見性切換 (眼睛圖示) */
-    const setupToggleVisibility = (btnId, inputId) => {
-      const btn = document.getElementById(btnId);
-      const input = document.getElementById(inputId);
-      if (btn && input) {
-        const newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
-        newBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const isMasked = input.classList.contains('input-masked');
-          input.classList.toggle('input-masked', !isMasked);
-          input.classList.toggle('input-visible', isMasked);
-          const eyeOpen = `<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
-          const eyeClosed = `<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
-          newBtn.innerHTML = isMasked ? eyeOpen : eyeClosed;
-        });
-      }
-    };
-
     setupToggleVisibility('toggle-link-visibility', 'translation-link');
     setupToggleVisibility('toggle-gas-visibility', 'gas-script-id');
+
     if (!modeSelect) return;
 
     const applyMode = (mode) => {
@@ -499,7 +542,7 @@ document.addEventListener('DOMContentLoaded', async function () {
   setupPanelSwitching();
   setupResetButton(handlers);
   await setupLanguagePackButton('source-language', updateStatusDisplay);
-  setupPromptModelDownload();
+  //setupPromptModelDownload();
   monitorLocalTranslationAPI();
   setupDisplayPanelInteraction();
   setupTranslationModeHandler();

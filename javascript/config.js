@@ -10,9 +10,11 @@ import { Logger } from './logger.js';
 const _languages = new Map();
 
 let _config = null;
-let _isRayModeActive = false;
+let _isRayModeActive   = false;
 let _isForceSingleLine = false;
-let _isDeepgramActive = false;
+let _isDeepgramActive  = false;
+
+let _currentAlignment  = 'left';
 // #endregion
 
 // #region [環境偵測]
@@ -82,20 +84,15 @@ export function getAllLanguages() {
 // #region [狀態管理 API]
 export function isRayModeActive() { return _isRayModeActive; }
 export function setRayModeStatus(status) { _isRayModeActive = !!status; }
+
 export function isForceSingleLine() { return _isForceSingleLine; }
 export function setForceSingleLineStatus(status) { _isForceSingleLine = !!status; }
+
 export function isDeepgramActive() { return _isDeepgramActive; }
 export function setDeepgramStatus(status) { _isDeepgramActive = String(status) === 'true'; }
 
-export function isPromptApiActive() {
-  const modeSelect = document.getElementById('translation-mode');
-  return modeSelect ? modeSelect.value === 'ai' : false;
-}
-
-export function isTranslationApiActive() {
-  const modeSelect = document.getElementById('translation-mode');
-  return modeSelect ? modeSelect.value === 'fast' : false;
-}
+export function getAlignment() { return _currentAlignment; }
+export function setAlignment(align) { _currentAlignment = align; }
 
 export async function getSourceLanguage() {
   return document.getElementById('source-language')?.value || null;
