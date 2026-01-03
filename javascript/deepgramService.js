@@ -38,8 +38,8 @@ const FLUSH_TIMEOUT_MS = 1500; // 沒有說話多久時間強制翻譯和清空�
 
 // #region [設定與配置]
 const NOVA3_SUPPORTED_LANGS = [ "en", "ja", "ko", "es", "fr", "de", "it", "pt", "nl", "id", "vi", "ru", "uk", "pl", "hi", "tr" ];
-//const MULTI_SUPPORTED_LANGS = ['ja', 'en', 'es', 'ko'];
-const MULTI_SUPPORTED_LANGS = ['en', 'es', 'ko'];
+const MULTI_SUPPORTED_LANGS = [ 'ja', 'en', 'es', 'ko' ];
+//const MULTI_SUPPORTED_LANGS = [ 'en', 'es', 'ko' ];
 const AUTO_STOP_TIMEOUT = 8 * 60 * 1000; 
 
 // AudioWorklet 處理器代碼 (內嵌以避免跨檔案載入問題)
@@ -379,14 +379,14 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
             // 字數大於language_config這邊可以視狀況調整，想短一點1倍，想留長一點就2-3倍或者乾脆拿掉。
             if (finalResultCount >= 2 && (hasPunctuation || sentenceBuffer.trim().length >= langObj.chunkSize * 1.5)) {
               if (onTranscriptUpdate) {
-                console.info(`sentenceBuffer: ${sentenceBuffer}: finalResultCount: ${finalResultCount} - ${sentenceBuffer.length}`);
+                Logger.info(`sentenceBuffer: ${sentenceBuffer}: finalResultCount: ${finalResultCount} - ${sentenceBuffer.length}`);
                 onTranscriptUpdate(sentenceBuffer, true, true); 
               }
               resetSentenceBuffer();
               if (speechFlushTimer) clearTimeout(speechFlushTimer);
             } else {
               if (onTranscriptUpdate) {
-                  console.info(`sentenceBuffer: ${sentenceBuffer}: finalResultCount: ${finalResultCount}`);
+                  Logger.info(`sentenceBuffer: ${sentenceBuffer}: finalResultCount: ${finalResultCount}`);
                   onTranscriptUpdate(sentenceBuffer, false, false); 
                   resetFlushTimer(onTranscriptUpdate, "");
               }

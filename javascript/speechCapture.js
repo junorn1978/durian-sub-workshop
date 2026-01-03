@@ -160,7 +160,7 @@ async function handleDeepgramTranscript(text, isFinal, shouldTranslate) {
   const currentLang = await getSourceLanguage();
   let processedText = isRayModeActive() ? processRayModeTranscript(text, currentLang) : text;
   if (processedText.trim().replace(/[、。？\s]+/g, ' ').trim() === '') return;
-  if (!isFinal) { processedText = wrapWithNoteByAlignment(processedText); }
+  if (!isFinal) { processedText = wrapWithNoteByAlignment(processedText, 'deepgram'); }
   updateSourceText(processedText.replace(/[、。？\s]+/g, ' ').trim());
 
   if (shouldTranslate) {
@@ -295,14 +295,14 @@ const updateSourceText = (() => {
  * @param {string} baseText 
  * @returns {string} 裝飾後的文字
  */
-function wrapWithNoteByAlignment(baseText) {
+function wrapWithNoteByAlignment(baseText, symbolType) {
   const alignment = getAlignment();
   // deepgram api            → 🐹 
   // web speech api → Chrome → 🎵
   // web speech api → Edge   → 🎼️
-  const symbolText = isDeepgramActive() ? '🐹' 
-                                        : browserInfo.isChrome ? '​​🎵'
-                                                               : '🎼️';
+  const symbolText = symbolType === 'deepgram' ? '🐹' 
+                        : browserInfo.isChrome ? '​​🎵'
+                                               : '🎼️';
   
   return alignment === 'center' ? `${symbolText}${baseText}${symbolText}` :
          alignment === 'right'  ? `${symbolText}${baseText}` :
@@ -364,7 +364,7 @@ function setupSpeechRecognition() {
     const fullTextRaw = `${finalTranscript} ${interimTranscript}`.replace(/[、。？\s]+/g, ' ').trim();
     let processedText = isRayModeActive() ? processRayModeTranscript(fullTextRaw, newRecognition.lang) : fullTextRaw;
     
-    if (!hasFinalResult) { processedText = wrapWithNoteByAlignment(processedText); }
+    if (!hasFinalResult) { processedText = wrapWithNoteByAlignment(processedText, 'webspeech'); }
     updateSourceText(processedText);
   };
 

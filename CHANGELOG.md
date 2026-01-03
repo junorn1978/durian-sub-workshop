@@ -1,4 +1,9 @@
 # 更新紀錄 (Changelog)
+## [v2.6.11]
+
+### 修改
+ - 修正deepgram取得key失敗回頭走web speech api時逐字稿顯示的符號錯誤問題
+
 ## [v2.6.10]
 
 ### 修改
