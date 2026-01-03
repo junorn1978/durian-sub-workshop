@@ -119,17 +119,18 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
       },
       { 
-        id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state', default: 'true',
+        id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state', default: 'false',
         onChange: (val) => setDeepgramStatus(val), onLoad: (val) => {
-          // 此處先強制覆蓋，因為要測試，之後測試效果OK就修改為之前的設定，之前的設定只留setDeepgramStatus(val)這一行而以其他刪除
-          //setDeepgramStatus(val)
+          setDeepgramStatus(val)
 
+          /* 先保留，有可能還會使用，使用時上面的default要修改成true，setDeepgramStatus(val)要註解掉 
           setDeepgramStatus('true');
           const el = document.getElementById('deepgram-enabled');
            if (el) el.value = 'true';
 
            //寫回localstore
            localStorage.setItem('deepgram-enabled', 'true');
+          */
         }
       },
       { 
@@ -542,7 +543,6 @@ document.addEventListener('DOMContentLoaded', async function () {
   setupPanelSwitching();
   setupResetButton(handlers);
   await setupLanguagePackButton('source-language', updateStatusDisplay);
-  setupPromptModelDownload();
   monitorLocalTranslationAPI();
   setupDisplayPanelInteraction();
   setupTranslationModeHandler();
@@ -553,6 +553,10 @@ document.addEventListener('DOMContentLoaded', async function () {
   if (!browserInfo.isChrome) { 
     const fastModeOption = document.querySelector('#translation-mode option[value="fast"]');
     if (fastModeOption) fastModeOption.disabled = true;
+  } else {
+    // 目前還處在實驗性質，最少也要等到Chrome 145+以後的版本才有機會使用到
+    // 並且問題可能很多，非必要不建議使用。
+    setupPromptModelDownload();
   };
   // #endregion
 });

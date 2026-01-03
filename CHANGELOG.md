@@ -1,4 +1,15 @@
 # 更新紀錄 (Changelog)
+## [v2.6.10]
+
+### 修改
+ - 調整prompt api的啟動程序，但保持不使用狀態。
+ - 調整deepgram和getusermedia的參數。
+
+## [v2.6.8]
+
+### 修改
+ - 暫時先將prompt api啟動的程序取消，待修復後再開啟。
+
 ## [v2.6.7]
 ### 新增
  - 加入deepgram使用的說明文件

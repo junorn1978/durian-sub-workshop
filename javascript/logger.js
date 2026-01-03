@@ -8,10 +8,10 @@
  */
 export const LogLevel = {
   DEBUG: 0,
-  INFO: 1,
-  WARN: 2,
+  INFO:  1,
+  WARN:  2,
   ERROR: 3,
-  NONE: 99 
+  NONE:  99
 };
 
 /** @type {number} 當前日誌顯示門檻 */

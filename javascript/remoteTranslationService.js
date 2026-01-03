@@ -1,7 +1,7 @@
 /**
  * @file remoteTranslationService.js
  * @description 遠端翻譯通訊模組。支援 POST (自訂伺服器) 與 GET (Google Apps Script) 雙通訊模式。
- * 具備自動 URL 補全、協定解析以及上下文 (Context) 傳遞功能。
+ * 此檔用途為發送雲端請求，需搭配後端程式碼使用。
  */
 
 import { Logger } from './logger.js';
@@ -58,12 +58,11 @@ async function sendTranslation(text, targetLangs, serviceUrl, sequenceId, previo
     const scheme = protocolMatch[1].toLowerCase();
     if (scheme !== 'http' && scheme !== 'https') {
       serviceKey = protocolMatch[1];
-      finalUrl = protocolMatch[2];   
+      finalUrl = protocolMatch[2];
       localStorage.setItem('api-key-value', serviceKey);
     }
   }
 
-  /* 智慧協定與路徑補全：自動判斷環境並強制導向 /translate 節點 */
   if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
     const isLocal = finalUrl.includes('localhost') || finalUrl.includes('127.0.0.1');
     finalUrl = `${isLocal ? 'http' : 'https'}://${finalUrl}`;

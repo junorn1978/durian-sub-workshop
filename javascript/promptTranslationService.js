@@ -1,7 +1,7 @@
 /**
  * @file promptTranslationService.js
  * @description 瀏覽器內建 AI (Gemini Nano/3.0) 翻譯服務。
- * 2025 優化版：採用統一語系物件存取模式，確保 Prompt 指令一致性。
+ * 目前還處在實驗性質，等Chrome 145+以後才會繼續維護，目前停用
  */
 
 import { getLang } from './config.js'; // [修改] 引入 getLang
@@ -36,6 +36,8 @@ async function getSession(promptCode, options) {
   }
 
   const session = await LanguageModel.create({
+    expectedInputs:  [{ type: "text", languages: ["en"] }],
+    expectedOutputs: [{ type: "text", languages: ["en"] }],
     temperature: options.temperature ?? 0.1,
     topK: options.topK ?? 20,
     initialPrompts: [{
@@ -94,7 +96,10 @@ async function ensureTokenBudget(session) {
 
 async function ensureModelLoaded() {
   try {
-    const availability = await LanguageModel.availability();
+    const availability = await LanguageModel.availability({
+      expectedInputs:  [{ type: "text", languages: ["en"] }],
+      expectedOutputs: [{ type: "text", languages: ["en"] }],
+    });
     if (availability === 'available') return 'available';
     if (availability === 'downloadable') return 'downloadable';
     return 'unavailable';

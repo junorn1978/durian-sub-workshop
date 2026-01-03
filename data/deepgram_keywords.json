@@ -1,9 +1,6 @@
 {
   "global":
-  [
-      { "boost": 5,  "word": "Hamham" }, 
-      { "boost": 5,  "word": "Deepgram" }
-  ],     
+  [],
   "ja":
   [   
       { "boost": 8,  "word": "ハムハム" }, 
@@ -15,6 +12,10 @@
       { "boost": 6,  "word": "あつもり" }, 
       { "boost": 8,  "word": "同接" },
       { "boost": 8,  "word": "メンギフ" },
+      { "boost": 6,  "word": "ファンボックス" },
+      { "boost": 5,  "word": "いらっしゃい" },
+      { "boost": 5,  "word": "ブイチューバー" },
+      { "boost": 3,  "word": "Thank You" },
       { "boost": 7,  "word": "おつかれい" }
   ], 
   "zh-TW":
@@ -24,6 +25,6 @@
   ], 
   "en":
   [
-      { "boost": 5,  "word": "Ray" }
+      { "boost": 5,  "word": "Otsuka Ray" }
   ]
 }
