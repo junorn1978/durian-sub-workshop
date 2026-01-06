@@ -1,4 +1,10 @@
 # 更新紀錄 (Changelog)
+## [v2.6.13]
+
+### 修改
+ - 調整deepgram的參數
+ - 修正edge的web speech api逐字稿有時只有顯示符號的問題
+ 
 ## [v2.6.11]
 
 ### 修改

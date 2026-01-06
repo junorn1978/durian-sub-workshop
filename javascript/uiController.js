@@ -119,18 +119,18 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
       },
       { 
-        id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state', default: 'false',
+        id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state', default: 'ture',
         onChange: (val) => setDeepgramStatus(val), onLoad: (val) => {
-          setDeepgramStatus(val)
+          //setDeepgramStatus(val)
 
-          /* 先保留，有可能還會使用，使用時上面的default要修改成true，setDeepgramStatus(val)要註解掉 
+          /* 先保留，有可能還會使用，使用時上面的default要修改成true，setDeepgramStatus(val)要註解掉 */
           setDeepgramStatus('true');
           const el = document.getElementById('deepgram-enabled');
            if (el) el.value = 'true';
 
            //寫回localstore
            localStorage.setItem('deepgram-enabled', 'true');
-          */
+          /* */
         }
       },
       { 
@@ -530,6 +530,35 @@ document.addEventListener('DOMContentLoaded', async function () {
   };
   // #endregion
 
+  /** * 鍵盤快捷鍵管理
+   * 目前功能：Alt + B 切換字幕背景風格
+   */
+  const setupKeyboardShortcuts = () => {
+    document.addEventListener('keydown', (e) => {
+      // 偵測組合鍵: Alt + B (Background)
+      if (e.altKey && (e.code === 'KeyB' || e.key === 'b')) {
+        e.preventDefault(); // 防止瀏覽器預設行為
+        
+        const subtitleContainer = document.getElementById('Subtitle-style');
+        if (subtitleContainer) {
+          const isActive = subtitleContainer.classList.toggle('active-style');
+          
+          // 選用：顯示簡單的 Toast 或 Log 提示狀態
+          Logger.info('UI', `字幕背景風格已${isActive ? '啟用' : '停用'}`);
+          
+          // (進階) 如果希望重新整理網頁後保留狀態，可解開下方註解：
+          // localStorage.setItem('subtitle-style-active', isActive);
+        }
+      }
+    });
+
+    // (進階) 載入時恢復上次狀態 (若上方有儲存)
+    // const savedState = localStorage.getItem('subtitle-style-active') === 'true';
+    // if (savedState) {
+    //   document.getElementById('Subtitle-style')?.classList.add('active-style');
+    // }
+  };
+
   // #region [主初始化流程]
   await loadLanguageConfig();
 
@@ -542,6 +571,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
   setupPanelSwitching();
   setupResetButton(handlers);
+  setupKeyboardShortcuts();
   await setupLanguagePackButton('source-language', updateStatusDisplay);
   monitorLocalTranslationAPI();
   setupDisplayPanelInteraction();

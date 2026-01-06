@@ -52,7 +52,7 @@ body {
   flex-direction: column;
   align-items: var(--text-align);
   text-align: var(--text-align);
-  z-index: 1;
+  /* z-index: 1; */
   
   /* 字體設定 */
   color: var(--text-color);
@@ -575,4 +575,67 @@ body {
   #logo { height: 100px; object-fit: contain; }
   #recorder-panel { width: 120px; }
   .record-button { width: auto; min-width: 100px; }
+}
+
+/* =========================================
+   13. 動態風格容器 (Dynamic Style Wrapper)
+   ========================================= */
+#Subtitle-style {
+  /* 佈局設定：確保內容置中且寬度隨文字伸縮 */
+  display: flex;
+  flex-direction: column;
+  /* width: fit-content;      /* 寬度剛好包覆文字 */
+  margin: 0 0;
+  
+  /* 預設狀態：隱形 (Invisible) */
+  background-color: transparent;
+  padding: 0px;            /* 無內邊距，看起來就像沒有容器 */
+  border-radius: 0px;
+  border: 1px solid transparent; /* 預留邊框位置避免跳動 */
+  backdrop-filter: blur(0px);
+  box-shadow: none;
+
+  /* 2026 動畫標準：硬體加速與貝茲曲線 */
+  transition: 
+    background-color 0.3s ease,
+    padding 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 0.3s ease,
+    backdrop-filter 0.3s ease,
+    box-shadow 0.3s ease;
+  
+  /* 確保層級正確 */
+  z-index: 10;
+}
+
+/* 啟用狀態：風格化 (Active) */
+#Subtitle-style.active-style {
+  /* 視覺風格：深色半透明 + 毛玻璃 */
+  margin: 0 auto;
+  background-color: #ffffff; 
+  width: 600px;
+  height: 220px;
+  
+  /* 撐開空間 */
+  padding: 15px 30px;
+  
+  /* 圓角與邊框 */
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  
+  /* 特效 */
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+#Subtitle-style.active-style #source-text {
+ height: 2.8em;
+ font-size: 20px;
+}
+#Subtitle-style.active-style #target-text-1,
+#Subtitle-style.active-style #target-text-2,
+#Subtitle-style.active-style #target-text-3 {
+  padding: 0px 5px;
+  /* 建議加入過渡動畫，讓行距變大時是用「滑」的而不是瞬間跳變 */
+  transition: line-height 0.3s ease;
+  font-size: 20px;
 }
