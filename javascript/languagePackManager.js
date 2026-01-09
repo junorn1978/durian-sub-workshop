@@ -1,7 +1,7 @@
 /**
  * @file languagePackManager.js
  * @description 語音語言包管理模組。負責檢測瀏覽器本地語音辨識支援度及執行模型安裝程序。
- * 2025 優化版：採用統一語系物件存取模式。
+ * 目前暫時不使用，因為還是處在實驗性質並且不穩定。
  */
 
 import { updateStatusDisplay } from './translationController.js';

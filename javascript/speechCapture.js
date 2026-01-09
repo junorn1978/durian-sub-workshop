@@ -1,7 +1,8 @@
 /**
  * @file speechCapture.js
- * @description 語音擷取與辨識核心邏輯。支援 Web Speech API 與 Deepgram 雙模組分流。
- * 針對 Gemini 3.0 翻譯引擎進行了前置文字清理優化。
+ * @description 主要處理語音擷取前參數設定到產生逐字稿的相關邏輯。
+ * 有分使用瀏覽器內建Web speech api(免費)和deepgram(要錢)兩種方式，依照index.html的元素id[deepgram-enabled]
+ * 決定使用哪一種方式。
  */
 
 import { isRayModeActive, isDeepgramActive, browserInfo, getSourceLanguage, getLang, getAlignment } from './config.js';
@@ -76,7 +77,7 @@ async function showMicInfoOnce() {
     const defaultDevice = audioInputs.find(d => d.deviceId === 'default') || audioInputs[0];
 
     let infoText = `\n- ${defaultDevice.label || 'デバイス名を取得できませんでした'}\n\n(※ 音声認識には通常、この既定のデバイスが使用されます。)`;
-    let otherMic = 'その他の利用可能な音声入力デバイス：\n'; 
+    let otherMic = 'その他の利用可能な音声入力デバイス：\n';
     if (audioInputs.length > 1) {
       audioInputs
         .filter(d => d !== defaultDevice)
@@ -128,9 +129,15 @@ async function configureRecognition(recognition, sourceLanguage) {
 
   const processLocallyStatus = await decideProcessLocally(sourceLanguage);
 
-  /* 技術備註：目前 Chrome 核心在本地模型存在時，processLocally 會強制覆蓋雲端辨識 */
+  /* 
+   * 這一段要注意，web speech api on device 只有Chrome支援、使用時
+   * 如果recognition.processLocally設置成false，自訂語句就不能使用(強制使用會跳語言不支援)
+   * 在設定成recognition.processLocally = true時，recognition.continuous會使用true
+   * 避免onend事件重新啟動這一段時間還有在講話的話就沒辦法辨識的狀態，但這一部份有利有弊，建議
+   * 依照實際狀況自行調整recognition.continuous參數。
+   */
   if (browserInfo.isChrome) { recognition.processLocally = processLocallyStatus; }
-  
+
   recognition.interimResults = true;
   recognition.lang = getLang(sourceLanguage)?.commentLangCode;
   recognition.continuous = processLocallyStatus;
@@ -150,30 +157,49 @@ async function configureRecognition(recognition, sourceLanguage) {
   });
 }
 
-/**
- * [修改] 處理來自 Deepgram 服務的串流回傳值
- * * @param {string} text - 目前完整的顯示文字 (由 Service 組裝好)
- * @param {boolean} isFinal - 是否為確認文字 (控制 UI 變色)
- * @param {boolean} shouldTranslate - [新增] 是否觸發翻譯請求 (控制翻譯)
+/* 處理來自 Deepgram 服務的串流回傳值
+ * @param {string} text - 目前完整的顯示文字
+ * @param {boolean} isFinal - 是否為確認文字
+ * @param {boolean} shouldTranslate - 是否觸發翻譯請求
+ * @param {number} [speakerId] - [新增] 說話者 ID (0, 1, 2...)
  */
-async function handleDeepgramTranscript(text, isFinal, shouldTranslate) {
+async function handleDeepgramTranscript(text, isFinal, shouldTranslate, speakerId) {
+  
+  // =========================================================================
+  // [新增] Speaker 0 過濾器
+  // 邏輯：如果 speakerId 有值 (不是 undefined/null)，且不是 0，就直接忽略
+  // 注意：必須使用嚴格比較，因為 0 在 JS 中是 falsy，不能寫 if (!speakerId)
+  // =========================================================================
+  if (typeof speakerId !== 'undefined' && speakerId !== null && speakerId !== 0) {
+    return; // 不是 Speaker 0，什麼都不做，直接離開
+  }
+
+  // --- 以下保持原有邏輯 ---
+
   const currentLang = await getSourceLanguage();
   let processedText = isRayModeActive() ? processRayModeTranscript(text, currentLang) : text;
+  
+  // 過濾空字串
   if (processedText.trim().replace(/[、。？\s]+/g, ' ').trim() === '') return;
-  if (!isFinal) { processedText = wrapWithNoteByAlignment(processedText); }
+  
+  // 如果不是最終結果，加上裝飾符號
+  if (!isFinal) { processedText = wrapWithNoteByAlignment(processedText, 'deepgram'); }
+  
+  // 更新字幕顯示
   updateSourceText(processedText.replace(/[、。？\s]+/g, ' ').trim());
 
+  // 處理翻譯請求
   if (shouldTranslate) {
     const textToTranslate = processedText.trim();
     const isJustPunctuation = /^[\p{P}\p{S}\s]+$/u.test(textToTranslate);
-    
+
     if (textToTranslate && !isJustPunctuation) {
-        Logger.info('[INFO] [Deepgram] 收到 Service 指令，執行翻譯:', textToTranslate);
-        
-        sendTranslationRequest(textToTranslate, previousText, currentLang);
-        previousText = textToTranslate;
-        updateSourceText(textToTranslate.replace(/[、。？\s]+/g, ' ').trim()); 
-        return; 
+      Logger.info('[INFO] [Deepgram] 收到 Service 指令 (Speaker 0)，執行翻譯:', textToTranslate);
+
+      sendTranslationRequest(textToTranslate, previousText, currentLang);
+      previousText = textToTranslate;
+      updateSourceText(textToTranslate.replace(/[、。？\s]+/g, ' ').trim());
+      return;
     }
   }
 }
@@ -192,8 +218,8 @@ async function loadKeywordRules() {
     const uniqueLangs = [...new Set(keywordRules.map(rule => rule.lang))];
     uniqueLangs.forEach(lang => {
       cachedRules.set(lang, keywordRules
-                 .filter(rule => rule.lang === lang)
-                 .map(rule => ({ source: new RegExp(rule.source, 'ig'), target: rule.target })));
+        .filter(rule => rule.lang === lang)
+        .map(rule => ({ source: new RegExp(rule.source, 'ig'), target: rule.target })));
     });
     Logger.info('[INFO] [SpeechRecognition] 關鍵字規則載入完成');
   } catch (error) {
@@ -201,7 +227,10 @@ async function loadKeywordRules() {
   }
 }
 
-/** 異步載入語音短語增強配置 (Chrome 141+ 支援) */
+/** 辨識語句比重調整的相關配置，這邊要注意Chrome 141版以後才支援，現在應該都可以用
+ *  但限制很多，只有在使用install的方式安裝之後才能使用，否則會跳語言不支援而失敗(144版前，何時會修改不知道)
+ *  目前因為程式碼沒有導入所以這一段目前沒效果，但以後可能會用到所以保留。
+ */
 async function loadPhrasesConfig() {
   try {
     const response = await fetch('data/phrases_config.json');
@@ -236,13 +265,13 @@ function generateRayModeRules(sourceLang) {
   return cachedRules.get(sourceLang) || [];
 }
 
-/** * 過濾並清理辨識文字中的特殊符號與無效片段
+/** * 在Ray mode時進行的逐字稿文字替換處理
  * @param {string} text 
  * @param {string} sourceLang 
  * @returns {string} 清理後的文字
  */
 function filterRayModeText(text, sourceLang) {
-  if (!text || text.trim() === '' || text.trim() === 'っ'|| text.trim() === 'っ。') {
+  if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') {
     return '';
   }
 
@@ -274,7 +303,7 @@ async function decideProcessLocally(lang) {
  * @param {string} text - 辨識文字
  */
 const updateSourceText = (() => {
-  let el = null; 
+  let el = null;
   let lastRenderedText = '';
 
   return (text) => {
@@ -285,7 +314,7 @@ const updateSourceText = (() => {
     if (!text || text.trim().length === 0) return;
     if (text === lastRenderedText) { return; }
     el.textContent = text;
-    el.dataset.stroke = text; 
+    //el.dataset.stroke = text;
     lastRenderedText = text;
   };
 })();
@@ -295,25 +324,25 @@ const updateSourceText = (() => {
  * @param {string} baseText 
  * @returns {string} 裝飾後的文字
  */
-function wrapWithNoteByAlignment(baseText) {
+function wrapWithNoteByAlignment(baseText, symbolType) {
   const alignment = getAlignment();
   // deepgram api            → 🐹 
   // web speech api → Chrome → 🎵
   // web speech api → Edge   → 🎼️
-  const symbolText = isDeepgramActive() ? '🐹' 
-                                        : browserInfo.isChrome ? '​​🎵'
-                                                               : '🎼️';
-  
-  return alignment === 'center' ? `${symbolText}${baseText}${symbolText}` :
-         alignment === 'right'  ? `${symbolText}${baseText}` :
-                                  `${baseText}${symbolText}`;
+  const symbolText = symbolType === 'deepgram' ? '🐹'
+                        : browserInfo.isChrome ? '​​🎵'
+                                               : '🎼️';
+
+  return alignment === 'center' ? `${symbolText}${baseText}${symbolText}`
+       : alignment === 'right'  ? `${symbolText}${baseText}`
+                                : `${baseText}${symbolText}`;
 }
 
 /** 重置所有字幕顯示欄位 */
 function clearAllTextElements() {
   const els = document.querySelectorAll('#source-text, #target-text-1, #target-text-2, #target-text-3');
   for (const el of els) {
-    try { if (el.getAnimations) el.getAnimations().forEach(a => a.cancel()); } catch (e) {}
+    try { if (el.getAnimations) el.getAnimations().forEach(a => a.cancel()); } catch (e) { }
     el.textContent = '';
     el.dataset.stroke = '';
   }
@@ -351,8 +380,6 @@ function setupSpeechRecognition() {
     }
 
     if (hasFinalResult) {
-      /* 核心邏輯：移除標點後發送翻譯請求，避免標點符號干擾 AI 斷句語意 */
-      
       let sendTranslationRequestText = finalTranscript.replace(/[、。？\s]+/g, ' ').trim();
       if (isRayModeActive()) { sendTranslationRequestText = filterRayModeText(sendTranslationRequestText, newRecognition.lang); }
 
@@ -363,9 +390,9 @@ function setupSpeechRecognition() {
 
     const fullTextRaw = `${finalTranscript} ${interimTranscript}`.replace(/[、。？\s]+/g, ' ').trim();
     let processedText = isRayModeActive() ? processRayModeTranscript(fullTextRaw, newRecognition.lang) : fullTextRaw;
-    
-    if (!hasFinalResult) { processedText = wrapWithNoteByAlignment(processedText); }
-    updateSourceText(processedText);
+
+    if (!hasFinalResult && processedText.trim() !== '') { processedText = wrapWithNoteByAlignment(processedText, 'webspeech'); }
+    if (processedText.trim() !== '') { updateSourceText(processedText); }
   };
 
   newRecognition.onnomatch = () => Logger.warn('[WARN] [SpeechRecognition] 無匹配辨識結果');
@@ -396,9 +423,9 @@ async function autoRestartRecognition(options = { delay: 0 }) {
   }, options.delay);
 }
 
-/** Ray Mode 內部文字過濾呼叫 */
+/** 在Ray Mode時發送翻譯會經過這邊先替換語句 */
 function processRayModeTranscript(text, sourceLang) {
-  if (!text || text.trim() === '' || text.trim() === 'っ'  || text.trim() === 'っ。') return '';
+  if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') return '';
   let result = text.replace(/[、。？,.]/g, ' ');
   const rules = generateRayModeRules(sourceLang);
   rules.forEach(rule => { result = result.replace(rule.source, rule.target); });
@@ -419,7 +446,7 @@ function setupSpeechRecognitionHandlers() {
   const [startButton, stopButton] = ['start-recording', 'stop-recording'].map(id => document.getElementById(id));
 
   startButton.addEventListener('click', async () => {
-    updateStatusDisplay(''); 
+    updateStatusDisplay('');
     const sourceLang = await getSourceLanguage();
     if (!sourceLang) {
       updateStatusDisplay('音声認識を始める前に、音声認識言語を選択してください。');
@@ -435,7 +462,7 @@ function setupSpeechRecognitionHandlers() {
         if (deepgramStarted) {
           setRecognitionControlsState(true);
           isRecognitionActive = true;
-          return; 
+          return;
         }
       } catch (err) {
         Logger.error('[ERROR] [SpeechRecognition] Deepgram 啟動失敗:', err);
@@ -469,7 +496,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setRecognitionControlsState(false);
   isRecognitionActive = false;
 
-  showMicInfoOnce().catch(() => {});
+  showMicInfoOnce().catch(() => { });
 
   window.addEventListener('beforeunload', () => {
     if (isDeepgramActive()) stopDeepgram();

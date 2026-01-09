@@ -1,4 +1,31 @@
 # 更新紀錄 (Changelog)
+## [v2.7.1]
+
+### 新增
+ - 加入deepgram的多人人聲分離參數和相關邏輯(測試)
+
+### 修改
+ - 調整deepgram的參數
+
+
+## [v2.6.13]
+
+### 修改
+ - 調整deepgram的參數
+ - 修正edge的web speech api逐字稿有時只有顯示符號的問題
+
+ 
+## [v2.6.11]
+
+### 修改
+ - 修正deepgram取得key失敗回頭走web speech api時逐字稿顯示的符號錯誤問題
+
+## [v2.6.10]
+
+### 修改
+ - 調整prompt api的啟動程序，但保持不使用狀態。
+ - 調整deepgram和getusermedia的參數。
+
 ## [v2.6.8]
 
 ### 修改

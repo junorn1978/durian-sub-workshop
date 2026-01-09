@@ -24,7 +24,7 @@ export const browserInfo = (() => {
   const brands = navigator.userAgentData?.brands?.map(b => b.brand) || [];
   const isEdge = brands.some(b => /Edge|Microsoft\s?Edge/i.test(b)) || /Edg\//.test(userAgent);
   const isChrome = !isEdge && (brands.some(b => /Google Chrome/i.test(b)) || /Chrome\//.test(userAgent));
-  
+
   return { 
     browser: isEdge ? 'Edge' : isChrome ? 'Chrome' : 'Unknown', 
     isChrome, 
@@ -43,7 +43,7 @@ export const browserInfo = (() => {
 export async function loadLanguageConfig(url = './data/language_config.json') {
   const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) throw new Error(`[config] 載入失敗: ${res.status}`);
-  
+
   const json = await res.json();
   _config = json;
   _languages.clear();

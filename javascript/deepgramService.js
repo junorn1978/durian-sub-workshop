@@ -16,39 +16,89 @@ let keepAliveInterval = null;
 let watchdogInterval = null;
 let lastSpeechTime = 0;
 let sentenceBuffer = "";
+let finalTranscriptBuffer = ""; // ide顯示沒有讀取但實際有使用的
 let finalResultCount = 0;
+let globalStream = null;
 
 // Audio Context 相關變數 (取代 MediaRecorder)
 let audioContext = null;
 let mediaStreamSource = null;
 let audioWorkletNode = null;
 
-let finalTranscriptBuffer = "";
 let deepgramKeywordConfig = null;
 
 let isIntentionalStop = false; // 標記是否為使用者主動停止
 let retryCount = 0;
 const MAX_RETRIES = 10;
 
+let speechFlushTimer = null;
+const FLUSH_TIMEOUT_MS = 1200; // 沒有說話多久時間強制翻譯和清空逐字稿
+
 // #endregion
 
 // #region [設定與配置]
 const NOVA3_SUPPORTED_LANGS = [ "en", "ja", "ko", "es", "fr", "de", "it", "pt", "nl", "id", "vi", "ru", "uk", "pl", "hi", "tr" ];
-const MULTI_SUPPORTED_LANGS = ['ja', 'en', 'es', 'ko'];
+const MULTI_SUPPORTED_LANGS = [ 'ja', 'en', 'es', 'ko' ];
+//const MULTI_SUPPORTED_LANGS = [ 'en', 'es', 'ko' ];
 const AUTO_STOP_TIMEOUT = 8 * 60 * 1000; 
 
 // AudioWorklet 處理器代碼 (內嵌以避免跨檔案載入問題)
 const PCM_PROCESSOR_CODE = `
 class PCMProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    // 設定緩衝區大小：4096 samples
+    // 在 48kHz 下約為 85ms，這是對 Deepgram 來說非常健康的封包大小
+    // 在 44.1kHz 下約為 92ms
+    this.bufferSize = 2048; 
+    
+    // 預先配置 Float32 緩衝區 (重複使用，不產生 GC)
+    this.buffer = new Float32Array(this.bufferSize);
+    this.index = 0;
+  }
+
   process(inputs, outputs, parameters) {
     const input = inputs[0];
-    if (input && input.length > 0) {
-      // 取得單聲道數據
-      const channelData = input[0];
-      // 發送回主執行緒
-      this.port.postMessage(channelData);
+    if (!input || !input.length) return true;
+    
+    const inputChannel = input[0];
+    const inputLength = inputChannel.length;
+
+    // 1. 將進來的音訊數據抄寫到內部緩衝區
+    // 這是一個極快的記憶體複製操作
+    for (let i = 0; i < inputLength; i++) {
+      this.buffer[this.index++] = inputChannel[i];
+
+      // 2. 只有當緩衝區滿了，才進行轉換並發送
+      if (this.index >= this.bufferSize) {
+        this.flush();
+      }
     }
     return true;
+  }
+
+  flush() {
+    // 建立 Int16Array 準備傳送
+    // 這裡我們必須 new 一個新的陣列來進行 Transfer (移交所有權)
+    // 但因為頻率極低 (每秒僅 ~11 次)，完全不會影響效能
+    const int16Data = new Int16Array(this.bufferSize);
+
+    for (let i = 0; i < this.bufferSize; i++) {
+      const s = this.buffer[i];
+      
+      // Hard Clipping (-1.0 ~ 1.0)
+      const clipped = s < -1 ? -1 : s > 1 ? 1 : s;
+      
+      // Convert to Int16 (Little Endian for PC/Mac)
+      int16Data[i] = clipped < 0 ? clipped * 0x8000 : clipped * 0x7FFF;
+    }
+
+    // 3. 發送並移交擁有權 (Zero-Copy)
+    // 這是關鍵：主執行緒收到的是記憶體指標，不需要再複製一次數據
+    this.port.postMessage(int16Data.buffer, [int16Data.buffer]);
+
+    // 重置索引，繼續使用同一個 Float32Array
+    this.index = 0;
   }
 }
 registerProcessor('pcm-processor', PCMProcessor);
@@ -56,23 +106,6 @@ registerProcessor('pcm-processor', PCMProcessor);
 // #endregion
 
 // #region [內部工具與輔助函式]
-
-/**
- * 將 Float32 音訊數據轉換為 Int16 PCM 格式
- * @param {Float32Array} float32Array 
- * @returns {ArrayBuffer} Int16 ArrayBuffer
- */
-function floatTo16BitPCM(float32Array) {
-  const buffer = new ArrayBuffer(float32Array.length * 2);
-  const view = new DataView(buffer);
-  for (let i = 0; i < float32Array.length; i++) {
-    // 限制範圍在 -1 到 1 之間
-    let s = Math.max(-1, Math.min(1, float32Array[i]));
-    // 轉換為 16-bit PCM (Little-endian)
-    view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-  }
-  return buffer;
-}
 
 async function fetchDeepgramKey() {
   try {
@@ -127,6 +160,41 @@ function removeJapaneseSpaces(text) {
   return current;
 }
 
+/**
+ * [新增] 觸發強制翻譯 (當靜默時間到達)
+ */
+function triggerForcedFlush(onTranscriptUpdate) {
+  if (sentenceBuffer.trim().length > 0) {
+    Logger.info("[INFO]", "[DeepgramService]", "⏳ 本地計時器觸發斷句翻譯", sentenceBuffer);
+    if (onTranscriptUpdate) {
+      // 強制標記為 complete = true
+      onTranscriptUpdate(sentenceBuffer, true, true);
+    }
+    resetSentenceBuffer();
+  }
+}
+
+/**
+ * [新增] 重置靜默計時器
+ * 每次收到任何文字更新時呼叫此函式
+ */
+function resetFlushTimer(onTranscriptUpdate, currentTranscript = "") {
+  if (speechFlushTimer) {
+    clearTimeout(speechFlushTimer);
+    speechFlushTimer = null;
+  }
+
+  // 判斷：不管是「已存的 Buffer」還是「正在講的 Transcript」，只要有字，就要啟動斷句計時
+  const hasPendingText = (sentenceBuffer + currentTranscript).trim().length > 0;
+
+  if (hasPendingText) {
+    speechFlushTimer = setTimeout(() => {
+      triggerForcedFlush(onTranscriptUpdate);
+    }, FLUSH_TIMEOUT_MS);
+  }
+}
+// #endregion
+
 // #region [核心服務控制]
 
 /** * [修改] 內部工具：重置緩衝區
@@ -135,6 +203,7 @@ function removeJapaneseSpaces(text) {
 function resetSentenceBuffer() {
   sentenceBuffer = "";
   finalResultCount = 0;
+  if (speechFlushTimer) { clearTimeout(speechFlushTimer); speechFlushTimer = null; }
 }
 
 /**
@@ -207,15 +276,32 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
   retryCount = 0;            // 重置重試次數
 
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ 
+    globalStream = await navigator.mediaDevices.getUserMedia({
       audio: { 
-        /* 這些參數原則上瀏覽器都不吃，僅供參考 */
-        echoCancellation: true, 
-        noiseSuppression: true, 
-        autoGainControl: true,
-        channelCount: 1 // 強制單聲道，節省頻寬與處理量
+        /* 這些參數瀏覽器不一定會採用，僅供參考 */
+        autoGainControl:  false,
+        echoCancellation: false, 
+        noiseSuppression: false, 
+        //channelCount: 1 // 單聲道，大部分狀況無效
       }, 
       video: false 
+    });
+
+    const track = globalStream.getAudioTracks()[0];
+    const settings = track.getSettings();
+    const constraints = track.getConstraints();
+
+    //Logger.debug("[DEBUG] [Microphone] 原始請求限制:", constraints);
+
+    Logger.info("[INFO] [Microphone] 麥克風實際生效參數:", {
+      echoCancellation: settings.echoCancellation, // 回音消除
+      noiseSuppression: settings.noiseSuppression, // 降噪
+      autoGainControl: settings.autoGainControl,   // 自動增益
+      sampleRate: settings.sampleRate,             // 採樣率
+      channelCount: settings.channelCount,         // 聲道數
+      voiceIsolation: settings.voiceIsolation,     // 語音分離
+      latency: settings.latency,                   // 延遲
+      deviceId: settings.deviceId                  // 裝置 ID
     });
 
     audioContext = new AudioContext();
@@ -232,13 +318,13 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
     const params = new URLSearchParams({
       model: selectedModel,
       language: finalLangParam,
-      smart_format: "true",
-      interim_results: "true",
-      utterance_end_ms: "1000",
-      endpointing: "false",
-      vad_events: "true",
-      // 指定 Raw Audio 格式
-      encoding: "linear16",
+      smart_format:     "true",
+      interim_results:  "true",
+      utterance_end_ms: "1500", // 已不使用但保留避免預料外問題
+      endpointing:      "false",
+      vad_events:       "true",
+      encoding:         "linear16", // 指定 Raw Audio 格式
+      diarize:          "true",
       sample_rate: sampleRate.toString()
     });
 
@@ -258,18 +344,31 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
       isRunning = true;
       updateStatusDisplay("Deepgram 接続成功 (Raw Audio Mode)");
 
-      mediaStreamSource = audioContext.createMediaStreamSource(stream);
+      mediaStreamSource = audioContext.createMediaStreamSource(globalStream);
+
+      const compressor = audioContext.createDynamicsCompressor();
+            compressor.threshold.value = -20; // 超過 -20dB 就開始壓縮
+            compressor.knee.value = 30;       // 平滑過渡
+            compressor.ratio.value = 12;      // 壓縮比 12:1 (接近 Limiter，強力壓制大音量)
+            compressor.attack.value = 0.003;  // 反應時間：快 (3ms)
+            compressor.release.value = 0.25;  // 釋放時間：中 (250ms)
+
+      const preGainNode = audioContext.createGain();
+      preGainNode.gain.value = 2.0; // 將音量放大 1.5 倍 (可視情況調整 1.5 ~ 3.0)
+
       audioWorkletNode = new AudioWorkletNode(audioContext, 'pcm-processor');
 
+      // 連接路徑： Source -> Gain -> Compressor -> Worklet
+      mediaStreamSource.connect(preGainNode);
+      preGainNode.connect(compressor);
+      compressor.connect(audioWorkletNode);
+
+      // 監聽 Worklet 傳回來的資料
       audioWorkletNode.port.onmessage = (event) => {
         if (socket?.readyState === 1) {
-          // 將 Float32 轉為 Int16 並發送
-          const pcmData = floatTo16BitPCM(event.data);
-          socket.send(pcmData);
+          socket.send(event.data);
         }
       };
-
-      mediaStreamSource.connect(audioWorkletNode);
 
       // 心跳機制
       keepAliveInterval = setInterval(() => {
@@ -285,53 +384,60 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
       }, 10000);
     };
 
-    socket.onmessage = (message) => {
+socket.onmessage = (message) => {
       try {
         const received = JSON.parse(message.data);
 
-        // 這是 Deepgram 判定使用者講完一句話（有停頓）的時機
-        if (received.type === "UtteranceEnd") {
-          lastSpeechTime = Date.now();
-          if (sentenceBuffer.trim().length > 0) {
-            // 收到斷句訊號 -> 呼叫 Callback -> 傳送目前的 Buffer -> 旗標 shouldTranslate = true
-            if (onTranscriptUpdate) {
-               onTranscriptUpdate(sentenceBuffer, true, true);
-            }
-            Logger.info("[INFO]", "[DeepgramService]", "UtteranceEnd 觸發翻譯", sentenceBuffer);
-            resetSentenceBuffer();
-          }
-          return;
-        }
-
         if (!received.channel) return;
 
-        let transcript = received.channel.alternatives?.[0]?.transcript;
-        
+        const alternative = received.channel.alternatives?.[0]; // 提取出來方便存取
+        let transcript = alternative?.transcript;
+
         if (transcript && transcript.trim().length > 0) {
           lastSpeechTime = Date.now();
           transcript = removeJapaneseSpaces(transcript);
+
+          // [新增] 解析 Speaker 邏輯
+          // 參考你提供的 snippet，我們從 words 陣列中找出 speaker
+          let currentSpeaker = null;
+          if (alternative.words && alternative.words.length > 0) {
+             // 找出這一小段文字中出現的所有 speaker
+             const speakersInChunk = [...new Set(alternative.words.map(w => w.speaker).filter(s => s !== undefined))];
+             // 簡單策略：取這段文字的第一個主要說話者
+             if (speakersInChunk.length > 0) {
+                 currentSpeaker = speakersInChunk[0];
+             }
+          }
 
           if (received.is_final) {
             const isCJK = ["ja", "zh-TW", "zh-HK", "ko", "th"].includes(deepgramCode);
             sentenceBuffer += (isCJK || !sentenceBuffer) ? transcript : ` ${transcript}`;
             finalResultCount++;
 
-            //Logger.debug("[DEBUG]", "[DeepgramService]", finalResultCount, "個最終結果:", sentenceBuffer);
             const hasPunctuation = /[。？！.?!]$/.test(sentenceBuffer.trim());
-            // 規則是finalResultCount >= n 最終結果之後，後一句是上述符號或字數大於language_config裡面的指定語系字數時發送翻譯和清空，否則累積顯示。
-            // 字數大於language_config這邊可以視狀況調整，想短一點1倍，想留長一點就2-3倍或者乾脆拿掉。
-            if (finalResultCount >= 2 && (hasPunctuation || sentenceBuffer.trim().length >= langObj.chunkSize)) {
-              if (onTranscriptUpdate) { 
-                  onTranscriptUpdate(sentenceBuffer, true, true); 
+            
+            // [修改] 這裡的 onTranscriptUpdate 增加第四個參數 currentSpeaker
+            if (finalResultCount >= 1 && (hasPunctuation || sentenceBuffer.trim().length >= langObj.chunkSize * 2)) {
+              if (onTranscriptUpdate) {
+                // 傳遞 speaker 資訊
+                onTranscriptUpdate(sentenceBuffer, true, true, currentSpeaker); 
               }
               resetSentenceBuffer();
+              if (speechFlushTimer) clearTimeout(speechFlushTimer);
             } else {
-              if (onTranscriptUpdate) { 
-                  onTranscriptUpdate(sentenceBuffer, false, false); 
+              if (onTranscriptUpdate) {
+                  // 傳遞 speaker 資訊
+                  onTranscriptUpdate(sentenceBuffer, false, false, currentSpeaker); 
+                  resetFlushTimer(onTranscriptUpdate, "");
               }
             }
           } else {
-            if (onTranscriptUpdate) { onTranscriptUpdate(sentenceBuffer + transcript, false, false); }
+            // interim results (變動中)
+            if (onTranscriptUpdate) { 
+                // [修改] 傳遞 speaker 資訊
+                onTranscriptUpdate(sentenceBuffer + transcript, false, false, currentSpeaker); 
+            }
+            resetFlushTimer(onTranscriptUpdate, transcript);
           }
         }
       } catch (e) {
@@ -345,14 +451,14 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
           updateStatusDisplay('');
       } else {
           Logger.warn("[WARN] Deepgram 意外斷線，準備重連...");
-          
+
           if (retryCount < MAX_RETRIES) {
               const delay = Math.min(500 * (2 ** retryCount), 5000); // 避免高速重新連線
               retryCount++;
               updateStatusDisplay(`接続が切断されました。${delay/500}秒後に再接続します...`);
               cleanupAudioResources(); // 需將 stopDeepgram 中的資源清理邏輯拆分出來
               setTimeout(() => {
-                  startDeepgram(langId, onTranscriptUpdate);
+                startDeepgram(langId, onTranscriptUpdate);
               }, delay);
           } else {
               updateStatusDisplay("再接続に失敗しました。手動で再開してください。");
@@ -377,14 +483,15 @@ export function stopDeepgram() {
   isIntentionalStop = true;
 
   if (keepAliveInterval) { clearInterval(keepAliveInterval); keepAliveInterval = null; }
-  if (watchdogInterval)  { clearInterval(watchdogInterval); watchdogInterval = null; }
+  if (watchdogInterval)  { clearInterval(watchdogInterval);  watchdogInterval  = null; }
+  if (speechFlushTimer)  { clearTimeout(speechFlushTimer);   speechFlushTimer  = null; }
 
   // 停止並釋放 AudioContext 資源
   if (mediaStreamSource) {
     mediaStreamSource.disconnect();
     mediaStreamSource = null;
   }
-  
+
   if (audioWorkletNode) {
     audioWorkletNode.port.onmessage = null;
     audioWorkletNode.disconnect();

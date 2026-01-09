@@ -55,3 +55,6 @@ yarn.lock
 
 # 全部的本機BAT都不上傳
 ハムハム字幕アトリエ_translate_localhost*.bat
+
+# 其他
+ARCHITECTURE.md
