@@ -32,7 +32,7 @@ let retryCount = 0;
 const MAX_RETRIES = 10;
 
 let speechFlushTimer = null;
-const FLUSH_TIMEOUT_MS = 1200; // 沒有說話多久時間強制翻譯和清空逐字稿
+const FLUSH_TIMEOUT_MS = 1500; // 沒有說話多久時間強制翻譯和清空逐字稿
 
 // #endregion
 
@@ -47,9 +47,7 @@ const PCM_PROCESSOR_CODE = `
 class PCMProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    // 設定緩衝區大小：4096 samples
-    // 在 48kHz 下約為 85ms，這是對 Deepgram 來說非常健康的封包大小
-    // 在 44.1kHz 下約為 92ms
+    // 設定緩衝區大小：2048 samples
     this.bufferSize = 2048; 
     
     // 預先配置 Float32 緩衝區 (重複使用，不產生 GC)
@@ -79,8 +77,6 @@ class PCMProcessor extends AudioWorkletProcessor {
 
   flush() {
     // 建立 Int16Array 準備傳送
-    // 這裡我們必須 new 一個新的陣列來進行 Transfer (移交所有權)
-    // 但因為頻率極低 (每秒僅 ~11 次)，完全不會影響效能
     const int16Data = new Int16Array(this.bufferSize);
 
     for (let i = 0; i < this.bufferSize; i++) {
@@ -94,7 +90,6 @@ class PCMProcessor extends AudioWorkletProcessor {
     }
 
     // 3. 發送並移交擁有權 (Zero-Copy)
-    // 這是關鍵：主執行緒收到的是記憶體指標，不需要再複製一次數據
     this.port.postMessage(int16Data.buffer, [int16Data.buffer]);
 
     // 重置索引，繼續使用同一個 Float32Array
@@ -164,6 +159,11 @@ function removeJapaneseSpaces(text) {
  * [新增] 觸發強制翻譯 (當靜默時間到達)
  */
 function triggerForcedFlush(onTranscriptUpdate) {
+  if (speechFlushTimer) {
+    clearTimeout(speechFlushTimer);
+    speechFlushTimer = null;
+  }
+
   if (sentenceBuffer.trim().length > 0) {
     Logger.info("[INFO]", "[DeepgramService]", "⏳ 本地計時器觸發斷句翻譯", sentenceBuffer);
     if (onTranscriptUpdate) {
@@ -280,8 +280,8 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
       audio: { 
         /* 這些參數瀏覽器不一定會採用，僅供參考 */
         autoGainControl:  false,
-        echoCancellation: false, 
-        noiseSuppression: false, 
+        echoCancellation: false,
+        noiseSuppression: true,
         //channelCount: 1 // 單聲道，大部分狀況無效
       }, 
       video: false 
@@ -320,7 +320,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
       language: finalLangParam,
       smart_format:     "true",
       interim_results:  "true",
-      utterance_end_ms: "1500", // 已不使用但保留避免預料外問題
+      utterance_end_ms: "1000",
       endpointing:      "false",
       vad_events:       "true",
       encoding:         "linear16", // 指定 Raw Audio 格式
@@ -353,7 +353,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
             compressor.release.value = 0.25;  // 釋放時間：中 (250ms)
 
       const preGainNode = audioContext.createGain();
-      preGainNode.gain.value = 2.0; // 將音量放大 1.5 倍 (可視情況調整 1.5 ~ 3.0)
+      preGainNode.gain.value = 3.0; // 將音量放大X倍 (可視情況調整 1.5 ~ 3.0)
 
       audioWorkletNode = new AudioWorkletNode(audioContext, 'pcm-processor');
 
@@ -387,6 +387,23 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
       try {
         const received = JSON.parse(message.data);
 
+        // -----------------------------------------------------------
+        // 軌道 1: 處理 Deepgram 的斷句訊號 (UtteranceEnd)
+        // -----------------------------------------------------------
+        // 邏輯：這是一個「觸發器」，我們在這裡才去檢查當下的 sentenceBuffer
+        if (received.type === "UtteranceEnd") {
+          const currentBuffer = sentenceBuffer.trim();
+
+          if (currentBuffer.length > 0) {
+            Logger.info("[INFO]", "[DeepgramService]", "⚡ UtteranceEnd 觸發斷句 (AI)");
+            triggerForcedFlush(onTranscriptUpdate);
+          }
+          return; // 處理完畢，直接結束這回合
+        }
+
+        // -----------------------------------------------------------
+        // 軌道 2: 處理文字識別結果 (Results)
+        // -----------------------------------------------------------
         if (!received.channel) return;
 
         let transcript = received.channel.alternatives?.[0]?.transcript;
@@ -396,30 +413,34 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
           transcript = removeJapaneseSpaces(transcript);
 
           if (received.is_final) {
+            // deepgram對於日文和中文的辨識可能會有空格產生的狀態，這一段將空白去除
             const isCJK = ["ja", "zh-TW", "zh-HK", "ko", "th"].includes(deepgramCode);
             sentenceBuffer += (isCJK || !sentenceBuffer) ? transcript : ` ${transcript}`;
             finalResultCount++;
 
-            //Logger.debug("[DEBUG]", "[DeepgramService]", finalResultCount, "個最終結果:", sentenceBuffer);
-            const hasPunctuation = /[。？！.?!]$/.test(sentenceBuffer.trim());
-            // 規則是finalResultCount >= n 最終結果之後，後一句是尾句為上述符號或字數大於language_config裡面的指定語系字數時發送翻譯和清空，否則累積顯示。
-            // 字數大於language_config這邊可以視狀況調整，想短一點1倍，想留長一點就2-3倍或者乾脆拿掉。
-            if (finalResultCount >= 1 && (hasPunctuation || sentenceBuffer.trim().length >= langObj.chunkSize)) {
+            // 產生最終結果的時候判斷要不要發送翻譯
+            const currentBuffer = sentenceBuffer.trim();
+            const hasPunctuation = /[。？！.?!]$/.test(currentBuffer);
+            const isLengthExceeded = currentBuffer.length >= langObj.chunkSize * 2;
+
+            if (finalResultCount >= 1 && (hasPunctuation || isLengthExceeded)) {
+              // 滿足條件：送出翻譯
               if (onTranscriptUpdate) {
-                Logger.info("[DEBUG]", "[DeepgramService]", `sentenceBuffer: ${sentenceBuffer}: finalResultCount: ${finalResultCount} - ${sentenceBuffer.length}`);
                 onTranscriptUpdate(sentenceBuffer, true, true); 
               }
               resetSentenceBuffer();
-              if (speechFlushTimer) clearTimeout(speechFlushTimer);
             } else {
+              // 未滿足條件：僅更新顯示
               if (onTranscriptUpdate) {
-                  Logger.info("[DEBUG]", "[DeepgramService]", `sentenceBuffer: ${sentenceBuffer}: finalResultCount: ${finalResultCount}`);
                   onTranscriptUpdate(sentenceBuffer, false, false); 
                   resetFlushTimer(onTranscriptUpdate, "");
               }
             }
           } else {
-            if (onTranscriptUpdate) { onTranscriptUpdate(sentenceBuffer + transcript, false, false); }
+            // Interim Results
+            if (onTranscriptUpdate) { 
+              onTranscriptUpdate(sentenceBuffer + transcript, false, false); 
+            }
             resetFlushTimer(onTranscriptUpdate, transcript);
           }
         }

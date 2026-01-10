@@ -17,13 +17,13 @@ const setupToggleVisibility = (btnId, inputId) => {
   if (btn && input) {
     const newBtn = btn.cloneNode(true);
     btn.parentNode.replaceChild(newBtn, btn);
-    
+
     newBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       const isMasked = input.classList.contains('input-masked');
       input.classList.toggle('input-masked', !isMasked);
       input.classList.toggle('input-visible', isMasked);
-      
+
       const eyeOpen = `<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
       const eyeClosed = `<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
       newBtn.innerHTML = isMasked ? eyeOpen : eyeClosed;
@@ -34,7 +34,7 @@ const setupToggleVisibility = (btnId, inputId) => {
 document.addEventListener('DOMContentLoaded', async function () {
   const urlParams = new URLSearchParams(window.location.search);
   const isDebugMode = urlParams.get('debug') === 'true';
-  
+
   setLogLevel(isDebugMode ? LogLevel.DEBUG : LogLevel.INFO);
   Logger.info('UI', '應用程式初始化開始...');
 
@@ -71,14 +71,14 @@ document.addEventListener('DOMContentLoaded', async function () {
       { id: 'target3-language', type: 'select', desc: 'Target language 3', clearTarget: 'target-text-3' }
     ],
     radioGroups: [
-      { 
-        name: 'alignment', key: 'text-alignment', default: 'center', 
-        targets: ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'], 
+      {
+        name: 'alignment', key: 'text-alignment', default: 'center',
+        targets: ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'],
         css: '--text-align', desc: 'Text alignment',
         onChange: (val) => setAlignment(val), onLoad: (val) => setAlignment(val)
       },
-      { 
-        name: 'overflow', key: 'overflow-mode', default: 'normal', 
+      {
+        name: 'overflow', key: 'overflow-mode', default: 'normal',
         targets: ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'], desc: 'Overflow mode',
         onChange: (val, targets) => {
           targets.forEach(tId => {
@@ -96,16 +96,16 @@ document.addEventListener('DOMContentLoaded', async function () {
       { id: 'display-panel-color', type: 'body-color', css: '--body-background', desc: 'Body background color' },
       { id: 'translation-link', type: 'text', desc: 'Translation link' },
       { id: 'gas-script-id', type: 'text', desc: 'GAS Script ID' },
-      { 
+      {
         id: 'raymode', type: 'checkbox', key: 'raymode-active', desc: 'Raymode active state',
         onChange: (checked) => setRayModeStatus(checked),
         onLoad: (checked) => setRayModeStatus(checked)
       },
-      { 
+      {
         id: 'click-minimize-opt', type: 'select', key: 'click-minimize-enabled', desc: 'Display panel click minimize', default: 'true'
       },
-      { 
-        id: 'force-single-line-opt', type: 'select', key: 'force-single-line-enabled', 
+      {
+        id: 'force-single-line-opt', type: 'select', key: 'force-single-line-enabled',
         desc: 'Force single line display', default: 'false',
         onChange: (val) => {
           const isEnabled = val === 'true';
@@ -118,22 +118,22 @@ document.addEventListener('DOMContentLoaded', async function () {
           document.getElementById('source-text')?.classList.toggle('visual-single-line', isEnabled);
         }
       },
-      { 
-        id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state', default: 'ture',
+      {
+        id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state', default: 'false',
         onChange: (val) => setDeepgramStatus(val), onLoad: (val) => {
-          //setDeepgramStatus(val)
+          setDeepgramStatus(val)
 
-          /* 先保留，有可能還會使用，使用時上面的default要修改成true，setDeepgramStatus(val)要註解掉 */
+          /* 先保留，有可能還會使用，使用時上面的default要修改成true，setDeepgramStatus(val)要註解掉
           setDeepgramStatus('true');
           const el = document.getElementById('deepgram-enabled');
            if (el) el.value = 'true';
 
            //寫回localstore
            localStorage.setItem('deepgram-enabled', 'true');
-          /* */
+          */
         }
       },
-      { 
+      {
         id: 'log-level-opt', type: 'select', key: 'log-level-preference', desc: 'Console Log Level', default: '1',
         onChange: (val) => setLogLevel(parseInt(val, 10)), onLoad: (val) => setLogLevel(parseInt(val, 10))
       },
@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', async function () {
   const createRadioHandler = (config) => ({
     load() {
       const saved = Storage.load(config.key, config.default);
-      
+
       // 執行注入的 onLoad 邏輯
       if (config.onLoad) config.onLoad(saved, config.targets);
 
@@ -430,7 +430,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     const toggle = document.getElementById('mic-privacy-toggle');
     const cover = document.getElementById('mic-privacy-cover');
     const micInfo = document.querySelector('.mic-info');
-    
+
     const defaultMicEl = document.getElementById('default-mic');
     const otherMicEl = document.getElementById('other-mic');
 
@@ -470,7 +470,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     const applyMode = (mode) => {
       [linkWrapper, gasWrapper, promptDownloadBtn, fastModeControls].forEach(w => { if (w) w.style.display = 'none'; });
       if (fastModeProgress) fastModeProgress.textContent = '';
-      
+
       localStorage.setItem('local-translation-api-active', 'false');
       localStorage.setItem('local-prompt-api-active', 'false');
       updateStatusDisplay('');
@@ -538,25 +538,25 @@ document.addEventListener('DOMContentLoaded', async function () {
       // 偵測組合鍵: Alt + B (Background)
       if (e.altKey && (e.code === 'KeyB' || e.key === 'b')) {
         e.preventDefault(); // 防止瀏覽器預設行為
-        
+
         const subtitleContainer = document.getElementById('Subtitle-style');
         if (subtitleContainer) {
           const isActive = subtitleContainer.classList.toggle('active-style');
-          
+
           // 選用：顯示簡單的 Toast 或 Log 提示狀態
           Logger.info('UI', `字幕背景風格已${isActive ? '啟用' : '停用'}`);
-          
+
           // (進階) 如果希望重新整理網頁後保留狀態，可解開下方註解：
-          // localStorage.setItem('subtitle-style-active', isActive);
+          localStorage.setItem('subtitle-style-active', isActive);
         }
       }
     });
 
     // (進階) 載入時恢復上次狀態 (若上方有儲存)
-    // const savedState = localStorage.getItem('subtitle-style-active') === 'true';
-    // if (savedState) {
-    //   document.getElementById('Subtitle-style')?.classList.add('active-style');
-    // }
+    const savedState = localStorage.getItem('subtitle-style-active') === 'true';
+    if (savedState) {
+      document.getElementById('Subtitle-style')?.classList.add('active-style');
+    }
   };
 
   // #region [主初始化流程]
@@ -580,7 +580,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
   const defaultTab = document.getElementById('Subtitle');
   if (defaultTab) defaultTab.click();
-  if (!browserInfo.isChrome) { 
+  if (!browserInfo.isChrome) {
     const fastModeOption = document.querySelector('#translation-mode option[value="fast"]');
     if (fastModeOption) fastModeOption.disabled = true;
   } else {
@@ -588,5 +588,62 @@ document.addEventListener('DOMContentLoaded', async function () {
     // 並且問題可能很多，非必要不建議使用。
     setupPromptModelDownload();
   };
+  // #endregion
+
+  // #region [模式B字幕處理方式(CSS限制寬度和高度、超過使用滾動方式移動)]
+  const smoothScrollToSlowly = (element, to, duration) => {
+    const start = element.scrollTop;
+    const change = to - start;
+    const startTime = performance.now();
+
+    const animateScroll = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      const t = Math.min(1, elapsed / duration);
+      const easeOut = t * (2 - t);
+
+      element.scrollTop = start + (change * easeOut);
+
+      if (elapsed < duration) { requestAnimationFrame(animateScroll); }
+    };
+
+    requestAnimationFrame(animateScroll);
+  };
+
+  const setupSmartScroll = (elementId) => {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    // 用來儲存計時器，避免快速連續輸入時重複觸發
+    let scrollTimeout = null;
+
+    const observer = new MutationObserver(() => {
+      // 只有當內容高度大於可視高度時才處理
+      if (el.scrollHeight > el.clientHeight) {
+        const isTarget = elementId.includes('target-text');
+        if (isTarget) {
+          if (scrollTimeout) clearTimeout(scrollTimeout);
+          // 設定延遲 3 秒 (3000ms)
+          scrollTimeout = setTimeout(() => {
+            // smoothScrollToSlowly(對應元素, 元素滾動高度, 滾動速度(越小越快));
+            smoothScrollToSlowly(el, el.scrollHeight, 6000);
+          }, 3000);
+        } else {
+          // 來源文字 (Source)
+          el.scrollTo({
+            top: el.scrollHeight,
+            behavior: 'smooth'
+          });
+        }
+      } else {
+        // 沒有溢出時，重置回頂部
+        el.scrollTop = 0;
+      }
+    });
+    observer.observe(el, { childList: true, characterData: true, subtree: true });
+  };
+
+  ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'].forEach(id => {
+    setupSmartScroll(id);
+  });
   // #endregion
 });
