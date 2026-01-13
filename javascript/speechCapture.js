@@ -163,18 +163,7 @@ async function configureRecognition(recognition, sourceLanguage) {
  * @param {boolean} shouldTranslate - 是否觸發翻譯請求
  * @param {number} [speakerId] - [新增] 說話者 ID (0, 1, 2...)
  */
-async function handleDeepgramTranscript(text, isFinal, shouldTranslate, speakerId) {
-  
-  // =========================================================================
-  // [新增] Speaker 0 過濾器
-  // 邏輯：如果 speakerId 有值 (不是 undefined/null)，且不是 0，就直接忽略
-  // 注意：必須使用嚴格比較，因為 0 在 JS 中是 falsy，不能寫 if (!speakerId)
-  // =========================================================================
-  if (typeof speakerId !== 'undefined' && speakerId !== null && speakerId !== 0) {
-    return; // 不是 Speaker 0，什麼都不做，直接離開
-  }
-
-  // --- 以下保持原有邏輯 ---
+async function handleDeepgramTranscript(text, isFinal, shouldTranslate) {
 
   const currentLang = await getSourceLanguage();
   let processedText = isRayModeActive() ? processRayModeTranscript(text, currentLang) : text;
@@ -314,7 +303,6 @@ const updateSourceText = (() => {
     if (!text || text.trim().length === 0) return;
     if (text === lastRenderedText) { return; }
     el.textContent = text;
-    //el.dataset.stroke = text;
     lastRenderedText = text;
   };
 })();

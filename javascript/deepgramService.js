@@ -281,7 +281,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
         /* 這些參數瀏覽器不一定會採用，僅供參考 */
         autoGainControl:  false,
         echoCancellation: false,
-        noiseSuppression: true,
+        noiseSuppression: false,
         //channelCount: 1 // 單聲道，大部分狀況無效
       }, 
       video: false 
@@ -289,8 +289,8 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
 
     const track = globalStream.getAudioTracks()[0];
     const settings = track.getSettings();
-    const constraints = track.getConstraints();
 
+    //const constraints = track.getConstraints();
     //Logger.debug("[DEBUG] [Microphone] 原始請求限制:", constraints);
 
     Logger.info("[INFO] [Microphone] 麥克風實際生效參數:", {
@@ -348,12 +348,12 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
       const compressor = audioContext.createDynamicsCompressor();
             compressor.threshold.value = -20; // 超過 -20dB 就開始壓縮
             compressor.knee.value = 30;       // 平滑過渡
-            compressor.ratio.value = 12;      // 壓縮比 12:1 (接近 Limiter，強力壓制大音量)
+            compressor.ratio.value = 6;       // 壓縮比 12:1 (接近 Limiter，強力壓制大音量)(微調改6看多人說話效果有沒有好一點)
             compressor.attack.value = 0.003;  // 反應時間：快 (3ms)
             compressor.release.value = 0.25;  // 釋放時間：中 (250ms)
 
       const preGainNode = audioContext.createGain();
-      preGainNode.gain.value = 3.0; // 將音量放大X倍 (可視情況調整 1.5 ~ 3.0)
+      preGainNode.gain.value = 2.5; // 將音量放大X倍 (可視情況調整 1.5 ~ 3.0)
 
       audioWorkletNode = new AudioWorkletNode(audioContext, 'pcm-processor');
 
@@ -387,10 +387,6 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
       try {
         const received = JSON.parse(message.data);
 
-        // -----------------------------------------------------------
-        // 軌道 1: 處理 Deepgram 的斷句訊號 (UtteranceEnd)
-        // -----------------------------------------------------------
-        // 邏輯：這是一個「觸發器」，我們在這裡才去檢查當下的 sentenceBuffer
         if (received.type === "UtteranceEnd") {
           const currentBuffer = sentenceBuffer.trim();
 
@@ -401,9 +397,6 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
           return; // 處理完畢，直接結束這回合
         }
 
-        // -----------------------------------------------------------
-        // 軌道 2: 處理文字識別結果 (Results)
-        // -----------------------------------------------------------
         if (!received.channel) return;
 
         let transcript = received.channel.alternatives?.[0]?.transcript;

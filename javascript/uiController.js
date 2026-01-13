@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', async function () {
       },
       {
         name: 'overflow', key: 'overflow-mode', default: 'normal',
-        targets: ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'], desc: 'Overflow mode',
+        targets: ['target-text-1', 'target-text-2', 'target-text-3'], desc: 'Overflow mode',
         onChange: (val, targets) => {
           targets.forEach(tId => {
             const el = document.getElementById(tId);
@@ -89,7 +89,15 @@ document.addEventListener('DOMContentLoaded', async function () {
             }
           });
         },
-        onLoad: (val, targets) => { /* 這裡複用 onChange 邏輯即可，或者在這裡不寫，因為 RadioHandler 預設會處理 */ }
+        onLoad: (val, targets) => {
+          targets.forEach(tId => {
+            const el = document.getElementById(tId);
+            if (el) {
+              el.classList.remove('overflow-normal', 'overflow-truncate', 'overflow-shrink');
+              el.classList.add(`overflow-${val}`);
+            }
+          });
+        }
       }
     ],
     special: [
@@ -590,7 +598,9 @@ document.addEventListener('DOMContentLoaded', async function () {
   };
   // #endregion
 
-  // #region [模式B字幕處理方式(CSS限制寬度和高度、超過使用滾動方式移動)]
+// #region [模式B字幕處理方式(CSS限制寬度和高度、超過使用滾動方式移動)]
+
+  // 保持原有的緩動函數不變
   const smoothScrollToSlowly = (element, to, duration) => {
     const start = element.scrollTop;
     const change = to - start;
@@ -609,41 +619,126 @@ document.addEventListener('DOMContentLoaded', async function () {
     requestAnimationFrame(animateScroll);
   };
 
-  const setupSmartScroll = (elementId) => {
+  /**
+   * Source Text 專用滾動邏輯
+   * 特性：即時響應、標準平滑滾動 (Native Smooth Scroll)
+   * 適用於：Deepgram 或 Web Speech API 的即時語音轉錄顯示
+   */
+  const setupSourceScrollBehavior = (elementId) => {
     const el = document.getElementById(elementId);
     if (!el) return;
 
-    // 用來儲存計時器，避免快速連續輸入時重複觸發
-    let scrollTimeout = null;
-
     const observer = new MutationObserver(() => {
-      // 只有當內容高度大於可視高度時才處理
+      // 當內容高度大於可視高度時
       if (el.scrollHeight > el.clientHeight) {
-        const isTarget = elementId.includes('target-text');
-        if (isTarget) {
-          if (scrollTimeout) clearTimeout(scrollTimeout);
-          // 設定延遲 3 秒 (3000ms)
-          scrollTimeout = setTimeout(() => {
-            // smoothScrollToSlowly(對應元素, 元素滾動高度, 滾動速度(越小越快));
-            smoothScrollToSlowly(el, el.scrollHeight, 6000);
-          }, 3000);
-        } else {
-          // 來源文字 (Source)
-          el.scrollTo({
-            top: el.scrollHeight,
-            behavior: 'smooth'
-          });
-        }
+        // Source 區塊：直接滾動到底部，讓用戶確認目前收音狀況
+        el.scrollTo({
+          top: el.scrollHeight,
+          behavior: 'smooth'
+        });
       } else {
-        // 沒有溢出時，重置回頂部
         el.scrollTop = 0;
       }
     });
+
     observer.observe(el, { childList: true, characterData: true, subtree: true });
   };
 
-  ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'].forEach(id => {
-    setupSmartScroll(id);
+  /**
+   * Target Text 專用滾動邏輯
+   * 特性：防抖動 (Debounce)、延遲觸發、極慢速滾動 (Cinema Effect)
+   * 適用於：Gemini 2.5/3.0 生成的翻譯文本，提供較佳的閱讀體驗
+   */
+const setupTargetScrollBehavior = (elementId) => {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    let activeScrollSession = null;
+
+    // [定義] 核心滾動邏輯
+    const startSmartScrolling = () => {
+      const overflowMode = document.querySelector('input[name="overflow"]:checked')?.value;
+      
+      // 如果是 Truncate (省略) 模式，通常不需要滾動，因為 CSS 會處理
+      if (overflowMode === 'truncate') {
+         // el.scrollTop = 0; // 若希望切換到省略模式時自動回頂部，可取消此行註解
+         return;
+      }
+      
+      if (overflowMode === 'shrink') {
+        // === 模式 A: Shrink (提詞機循環滾動) ===
+        const style = window.getComputedStyle(el);
+        const lineHeight = parseFloat(style.lineHeight) || (parseFloat(style.fontSize) * 1.3);
+        const currentScroll = el.scrollTop;
+        const maxScroll = el.scrollHeight - el.clientHeight;
+        
+        // 還有空間可以滾動時
+        if (currentScroll < maxScroll - 1) {
+          const targetScroll = Math.min(currentScroll + lineHeight, maxScroll);
+          
+          smoothScrollToSlowly(el, targetScroll, 800);
+
+          // 遞迴呼叫，形成自動循環
+          activeScrollSession = setTimeout(() => {
+            startSmartScrolling();
+          }, 2500); 
+        }
+
+      } else {
+        // === 模式 B: Normal (一次到底) ===
+        // 切換到 Normal 模式時，直接執行一次滑到底部
+        smoothScrollToSlowly(el, el.scrollHeight, 6000);
+      }
+    };
+
+    // [監聽 1] 文字內容變動 (MutationObserver)
+    const observer = new MutationObserver(() => {
+      if (activeScrollSession) {
+        clearTimeout(activeScrollSession);
+        activeScrollSession = null;
+      }
+
+      if (el.scrollHeight > el.clientHeight) {
+        // 文字變動時，維持 3 秒延遲，讓觀眾先看開頭
+        activeScrollSession = setTimeout(() => {
+          startSmartScrolling();
+        }, 3000);
+      } else {
+        el.scrollTop = 0;
+      }
+    });
+
+    observer.observe(el, { childList: true, characterData: true, subtree: true });
+
+    // [監聽 2] 設定選項切換 (Radio Change) - 這是你要的新功能
+    document.querySelectorAll('input[name="overflow"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        // 1. 切換模式時，立刻清除舊的滾動排程，避免衝突
+        if (activeScrollSession) {
+          clearTimeout(activeScrollSession);
+          activeScrollSession = null;
+        }
+
+        // 2. 延遲 100ms 執行，等待 CSS Class (overflow-shrink 等) 套用並完成 Layout 重繪
+        setTimeout(() => {
+          if (el.scrollHeight > el.clientHeight) {
+            // 切換模式時，我們希望「立刻」看到效果，所以不需要像 Observer 那樣等待 3 秒
+            startSmartScrolling();
+          } else {
+            el.scrollTop = 0;
+          }
+        }, 100);
+      });
+    });
+  };
+
+  // 初始化 Source 滾動邏輯
+  setupSourceScrollBehavior('source-text');
+
+  // 初始化 Targets 滾動邏輯
+  ['target-text-1', 'target-text-2', 'target-text-3'].forEach(id => {
+    setupTargetScrollBehavior(id);
   });
+
   // #endregion
 });

@@ -95,17 +95,15 @@ body {
 }
 
 #target-text-1.overflow-shrink, #target-text-2.overflow-shrink, #target-text-3.overflow-shrink {
-  display: -webkit-box;
-  line-clamp: 2;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  font-size: var(--text-font-size);
-  overflow: hidden;
-}
-
-/* 與 multi-line 狀態連動進行二次縮放 */
-#target-text-1.overflow-shrink.multi-line, #target-text-2.overflow-shrink.multi-line, #target-text-3.overflow-shrink.multi-line {
-  font-size: var(--font-size-half);
+  /* 移除 -webkit-box 與 line-clamp 以允許內容撐開並捲動 */
+  display: block; 
+  height: 1.3em;
+  overflow-y: hidden; 
+  /* 確保長單字換行 */
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  /* 視覺平滑化 */
+  scroll-behavior: auto; /* JS 控制動畫，所以 CSS 設為 auto */
 }
 
 .flash { animation: fadeIn 120ms linear; }
