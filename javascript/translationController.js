@@ -189,20 +189,9 @@ function processDisplayBuffers() {
         
         // 更新 DOM
         span.textContent = next.text;
-        span.dataset.stroke = next.text;
-
-        span.getAnimations?.().forEach(a => a.cancel());
-        span.classList.remove('flash');
-        requestAnimationFrame(() => span.classList.add('flash'));
-
-        const langId = langInputs[key]?.value; 
-        const langObj = getLang(langId);
-        const chunkSize = langObj?.chunkSize || 40;
-        span.classList.toggle('multi-line', next.text.length > chunkSize);
 
         Logger.info('[INFO] [TranslationController] 更新翻譯文字:', { 
           text: next.text,
-          id: langId,
           sequenceId: next.sequenceId
         });
       }

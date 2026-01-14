@@ -16,18 +16,10 @@
 <body>
   <div id="display-panel">
     <div id="Subtitle-style">
-      <div id="source-text" data-stroke="ハムハム字幕アトリエ">
-        ハムハム字幕アトリエ
-      </div>
-      <div id="target-text-1" data-stroke="開発者：乙夏れいのファン・ジュノーン（GrokとChatGPTを利用）">
-        開発者：乙夏れいのファン・ジュノーン（GrokとChatGPTを利用）
-      </div>
-      <div id="target-text-2" data-stroke="2026.01.03">
-        2026.01.03
-      </div>
-      <div id="target-text-3" data-stroke="自動翻訳によるもので、精度は保証できません。ご了承ください。">
-        自動翻訳によるもので、精度は保証できません。ご了承ください。
-      </div>
+      <div id="source-text">ハムハム字幕アトリエ</div>
+      <div id="target-text-1">開発者：ジュノーン（乙夏れいファン）</div>
+      <div id="target-text-2">2026.01.13</div>
+      <div id="target-text-3">自動翻訳によるもので、精度は保証できません。ご了承ください。</div>
     </div>
   </div>
 
@@ -344,16 +336,16 @@
               </label>
               <label class="radio-box">
                 <input type="radio" name="overflow" value="shrink">
-                <span>2行 (縮小)</span>
+                <span>1行 (スクロール)</span>
               </label>
             </div>
           </div>
           <div class="help-text-box">
-            <p>翻訳文が長すぎる場合の表示ルールを設定します。</p>
+            <p>字幕が長すぎる場合の表示ルールを設定します。</p>
             <ul>
-              <li><strong>制限なし：</strong> 全てのテキストを表示します（画面が埋まる可能性があります）。</li>
-              <li><strong>1行：</strong> 1行を超えると「...」で省略されます。</li>
-              <li><strong>2行：</strong> 文字数が多い場合、自動的にフォントサイズを縮小して2行以内に収めます。</li>
+              <li><strong>制限なし：</strong> 全ての字幕を表示します（画面が埋まる可能性があります）。</li>
+              <li><strong>1行 (省略)：</strong> 1行を超えると「...」で省略されます。</li>
+              <li><strong>1行 (スクロール)：</strong> 1行を超える場合、字幕を1行ずつ自動スクロールして表示します。</li>
             </ul>
             <p class="note">※ 配信画面のスペースに合わせて調整してください。</p>
           </div>
