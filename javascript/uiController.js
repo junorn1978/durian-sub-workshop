@@ -129,16 +129,16 @@ document.addEventListener('DOMContentLoaded', async function () {
       {
         id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state', default: 'false',
         onChange: (val) => setDeepgramStatus(val), onLoad: (val) => {
-          setDeepgramStatus(val)
+          //setDeepgramStatus(val)
 
-          /* 先保留，有可能還會使用，使用時上面的default要修改成true，setDeepgramStatus(val)要註解掉
-          setDeepgramStatus('true');
+          /* 先保留，有可能還會使用，使用時上面的default要修改成true，setDeepgramStatus(val)要註解掉 */
+          setDeepgramStatus('false');
           const el = document.getElementById('deepgram-enabled');
-           if (el) el.value = 'true';
+           if (el) el.value = 'false';
 
            //寫回localstore
-           localStorage.setItem('deepgram-enabled', 'true');
-          */
+           localStorage.setItem('deepgram-enabled', 'false');
+          /* */
         }
       },
       {
@@ -153,7 +153,6 @@ document.addEventListener('DOMContentLoaded', async function () {
   // #region [瀏覽器功能限制檢查]
   if (!browserInfo.isChrome) {
     Logger.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
-    document.getElementById('status-display').textContent = '高速翻訳とブラウザAI翻訳はEdgeに対応しておりません。ご了承ください。';
 
     ['prompt-api-download', 'download-language-pack'].forEach(id => {
       const el = document.getElementById(id);
@@ -418,19 +417,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     document.querySelectorAll('.menu-button').forEach(btn => {
       btn.addEventListener('click', () => switchPanel(btn.id));
     });
-
-    const apiLinkBtn = document.getElementById('apilink');
-    if (apiLinkBtn) {
-      apiLinkBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isActive = apiLinkBtn.classList.contains('active');
-        apiLinkBtn.classList.toggle('active');
-        document.querySelectorAll('.status-button, .menu3-button').forEach(b => b.style.display = isActive ? 'inline-block' : 'none');
-        document.querySelectorAll('.capsule-checkbox-label').forEach(b => b.style.display = isActive ? 'flex' : 'none');
-        const tLink = document.getElementById('translation-link');
-        if (tLink) tLink.style.display = isActive ? 'none' : 'inline-block';
-      });
-    }
   };
 
   /** 麥克風隱私遮罩 (避免實況中洩漏裝置名稱) */
@@ -476,12 +462,14 @@ document.addEventListener('DOMContentLoaded', async function () {
     if (!modeSelect) return;
 
     const applyMode = (mode) => {
+      // 先全部隱藏
       [linkWrapper, gasWrapper, promptDownloadBtn, fastModeControls].forEach(w => { if (w) w.style.display = 'none'; });
       if (fastModeProgress) fastModeProgress.textContent = '';
 
+      // 重置狀態標記
       localStorage.setItem('local-translation-api-active', 'false');
       localStorage.setItem('local-prompt-api-active', 'false');
-      updateStatusDisplay('');
+      //updateStatusDisplay('');
 
       switch (mode) {
         case 'gas':
@@ -489,6 +477,12 @@ document.addEventListener('DOMContentLoaded', async function () {
           break;
         case 'link':
           if (linkWrapper) { linkWrapper.style.display = 'block'; document.getElementById('translation-link')?.focus(); }
+          break;
+        case 'gemma':
+          // [新增] Gemma 模式
+          // 不需要顯示任何額外輸入框，因為連接的是 localhost:8080
+          // 可以顯示一個簡單的狀態文字提醒用戶開啟後端
+          updateStatusDisplay('Local Gemma Mode: Ready (Ensure server is running on port 8080)');
           break;
         case 'fast':
           if (!browserInfo.isChrome) { alert('高速翻訳はEdgeに対応しておりません。'); applyMode('link'); return; }
@@ -507,7 +501,9 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     const savedMode = Storage.load('translation-mode-selection') || 'link';
     modeSelect.value = savedMode;
+    // 確保如果存的是 gemma 但 select 裡還沒加入選項時的 fallback (雖然 HTML 會同步更新)
     applyMode(savedMode);
+    
     modeSelect.addEventListener('change', (e) => applyMode(e.target.value));
   };
 
@@ -647,9 +643,8 @@ document.addEventListener('DOMContentLoaded', async function () {
   /**
    * Target Text 專用滾動邏輯
    * 特性：防抖動 (Debounce)、延遲觸發、極慢速滾動 (Cinema Effect)
-   * 適用於：Gemini 2.5/3.0 生成的翻譯文本，提供較佳的閱讀體驗
    */
-const setupTargetScrollBehavior = (elementId) => {
+  const setupTargetScrollBehavior = (elementId) => {
     const el = document.getElementById(elementId);
     if (!el) return;
 
@@ -659,7 +654,6 @@ const setupTargetScrollBehavior = (elementId) => {
     const startSmartScrolling = () => {
       const overflowMode = document.querySelector('input[name="overflow"]:checked')?.value;
       
-      // 如果是 Truncate (省略) 模式，通常不需要滾動，因為 CSS 會處理
       if (overflowMode === 'truncate') {
          // el.scrollTop = 0; // 若希望切換到省略模式時自動回頂部，可取消此行註解
          return;
@@ -672,16 +666,12 @@ const setupTargetScrollBehavior = (elementId) => {
         const currentScroll = el.scrollTop;
         const maxScroll = el.scrollHeight - el.clientHeight;
         
-        // 還有空間可以滾動時
         if (currentScroll < maxScroll - 1) {
           const targetScroll = Math.min(currentScroll + lineHeight, maxScroll);
-          
+
           smoothScrollToSlowly(el, targetScroll, 800);
 
-          // 遞迴呼叫，形成自動循環
-          activeScrollSession = setTimeout(() => {
-            startSmartScrolling();
-          }, 2500); 
+          activeScrollSession = setTimeout(() => { startSmartScrolling(); }, 2000); 
         }
 
       } else {
@@ -691,7 +681,6 @@ const setupTargetScrollBehavior = (elementId) => {
       }
     };
 
-    // [監聽 1] 文字內容變動 (MutationObserver)
     const observer = new MutationObserver(() => {
       if (activeScrollSession) {
         clearTimeout(activeScrollSession);
@@ -699,10 +688,7 @@ const setupTargetScrollBehavior = (elementId) => {
       }
 
       if (el.scrollHeight > el.clientHeight) {
-        // 文字變動時，維持 3 秒延遲，讓觀眾先看開頭
-        activeScrollSession = setTimeout(() => {
-          startSmartScrolling();
-        }, 3000);
+        activeScrollSession = setTimeout(() => { startSmartScrolling(); }, 3000);
       } else {
         el.scrollTop = 0;
       }
@@ -710,23 +696,15 @@ const setupTargetScrollBehavior = (elementId) => {
 
     observer.observe(el, { childList: true, characterData: true, subtree: true });
 
-    // [監聽 2] 設定選項切換 (Radio Change) - 這是你要的新功能
     document.querySelectorAll('input[name="overflow"]').forEach(radio => {
       radio.addEventListener('change', () => {
-        // 1. 切換模式時，立刻清除舊的滾動排程，避免衝突
         if (activeScrollSession) {
           clearTimeout(activeScrollSession);
           activeScrollSession = null;
         }
-
-        // 2. 延遲 100ms 執行，等待 CSS Class (overflow-shrink 等) 套用並完成 Layout 重繪
         setTimeout(() => {
-          if (el.scrollHeight > el.clientHeight) {
-            // 切換模式時，我們希望「立刻」看到效果，所以不需要像 Observer 那樣等待 3 秒
-            startSmartScrolling();
-          } else {
-            el.scrollTop = 0;
-          }
+          if (el.scrollHeight > el.clientHeight) { startSmartScrolling(); }
+          else { el.scrollTop = 0; }
         }, 100);
       });
     });

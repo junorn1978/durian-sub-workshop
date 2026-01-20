@@ -7,6 +7,7 @@
 import { keywordRules } from './speechCapture.js';
 import { browserInfo, getLang, isRayModeActive, isDeepgramActive } from './config.js'; // [修改] 統一引入 getLang
 import { sendLocalTranslation } from './translatorApiService.js';
+import { translateWithGemma } from './gemmaService.js';
 import { sendPromptTranslation } from './promptTranslationService.js';
 import { processTranslationUrl } from './remoteTranslationService.js';
 import { Logger } from './logger.js';
@@ -85,7 +86,7 @@ function updateStatusDisplay(text, details = null) {
   }
   if (statusDisplay && statusDisplay.textContent !== displayText) {
     statusDisplay.textContent = displayText;
-    statusDisplay.dataset.stroke = displayText;
+    //statusDisplay.dataset.stroke = displayText;
   }
 }
 // #endregion
@@ -105,16 +106,7 @@ function getTargetSpans() {
   }
   return _cachedTargetSpans;
 }
-function getLangInputs() {
-  if (!_cachedLangInputs) {
-    _cachedLangInputs = {
-      target1: document.getElementById('target1-language'),
-      target2: document.getElementById('target2-language'),
-      target3: document.getElementById('target3-language')
-    };
-  }
-  return _cachedLangInputs;
-}
+
 /**
  * 更新翻譯 UI 的緩衝邏輯
  * @param {Array<string>} targetLangIds - 目標語言 ID 列表
@@ -149,7 +141,6 @@ function processDisplayBuffers() {
   const now = Date.now();
   // [優化 1] 取得 DOM 快取，避免重複查詢
   const spans = getTargetSpans();
-  const langInputs = getLangInputs(); 
 
   ['target1', 'target2', 'target3'].forEach(key => {
     const span = spans[key];
@@ -220,10 +211,11 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
 
       let serviceUrl = '';
 
+      // --- 模式參數檢查 ---
       if (currentMode === 'gas') {
         const gasId = document.getElementById('gas-script-id')?.value.trim() || '';
         if (!gasId.match(/^[a-zA-Z0-9_-]+$/)) {
-          Logger.error('[ERROR] [TranslationController], 無效的 GAS ID:', gasId);
+          Logger.error('[ERROR] [TranslationController], 無效的 GAS ID');
           updateStatusDisplay('無效的 Google Apps Script ID');
           setTimeout(() => updateStatusDisplay(''), 5000);
           return;
@@ -233,45 +225,62 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       } else if (currentMode === 'link') {
         serviceUrl = document.getElementById('translation-link')?.value.trim() || '';
       }
+      // Gemma 模式不需要在這裡檢查 URL，因為是寫死的 localhost
 
-      // [修改] 獲取目標語言 ID 列表
-      const targetLangIds = [
+      // 獲取目標語言 ID 列表 (包含 'none' 以保持索引位置，稍後過濾)
+      const rawTargetLangIds = [
         document.getElementById('target1-language')?.value,
         document.getElementById('target2-language')?.value,
         document.getElementById('target3-language')?.value
-      ].filter(id => id && id !== 'none');
+      ];
+      
+      // 過濾出有效的 ID 用於判斷是否需要發送，但在呼叫某些服務時我們保留原始陣列以維持索引
+      const activeLangIds = rawTargetLangIds.filter(id => id && id !== 'none');
 
-      if (targetLangIds.length === 0) return;
+      if (activeLangIds.length === 0) return;
 
-      // [修改] 取得來源語系物件以獲取時長規則
+      // 取得來源語系物件以獲取時長規則
       const sourceLangObj = getLang(sourceLangId);
       const rules = sourceLangObj?.displayTimeRules || [];
 
-      const minDisplayTime = (currentMode !== 'link' || isDeepgramActive())
-        ? 0
-        : (rules.find(rule => text.length <= rule.maxLength)?.time || 3);
-
+      // 雲端/gemma/deepgram狀況下翻譯字幕依照規則殘留，其他不殘留。
+      const minDisplayTime = ((currentMode !== 'link' && currentMode !== 'gemma') || isDeepgramActive())
+                           ? 0
+                           : (rules.find(rule => text.length <= rule.maxLength)?.time ?? 3);
       let data;
 
-      // --- 路由分流 ---
+      // --- 路由分流 (Routing) ---
 
-      if (currentMode === 'prompt' && 'LanguageModel' in self) {
-        // 分支 A: AI 模式 (傳遞 IDs，由 Service 內部處理物件取值)
-        data = await sendPromptTranslation(text, targetLangIds, sourceLangId);
+      if (currentMode === 'gemma') {
+        // [新增] 分支: Gemma 本地模式
+        // 直接將 3 個目標語言 ID 傳入，Service 會回傳對應的陣列
+        data = await translateWithGemma(text, rawTargetLangIds, sourceLangId, previousText);
+        
+        // 如果回傳全空，可能是沒開 Server
+        if (!data || !data.translations || data.translations.every(t => !t)) {
+           // 可以選擇是否要顯示錯誤狀態
+           // updateStatusDisplay('Gemma Server 未連接');
+        }
+
+      } else if (currentMode === 'prompt' && 'LanguageModel' in self) {
+        // 分支 A: AI 模式
+        data = await sendPromptTranslation(text, activeLangIds, sourceLangId); // 注意這裡 PromptService 可能預期的是 activeLangIds
 
       } else if (currentMode === 'fast' && browserInfo.supportsTranslatorAPI) {
-        // 分支 B: Fast 模式 (準備改為傳遞 IDs)
-        data = await sendLocalTranslation(text, targetLangIds, sourceLangId);
+        // 分支 B: Fast 模式
+        data = await sendLocalTranslation(text, activeLangIds, sourceLangId);
 
       } else {
-        // 分支 C: 遠端模式 (需要轉換為 API 代碼以便後端識別)
-        if (!serviceUrl) return;
-        const targetCodes = targetLangIds.map(id => getLang(id)?.id || id);
+        // 分支 C: 遠端模式 (GAS / Link)
+        if (!serviceUrl && currentMode !== 'gemma') return; // Double check
+        const targetCodes = activeLangIds.map(id => getLang(id)?.id || id);
         data = await processTranslationUrl(text, targetCodes, sourceLangId, serviceUrl, currentMode, sequenceId, previousText);
       }
 
       if (data) {
-        await updateTranslationUI(data, targetLangIds, minDisplayTime, sequenceId);
+        // 確保 sequenceId 正確
+        data.sequenceId = sequenceId;
+        await updateTranslationUI(data, rawTargetLangIds, minDisplayTime, sequenceId);
       }
     } catch (error) {
       Logger.error('[ERROR] [translationController.js] 異常:', error.message);

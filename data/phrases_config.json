@@ -7,7 +7,6 @@
       { "phrase": "れいかちゃん", "boost": 3.0 },
       { "phrase": "メンギフ", "boost": 3.0 },
       { "phrase": "スパチャ", "boost": 3.0 },
-      { "phrase": "ククちゃん", "boost": 3.0 },
       { "phrase": "ジュノーン", "boost": 5.0 },
       { "phrase": "メンバーギフト", "boost": 3.0 },
       { "phrase": "セーフ", "boost": 3.0 },
@@ -16,8 +15,7 @@
       { "phrase": "あつ森", "boost": 3.0 },
       { "phrase": "感じ", "boost": 3.0 },
       { "phrase": "初見さん", "boost": 4.0 },
-      { "phrase": "オタマートン", "boost": 4.0 },
-      { "phrase": "電球", "boost": 0.7 }
+      { "phrase": "オタマートン", "boost": 4.0 }
     ],
     "en-US": [
       { "phrase": "English phrase", "boost": 4.0 },

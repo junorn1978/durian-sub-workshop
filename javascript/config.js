@@ -28,7 +28,7 @@ export const browserInfo = (() => {
   return { 
     browser: isEdge ? 'Edge' : isChrome ? 'Chrome' : 'Unknown', 
     isChrome, 
-    /* 技術備註：2025 年 Chrome 標準 Translator 介面檢測 */
+    /* Chrome & Edge(實驗通道版) Translator API 介面檢測 */
     supportsTranslatorAPI: isChrome && 'Translator' in self 
   };
 })();

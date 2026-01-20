@@ -47,12 +47,12 @@ body {
   transition: height 0.3s ease;
 }
 
+#source-text { max-block-size: 2.6em; } /* 強制最高兩行 */
 #source-text, #target-text-1, #target-text-2, #target-text-3 {
   display: flex;
   flex-direction: column;
   align-items: var(--text-align);
   text-align: var(--text-align);
-  /* z-index: 1; */
   
   /* 字體設定 */
   color: var(--text-color);
@@ -271,14 +271,12 @@ body {
 
 .input-masked {
   -webkit-text-security: disc !important;
-  text-security: disc !important;
   -webkit-appearance: none;
   appearance: none;
 }
 
 .input-visible {
   -webkit-text-security: none !important;
-  text-security: none !important;
 }
 
 .visibility-btn {
@@ -570,6 +568,7 @@ body {
 @media screen and (max-width: 1200px) {
   body { min-width: 750px; overflow-x: auto; }
   #control-panel { min-width: 100%; padding: 10px; }
+
   .top-control-bar { flex-wrap: wrap; height: auto; padding-bottom: 5px; }
   .menu-panel { margin-left: 0px; width: auto; flex: 1; }
   .link-wrapper { min-width: 200px; }
@@ -580,11 +579,12 @@ body {
   .settings-left-col { flex: none; width: 100%; padding-right: 0; overflow-y: visible; }
   .info-right-col { flex: none; width: 100%; height: auto; min-height: 150px; margin-top: 10px; }
   .unified-options-view { flex-direction: column; }
+  .record-button { width: auto; min-width: 100px; }
   .options-column { width: 100%; }
+
   #options-panel { overflow-y: auto; }
   #logo { height: 100px; object-fit: contain; }
   #recorder-panel { width: 120px; }
-  .record-button { width: auto; min-width: 100px; }
 }
 
 /* =========================================
@@ -640,4 +640,8 @@ body {
   padding: 0px 5px;
   /* 動畫 */
   transition: line-height 0.3s ease;
+}
+/* 素材模式下語言三隱藏，因為不夠放 */
+#Subtitle-style.active-style #target-text-3 {
+  display: none;
 }

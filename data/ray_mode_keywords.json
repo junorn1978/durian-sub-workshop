@@ -37,7 +37,7 @@
   { "lang": "ja-JP", "note": "【名稱修正：乙夏れい/れいか相關】", "source": "えかちゃん", "target": "(れいかちゃん)" },
   { "lang": "ja-JP", "note": "【名稱修正：乙夏れい/れいか相關】", "source": "えっちゃん", "target": "(れいちゃん)" },
   { "lang": "ja-JP", "note": "【名稱修正：乙夏れい/れいか相關】", "source": "えーちゃん", "target": "(れいちゃん)" },
-
+  
   { "lang": "ja-JP", "note": "【名稱修正：ククちゃん相關】", "source": "ココちゃん", "target": "(ククちゃん)" },
   { "lang": "ja-JP", "note": "【名稱修正：ククちゃん相關】", "source": "ここちゃん", "target": "(ククちゃん)" },
   { "lang": "ja-JP", "note": "【名稱修正：ククちゃん相關】", "source": "クーちゃん", "target": "(ククちゃん)" },
@@ -50,6 +50,7 @@
   { "lang": "ja-JP", "note": "【實況術語修正】", "source": "スパちゃん", "target": "(スパチャ)" },
   { "lang": "ja-JP", "note": "【實況術語修正】", "source": "スバちゃん", "target": "(スパチャ)" },
   { "lang": "ja-JP", "note": "【實況術語修正】", "source": "スーパーちゃん", "target": "(スパチャ)" },
+  { "lang": "ja-JP", "note": "【實況術語修正】", "source": "スパショ", "target": "(スパチャ)" },
   { "lang": "ja-JP", "note": "【實況術語修正】", "source": "處刑さん", "target": "(初見さん)" },
   { "lang": "ja-JP", "note": "【實況術語修正】", "source": "證券さん", "target": "(初見さん)" },
   { "lang": "ja-JP", "note": "【實況術語修正】", "source": "所見さん", "target": "(初見さん)" },
@@ -57,7 +58,13 @@
   { "lang": "ja-JP", "note": "【實況術語修正】", "source": "面岐阜", "target": "(メンバーギフト)" },
   { "lang": "ja-JP", "note": "【實況術語修正】", "source": "めん岐阜", "target": "(メンバーギフト)" },
   { "lang": "ja-JP", "note": "【實況術語修正】", "source": "麵岐阜", "target": "(メンバーギフト)" },
-
+  { "lang": "ja-JP", "note": "【實況術語修正】", "source": "回路", "target": "(カイロ)" },
+  { "lang": "ja-JP", "note": "【實況術語修正】", "source": "で九", "target": "(Thank You)" },
+  { "lang": "ja-JP", "note": "【實況術語修正】", "source": "テン九", "target": "(Thank You)" },
+  { "lang": "ja-JP", "note": "【實況術語修正】", "source": "三九", "target": "(Thank You)" },
+  { "lang": "ja-JP", "note": "【實況術語修正】", "source": "電球", "target": "(Thank You)" },
+  { "lang": "ja-JP", "note": "【實況術語修正】", "source": "天球", "target": "(Thank You)" },
+    
   { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "\\*\\*\\*ょっと", "target": "(ちょっと)" },
   { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "政府", "target": "(セーフ)" },
   { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "歷史", "target": "(Lexy)" },

@@ -1,4 +1,14 @@
 # 更新紀錄 (Changelog)
+## [v2.8.1]
+### 新增
+ - 加入translategemma的選項(測試用)
+ 
+### 修改
+ - web speech api加入自訂斷句處理的邏輯
+ - 強制逐字稿最多呈現兩行、超過就往上捲動(預計之後會改成用在其他模式)
+ - 調整deepgram和ray mode的用詞語句
+ 
+
 ## [v2.7.4]
 ### 修改
  - 調整deepgram的參數

@@ -32,7 +32,7 @@ let retryCount = 0;
 const MAX_RETRIES = 10;
 
 let speechFlushTimer = null;
-const FLUSH_TIMEOUT_MS = 1500; // 沒有說話多久時間強制翻譯和清空逐字稿
+const FLUSH_TIMEOUT_MS = 1100; // 沒有說話多久時間強制翻譯和清空逐字稿
 
 // #endregion
 
@@ -282,6 +282,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
         autoGainControl:  false,
         echoCancellation: false,
         noiseSuppression: false,
+        samplerate: 16000,
         //channelCount: 1 // 單聲道，大部分狀況無效
       }, 
       video: false 
@@ -301,7 +302,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
       channelCount: settings.channelCount,         // 聲道數
       voiceIsolation: settings.voiceIsolation,     // 語音分離
       latency: settings.latency,                   // 延遲
-      deviceId: settings.deviceId                  // 裝置 ID
+      deviceId: settings.deviceId,                 // 裝置 ID
     });
 
     audioContext = new AudioContext();
@@ -353,7 +354,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
             compressor.release.value = 0.25;  // 釋放時間：中 (250ms)
 
       const preGainNode = audioContext.createGain();
-      preGainNode.gain.value = 2.5; // 將音量放大X倍 (可視情況調整 1.5 ~ 3.0)
+      preGainNode.gain.value = 3; // 將音量放大X倍 (可視情況調整 1.5 ~ 3.0)
 
       audioWorkletNode = new AudioWorkletNode(audioContext, 'pcm-processor');
 

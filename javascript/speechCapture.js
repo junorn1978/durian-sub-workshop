@@ -132,7 +132,7 @@ async function configureRecognition(recognition, sourceLanguage) {
   /* 
    * 這一段要注意，web speech api on device 只有Chrome支援、使用時
    * 如果recognition.processLocally設置成false，自訂語句就不能使用(強制使用會跳語言不支援)
-   * 在設定成recognition.processLocally = true時，recognition.continuous會使用true
+   * 目前是設定成recognition.processLocally = true和使用chrome時，recognition.continuous會使用true
    * 避免onend事件重新啟動這一段時間還有在講話的話就沒辦法辨識的狀態，但這一部份有利有弊，建議
    * 依照實際狀況自行調整recognition.continuous參數。
    */
@@ -153,7 +153,8 @@ async function configureRecognition(recognition, sourceLanguage) {
   Logger.debug('[DEBUG] [SpeechRecognition] 辨識參數已就緒:', {
     lang: recognition.lang,
     processLocally: recognition.processLocally,
-    phrasesCount: recognition.phrases.length
+    phrasesCount: recognition.phrases.length,
+    continuous: recognition.continuous
   });
 }
 
@@ -273,7 +274,7 @@ function filterRayModeText(text, sourceLang) {
 
 /** 偵測瀏覽器是否支援本地辨識模式 */
 async function decideProcessLocally(lang) {
-  if (!browserInfo.isChrome) return true;
+  if (browserInfo.browser === 'Edge') return true; //Edge因為運作方式的關係直接true回傳比較不會有問題
   if (!('SpeechRecognition' in window) || !SpeechRecognition.available) return false;
   try {
     const status = await SpeechRecognition.available({ langs: [lang], processLocally: true });
@@ -317,13 +318,14 @@ function wrapWithNoteByAlignment(baseText, symbolType) {
   // deepgram api            → 🐹 
   // web speech api → Chrome → 🎵
   // web speech api → Edge   → 🎼️
-  const symbolText = symbolType === 'deepgram' ? '🐹'
-                        : browserInfo.isChrome ? '​​🎵'
-                                               : '🎼️';
+  const symbolTextA = symbolType === 'deepgram' ? '🎼️'
+                         : browserInfo.isChrome ? '​​🎵'
+                                                : '🐹';
+  const symbolTextB = '🐹';
 
-  return alignment === 'center' ? `${symbolText}${baseText}${symbolText}`
-       : alignment === 'right'  ? `${symbolText}${baseText}`
-                                : `${baseText}${symbolText}`;
+  return alignment === 'center' ? `${symbolTextB}${baseText}${symbolTextA}`
+       : alignment === 'right'  ? `${symbolTextA}${baseText}`
+                                : `${baseText}${symbolTextA}`;
 }
 
 /** 重置所有字幕顯示欄位 */
@@ -332,7 +334,6 @@ function clearAllTextElements() {
   for (const el of els) {
     try { if (el.getAnimations) el.getAnimations().forEach(a => a.cancel()); } catch (e) { }
     el.textContent = '';
-    el.dataset.stroke = '';
   }
 }
 
@@ -349,8 +350,42 @@ function setupSpeechRecognition() {
   if (!SpeechRecognition) return null;
 
   const newRecognition = new SpeechRecognition();
+
+  const SILENCE_THRESHOLD = browserInfo.isChrome ? 1500 : 2500; //語句停頓時間計時，超過時間點就結算到下一句
+  let silenceTimer = null;
+
   let finalTranscript = '';
   let interimTranscript = '';
+
+  // 斷句計時器
+  const resetSilenceTimer = () => {
+    // edge重新啟動的速度太慢了，會造成語音辨識很容易一直處在斷句→辨識重啟→遺漏語句→辨識錯誤再重啟的循環，所以直接返回不使用。
+    //if (!browserInfo.isChrome) return;
+
+    if (silenceTimer) clearTimeout(silenceTimer);
+
+    // 設定新的計時器
+    silenceTimer = setTimeout(() => {
+      Logger.debug(`[DEBUG] [SpeechRecognition] 偵測到靜音超過 ${SILENCE_THRESHOLD}ms，強制重啟`);
+
+      if (interimTranscript.trim().length > 0) {
+        let forcedFinalText = interimTranscript.replace(/[、。？\s]+/g, ' ').trim();
+        
+        if (isRayModeActive()) {
+           forcedFinalText = processRayModeTranscript(forcedFinalText, newRecognition.lang);
+        }
+
+        if (forcedFinalText) {
+          Logger.info('[INFO] [SpeechRecognition] (強制斷句) 發送翻譯請求文字:', forcedFinalText);
+          sendTranslationRequest(forcedFinalText, previousText, newRecognition.lang);
+          previousText = forcedFinalText;
+          updateSourceText(forcedFinalText);
+        }
+      }
+      newRecognition.abort(); 
+
+    }, SILENCE_THRESHOLD);
+  };
 
   newRecognition.onresult = async (event) => {
     let hasFinalResult = false;
@@ -381,11 +416,16 @@ function setupSpeechRecognition() {
 
     if (!hasFinalResult && processedText.trim() !== '') { processedText = wrapWithNoteByAlignment(processedText, 'webspeech'); }
     if (processedText.trim() !== '') { updateSourceText(processedText); }
+    resetSilenceTimer();
   };
 
   newRecognition.onnomatch = () => Logger.warn('[WARN] [SpeechRecognition] 無匹配辨識結果');
-  newRecognition.onend = () => { Logger.debug('[DEBUG] [SpeechRecognition] onend事件觸發'); autoRestartRecognition(); }
+  newRecognition.onend = () => {
+    if (silenceTimer) clearTimeout(silenceTimer);
+    Logger.debug('[DEBUG] [SpeechRecognition] onend事件觸發'); autoRestartRecognition();
+  }
   newRecognition.onerror = (event) => {
+    if (silenceTimer) clearTimeout(silenceTimer);
     if (event.error !== 'aborted') Logger.error('[ERROR] [SpeechRecognition] 辨識錯誤:', event.error);
   };
 

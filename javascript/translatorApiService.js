@@ -162,6 +162,7 @@ export async function sendLocalTranslation(text, targetLangs, sourceLang) {
     processedText = preprocessJapaneseText(text);
   }
 
+  Logger.debug('[DEBUG] [Translator API] 翻譯前文字:', processedText);
   const translations = new Array(targetLangs.length).fill('');
 
   for (let i = 0; i < targetLangs.length; i++) {
