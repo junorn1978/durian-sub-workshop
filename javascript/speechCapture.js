@@ -139,8 +139,9 @@ async function configureRecognition(recognition, sourceLanguage) {
   if (browserInfo.isChrome) { recognition.processLocally = processLocallyStatus; }
 
   recognition.interimResults = true;
-  recognition.lang = getLang(sourceLanguage)?.commentLangCode;
+  recognition.lang = sourceLanguage;
   recognition.continuous = processLocallyStatus;
+  //recognition.continuous = true;
   recognition.maxAlternatives = 1;
 
   if (browserInfo.isChrome && recognition.processLocally && 'phrases' in recognition) {
@@ -168,22 +169,19 @@ async function handleDeepgramTranscript(text, isFinal, shouldTranslate) {
 
   const currentLang = await getSourceLanguage();
   let processedText = isRayModeActive() ? processRayModeTranscript(text, currentLang) : text;
-  
-  // 過濾空字串
-  if (processedText.trim().replace(/[、。？\s]+/g, ' ').trim() === '') return;
-  
+  const textToTranslate = processedText.trim();
+
   // 如果不是最終結果，加上裝飾符號
   if (!isFinal) { processedText = wrapWithNoteByAlignment(processedText, 'deepgram'); }
   
   // 更新字幕顯示
-  updateSourceText(processedText.replace(/[、。？\s]+/g, ' ').trim());
+  if (processedText.trim() !== '') { updateSourceText(processedText.replace(/[、。？\s]+/g, ' ').trim()); }
 
   // 處理翻譯請求
-  if (shouldTranslate) {
-    const textToTranslate = processedText.trim();
-    const isJustPunctuation = /^[\p{P}\p{S}\s]+$/u.test(textToTranslate);
+  if (shouldTranslate && processedText.trim() !== '') {
+    //const isJustPunctuation = /^[\p{P}\p{S}\s]+$/u.test(textToTranslate);
 
-    if (textToTranslate && !isJustPunctuation) {
+    if (textToTranslate) {
       Logger.info('[INFO] [Deepgram] 收到 Service 指令 (Speaker 0)，執行翻譯:', textToTranslate);
 
       sendTranslationRequest(textToTranslate, previousText, currentLang);
@@ -318,12 +316,12 @@ function wrapWithNoteByAlignment(baseText, symbolType) {
   // deepgram api            → 🐹 
   // web speech api → Chrome → 🎵
   // web speech api → Edge   → 🎼️
-  const symbolTextA = symbolType === 'deepgram' ? '🎼️'
-                         : browserInfo.isChrome ? '​​🎵'
-                                                : '🐹';
+  const symbolTextA = symbolType === 'deepgram' ? '​​🐹'
+                         : browserInfo.isChrome ? '​​🌻'
+                                                : '​🎵';
   const symbolTextB = '🐹';
 
-  return alignment === 'center' ? `${symbolTextB}${baseText}${symbolTextA}`
+  return alignment === 'center' ? `${symbolTextA}${baseText}${symbolTextB}`
        : alignment === 'right'  ? `${symbolTextA}${baseText}`
                                 : `${baseText}${symbolTextA}`;
 }
@@ -351,7 +349,9 @@ function setupSpeechRecognition() {
 
   const newRecognition = new SpeechRecognition();
 
-  const SILENCE_THRESHOLD = browserInfo.isChrome ? 1500 : 2500; //語句停頓時間計時，超過時間點就結算到下一句
+
+
+  const SILENCE_THRESHOLD = 3000;
   let silenceTimer = null;
 
   let finalTranscript = '';
@@ -359,8 +359,9 @@ function setupSpeechRecognition() {
 
   // 斷句計時器
   const resetSilenceTimer = () => {
-    // edge重新啟動的速度太慢了，會造成語音辨識很容易一直處在斷句→辨識重啟→遺漏語句→辨識錯誤再重啟的循環，所以直接返回不使用。
-    //if (!browserInfo.isChrome) return;
+    // edge重新啟動的速度太慢了，容易造成語音辨識很容易一直處在斷句→辨識重啟→遺漏語句→辨識錯誤再重啟的循環
+    // Edge不使用這個計時器，弊大於利
+    if (!browserInfo.isChrome) return;
 
     if (silenceTimer) clearTimeout(silenceTimer);
 
@@ -387,7 +388,14 @@ function setupSpeechRecognition() {
     }, SILENCE_THRESHOLD);
   };
 
+  newRecognition.onsoundstart = () => {
+    Logger.debug('[DEBUG] [SpeechRecognition] soundstart事件觸發');
+    //resetSilenceTimer();
+  };
+
   newRecognition.onresult = async (event) => {
+    // Logger.debug('[DEBUG] [SpeechRecognition] onresult事件觸發');
+    if (interimTranscript.trim().length > 0) { resetSilenceTimer(); }
     let hasFinalResult = false;
     interimTranscript = '';
     finalTranscript = '';
@@ -402,7 +410,7 @@ function setupSpeechRecognition() {
       }
     }
 
-    if (hasFinalResult) {
+    if (hasFinalResult && finalTranscript.trim().length > 0) {
       let sendTranslationRequestText = finalTranscript.replace(/[、。？\s]+/g, ' ').trim();
       if (isRayModeActive()) { sendTranslationRequestText = filterRayModeText(sendTranslationRequestText, newRecognition.lang); }
 
@@ -416,13 +424,16 @@ function setupSpeechRecognition() {
 
     if (!hasFinalResult && processedText.trim() !== '') { processedText = wrapWithNoteByAlignment(processedText, 'webspeech'); }
     if (processedText.trim() !== '') { updateSourceText(processedText); }
-    resetSilenceTimer();
   };
 
   newRecognition.onnomatch = () => Logger.warn('[WARN] [SpeechRecognition] 無匹配辨識結果');
   newRecognition.onend = () => {
     if (silenceTimer) clearTimeout(silenceTimer);
-    Logger.debug('[DEBUG] [SpeechRecognition] onend事件觸發'); autoRestartRecognition();
+    Logger.debug('[DEBUG] [SpeechRecognition] onend事件觸發');
+    
+    finalTranscript = '';
+    interimTranscript = '';
+    autoRestartRecognition();
   }
   newRecognition.onerror = (event) => {
     if (silenceTimer) clearTimeout(silenceTimer);
@@ -454,7 +465,7 @@ async function autoRestartRecognition(options = { delay: 0 }) {
 /** 在Ray Mode時發送翻譯會經過這邊先替換語句 */
 function processRayModeTranscript(text, sourceLang) {
   if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') return '';
-  let result = text.replace(/[、。？,.]/g, ' ');
+  let result = text;
   const rules = generateRayModeRules(sourceLang);
   rules.forEach(rule => { result = result.replace(rule.source, rule.target); });
   return result;

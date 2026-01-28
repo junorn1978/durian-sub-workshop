@@ -201,6 +201,8 @@ function processDisplayBuffers() {
  * @param {string} sourceLangId - 來源語言 ID (如 'ja-JP')
  */
 async function sendTranslationRequest(text, previousText = null, sourceLangId) {
+  if (text === null || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') return;
+
   return enqueue(async () => {
     const sequenceId = sequenceCounter++;
 

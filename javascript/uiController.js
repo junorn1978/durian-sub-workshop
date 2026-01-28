@@ -129,16 +129,16 @@ document.addEventListener('DOMContentLoaded', async function () {
       {
         id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state', default: 'false',
         onChange: (val) => setDeepgramStatus(val), onLoad: (val) => {
-          //setDeepgramStatus(val)
+          setDeepgramStatus(val)
 
-          /* 先保留，有可能還會使用，使用時上面的default要修改成true，setDeepgramStatus(val)要註解掉 */
+          /* 先保留，有可能還會使用，使用時上面的default要修改成true，setDeepgramStatus(val)要註解掉 
           setDeepgramStatus('false');
           const el = document.getElementById('deepgram-enabled');
            if (el) el.value = 'false';
 
            //寫回localstore
            localStorage.setItem('deepgram-enabled', 'false');
-          /* */
+          */
         }
       },
       {
@@ -482,7 +482,7 @@ document.addEventListener('DOMContentLoaded', async function () {
           // [新增] Gemma 模式
           // 不需要顯示任何額外輸入框，因為連接的是 localhost:8080
           // 可以顯示一個簡單的狀態文字提醒用戶開啟後端
-          updateStatusDisplay('Local Gemma Mode: Ready (Ensure server is running on port 8080)');
+          //updateStatusDisplay('Local Gemma Mode: Ready (Ensure server is running on port 8080)');
           break;
         case 'fast':
           if (!browserInfo.isChrome) { alert('高速翻訳はEdgeに対応しておりません。'); applyMode('link'); return; }

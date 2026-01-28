@@ -16,6 +16,7 @@ let keepAliveInterval = null;
 let watchdogInterval = null;
 let lastSpeechTime = 0;
 let sentenceBuffer = "";
+let currentInterimTranscript = "";
 let finalTranscriptBuffer = ""; // ide顯示沒有讀取但實際有使用的
 let finalResultCount = 0;
 let globalStream = null;
@@ -32,7 +33,7 @@ let retryCount = 0;
 const MAX_RETRIES = 10;
 
 let speechFlushTimer = null;
-const FLUSH_TIMEOUT_MS = 1100; // 沒有說話多久時間強制翻譯和清空逐字稿
+const FLUSH_TIMEOUT_MS = 1500; // 沒有說話多久時間強制翻譯和清空逐字稿
 
 // #endregion
 
@@ -47,8 +48,8 @@ const PCM_PROCESSOR_CODE = `
 class PCMProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    // 設定緩衝區大小：2048 samples
-    this.bufferSize = 2048; 
+    // 設定緩衝區大小：128 samples
+    this.bufferSize = 128; 
     
     // 預先配置 Float32 緩衝區 (重複使用，不產生 GC)
     this.buffer = new Float32Array(this.bufferSize);
@@ -164,12 +165,13 @@ function triggerForcedFlush(onTranscriptUpdate) {
     speechFlushTimer = null;
   }
 
-  if (sentenceBuffer.trim().length > 0) {
-    Logger.info("[INFO]", "[DeepgramService]", "⏳ 本地計時器觸發斷句翻譯", sentenceBuffer);
-    if (onTranscriptUpdate) {
-      // 強制標記為 complete = true
-      onTranscriptUpdate(sentenceBuffer, true, true);
-    }
+  const fullTextToFlush = (sentenceBuffer + currentInterimTranscript).trim();
+
+  if (fullTextToFlush.length > 0) {
+    Logger.info("[INFO]", "[DeepgramService]", "⏳ 計時器強制斷句 (含 Interim)", fullTextToFlush);
+    
+    if (onTranscriptUpdate) { onTranscriptUpdate(fullTextToFlush, true, true); }
+    // 重置所有緩衝區
     resetSentenceBuffer();
   }
 }
@@ -184,7 +186,6 @@ function resetFlushTimer(onTranscriptUpdate, currentTranscript = "") {
     speechFlushTimer = null;
   }
 
-  // 判斷：不管是「已存的 Buffer」還是「正在講的 Transcript」，只要有字，就要啟動斷句計時
   const hasPendingText = (sentenceBuffer + currentTranscript).trim().length > 0;
 
   if (hasPendingText) {
@@ -198,12 +199,18 @@ function resetFlushTimer(onTranscriptUpdate, currentTranscript = "") {
 // #region [核心服務控制]
 
 /** * [修改] 內部工具：重置緩衝區
- * 不需要外部參數了，因為 logic 都在內部
+ * 
  */
 function resetSentenceBuffer() {
   sentenceBuffer = "";
+  currentInterimTranscript = "";
   finalResultCount = 0;
-  if (speechFlushTimer) { clearTimeout(speechFlushTimer); speechFlushTimer = null; }
+
+  if (speechFlushTimer) { 
+    clearTimeout(speechFlushTimer);
+    speechFlushTimer = null;
+  }
+
 }
 
 /**
@@ -384,19 +391,28 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
       }, 10000);
     };
 
-    socket.onmessage = (message) => {
+socket.onmessage = (message) => {
+      //console.info('onmessage'); // 除錯用，可視情況保留或移除
       try {
         const received = JSON.parse(message.data);
-
+        console.info(received); // 除錯用，可視情況保留或移除
+        // -----------------------------------------------------------------------
+        // [保留區塊] UtteranceEnd 事件
+        // Deepgram 的 VAD 判斷語句結束，目前先註解保留供未來參考
+        
         if (received.type === "UtteranceEnd") {
           const currentBuffer = sentenceBuffer.trim();
-
           if (currentBuffer.length > 0) {
             Logger.info("[INFO]", "[DeepgramService]", "⚡ UtteranceEnd 觸發斷句 (AI)");
-            triggerForcedFlush(onTranscriptUpdate);
+            if (onTranscriptUpdate) {
+              onTranscriptUpdate(sentenceBuffer, true, true);
+            }
+            resetSentenceBuffer();
           }
-          return; // 處理完畢，直接結束這回合
+          return; 
         }
+        
+        // -----------------------------------------------------------------------
 
         if (!received.channel) return;
 
@@ -407,34 +423,38 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
           transcript = removeJapaneseSpaces(transcript);
 
           if (received.is_final) {
-            // deepgram對於日文和中文的辨識可能會有空格產生的狀態，這一段將空白去除
+            // [Final 階段]
+            // Deepgram 已確認這段文字，將其永久併入緩衝區
             const isCJK = ["ja", "zh-TW", "zh-HK", "ko", "th"].includes(deepgramCode);
             sentenceBuffer += (isCJK || !sentenceBuffer) ? transcript : ` ${transcript}`;
             finalResultCount++;
+            currentInterimTranscript = "";
 
-            // 產生最終結果的時候判斷要不要發送翻譯
-            const currentBuffer = sentenceBuffer.trim();
-            const hasPunctuation = /[。？！.?!]$/.test(currentBuffer);
-            const isLengthExceeded = currentBuffer.length >= langObj.chunkSize * 2;
-
-            if (finalResultCount >= 1 && (hasPunctuation || isLengthExceeded)) {
-              // 滿足條件：送出翻譯
-              if (onTranscriptUpdate) {
-                onTranscriptUpdate(sentenceBuffer, true, true); 
-              }
-              resetSentenceBuffer();
-            } else {
-              // 未滿足條件：僅更新顯示
-              if (onTranscriptUpdate) {
-                  onTranscriptUpdate(sentenceBuffer, false, false); 
-                  resetFlushTimer(onTranscriptUpdate, "");
-              }
+            // -------------------------------------------------------
+            // [修改點] 純計時器策略
+            // 不再檢查標點符號或長度，也不在這裡發送翻譯。
+            // 這裡只負責：
+            // 1. 更新 UI 顯示 (讓使用者看到確定的字)
+            // 2. 重置計時器 (只要還有字進來，就重置倒數)
+            // -------------------------------------------------------
+            
+            if (onTranscriptUpdate) {
+                // 參數 false, false = 尚未結束，不要翻譯，僅更新字幕
+                onTranscriptUpdate(sentenceBuffer, false, false);
             }
+
+            // 關鍵：重置計時器
+            // 如果使用者閉嘴了，FLUSH_TIMEOUT_MS 後會自動觸發 triggerForcedFlush
+            resetFlushTimer(onTranscriptUpdate, "");
+
           } else {
-            // Interim Results
+            currentInterimTranscript = transcript;
+            // [Interim 階段]
+            // 預覽結果，文字可能會變動
             if (onTranscriptUpdate) { 
               onTranscriptUpdate(sentenceBuffer + transcript, false, false); 
             }
+            // 只要有聲音活動，就重置計時器
             resetFlushTimer(onTranscriptUpdate, transcript);
           }
         }

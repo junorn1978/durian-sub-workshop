@@ -67,7 +67,7 @@ export async function translateWithGemma(text, targetLangIds, sourceLangId, prev
     // 檢查是否全失敗（代表伺服器可能沒開）
     const allFailed = results.every(r => r === null);
     if (allFailed && targetLangIds.some(id => id !== 'none')) {
-      console.warn('[Gemma] All requests failed. Is localhost:8080 running?');
+      console.warn('[WRAM] [Gemma] 全部請求都失敗，有開啟gemma後端嗎?');
     }
 
     return {
