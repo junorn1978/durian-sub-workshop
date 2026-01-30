@@ -127,18 +127,18 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
       },
       {
-        id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state', default: 'false',
+        id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state', default: 'true',
         onChange: (val) => setDeepgramStatus(val), onLoad: (val) => {
-          setDeepgramStatus(val)
+          // setDeepgramStatus(val)
 
-          /* 先保留，有可能還會使用，使用時上面的default要修改成true，setDeepgramStatus(val)要註解掉 
-          setDeepgramStatus('false');
+          /* 先保留，有可能還會使用，使用時上面的default要修改成true，setDeepgramStatus(val)要註解掉 */
+          setDeepgramStatus('true');
           const el = document.getElementById('deepgram-enabled');
-           if (el) el.value = 'false';
+           if (el) el.value = 'true';
 
            //寫回localstore
-           localStorage.setItem('deepgram-enabled', 'false');
-          */
+           localStorage.setItem('deepgram-enabled', 'true');
+          /* */
         }
       },
       {

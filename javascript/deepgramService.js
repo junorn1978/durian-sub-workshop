@@ -16,8 +16,8 @@ let keepAliveInterval = null;
 let watchdogInterval = null;
 let lastSpeechTime = 0;
 let sentenceBuffer = "";
+let bufferText = "";
 let currentInterimTranscript = "";
-let finalTranscriptBuffer = ""; // ide顯示沒有讀取但實際有使用的
 let finalResultCount = 0;
 let globalStream = null;
 
@@ -203,6 +203,7 @@ function resetFlushTimer(onTranscriptUpdate, currentTranscript = "") {
  */
 function resetSentenceBuffer() {
   sentenceBuffer = "";
+  bufferText = "";
   currentInterimTranscript = "";
   finalResultCount = 0;
 
@@ -268,7 +269,6 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
     return false;
   }
 
-  finalTranscriptBuffer = "";
   lastSpeechTime = Date.now();
 
   const apiKey = await fetchDeepgramKey();
@@ -391,21 +391,21 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
       }, 10000);
     };
 
-socket.onmessage = (message) => {
-      //console.info('onmessage'); // 除錯用，可視情況保留或移除
+    socket.onmessage = (message) => {
       try {
         const received = JSON.parse(message.data);
-        console.info(received); // 除錯用，可視情況保留或移除
         // -----------------------------------------------------------------------
         // [保留區塊] UtteranceEnd 事件
-        // Deepgram 的 VAD 判斷語句結束，目前先註解保留供未來參考
-        
+
+        if (bufferText.trim().length < sentenceBuffer.trim().length) {
+          bufferText = sentenceBuffer.trim();
+        }
+
         if (received.type === "UtteranceEnd") {
-          const currentBuffer = sentenceBuffer.trim();
-          if (currentBuffer.length > 0) {
+          if (bufferText.length > 0) {
             Logger.info("[INFO]", "[DeepgramService]", "⚡ UtteranceEnd 觸發斷句 (AI)");
-            if (onTranscriptUpdate) {
-              onTranscriptUpdate(sentenceBuffer, true, true);
+            if (onTranscriptUpdate && bufferText !== '？' && bufferText !== '。' && bufferText !== '、') {
+              onTranscriptUpdate(bufferText, true, true);
             }
             resetSentenceBuffer();
           }
@@ -422,40 +422,18 @@ socket.onmessage = (message) => {
           lastSpeechTime = Date.now();
           transcript = removeJapaneseSpaces(transcript);
 
+          currentInterimTranscript = transcript;
+          // [Interim 階段]
+          // 預覽結果，文字可能會變動
+          if (onTranscriptUpdate) { onTranscriptUpdate(sentenceBuffer + transcript, false, false); }
+          // 只要有聲音活動，就重置計時器
+          resetFlushTimer(onTranscriptUpdate, transcript);
+
           if (received.is_final) {
-            // [Final 階段]
-            // Deepgram 已確認這段文字，將其永久併入緩衝區
             const isCJK = ["ja", "zh-TW", "zh-HK", "ko", "th"].includes(deepgramCode);
             sentenceBuffer += (isCJK || !sentenceBuffer) ? transcript : ` ${transcript}`;
             finalResultCount++;
             currentInterimTranscript = "";
-
-            // -------------------------------------------------------
-            // [修改點] 純計時器策略
-            // 不再檢查標點符號或長度，也不在這裡發送翻譯。
-            // 這裡只負責：
-            // 1. 更新 UI 顯示 (讓使用者看到確定的字)
-            // 2. 重置計時器 (只要還有字進來，就重置倒數)
-            // -------------------------------------------------------
-            
-            if (onTranscriptUpdate) {
-                // 參數 false, false = 尚未結束，不要翻譯，僅更新字幕
-                onTranscriptUpdate(sentenceBuffer, false, false);
-            }
-
-            // 關鍵：重置計時器
-            // 如果使用者閉嘴了，FLUSH_TIMEOUT_MS 後會自動觸發 triggerForcedFlush
-            resetFlushTimer(onTranscriptUpdate, "");
-
-          } else {
-            currentInterimTranscript = transcript;
-            // [Interim 階段]
-            // 預覽結果，文字可能會變動
-            if (onTranscriptUpdate) { 
-              onTranscriptUpdate(sentenceBuffer + transcript, false, false); 
-            }
-            // 只要有聲音活動，就重置計時器
-            resetFlushTimer(onTranscriptUpdate, transcript);
           }
         }
       } catch (e) {
@@ -471,7 +449,7 @@ socket.onmessage = (message) => {
           Logger.warn("[WARN] Deepgram 意外斷線，準備重連...");
 
           if (retryCount < MAX_RETRIES) {
-              const delay = Math.min(500 * (2 ** retryCount), 5000); // 避免高速重新連線
+              const delay = 2000; // 避免高速重新連線
               retryCount++;
               updateStatusDisplay(`接続が切断されました。${delay/500}秒後に再接続します...`);
               cleanupAudioResources(); // 需將 stopDeepgram 中的資源清理邏輯拆分出來
@@ -499,6 +477,12 @@ socket.onmessage = (message) => {
 export function stopDeepgram() {
   isRunning = false;
   isIntentionalStop = true;
+  retryCount = 0;
+  sentenceBuffer = '';
+  bufferText = '';
+  currentInterimTranscript = '';
+  finalResultCount = 0;
+  lastSpeechTime = 0;
 
   if (keepAliveInterval) { clearInterval(keepAliveInterval); keepAliveInterval = null; }
   if (watchdogInterval)  { clearInterval(watchdogInterval);  watchdogInterval  = null; }
@@ -528,7 +512,6 @@ export function stopDeepgram() {
     socket = null;
   }
 
-  finalTranscriptBuffer = "";
   Logger.info("[INFO]", "[DeepgramService]", "Deepgram 服務已停止");
 
   setRecognitionControlsState(false);

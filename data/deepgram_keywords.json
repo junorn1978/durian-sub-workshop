@@ -19,6 +19,17 @@
       { "boost": 5,  "word": "クロミ" },
       { "boost": 5,  "word": "ミンジュン" },
       { "boost": 5,  "word": "ジュノーン" },
+      { "boost": 2,  "word": "三溫糖" },
+      { "boost": 2,  "word": "リンピンエン" },
+      { "boost": 2,  "word": "ナイスギフト" },
+      { "boost": 2,  "word": "ナイメン" },
+      { "boost": 2,  "word": "金柑" },
+      { "boost": 2,  "word": "しゅうまい" },
+      { "boost": 2,  "word": "スタンプ" },
+      { "boost": 2,  "word": "テンキュー" },
+      { "boost": 2,  "word": "ないスパ" },
+      { "boost": 2,  "word": "むし" },
+      { "boost": 2,  "word": "ふみさん" },
       { "boost": 7,  "word": "おつかれい" }
   ], 
   "zh-TW":

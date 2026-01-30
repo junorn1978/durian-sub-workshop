@@ -198,21 +198,34 @@ async function handleDeepgramTranscript(text, isFinal, shouldTranslate) {
 
 /** 異步載入 Ray Mode 字詞轉換規則 */
 async function loadKeywordRules() {
-  try {
-    const response = await fetch('data/ray_mode_keywords.json');
-    if (!response.ok) throw new Error('無法載入關鍵字規則');
+  const response = await fetch('data/ray_mode_keywords.json');
+  if (!response.ok) throw new Error('無法載入關鍵字規則');
 
-    keywordRules = await response.json();
-    const uniqueLangs = [...new Set(keywordRules.map(rule => rule.lang))];
-    uniqueLangs.forEach(lang => {
-      cachedRules.set(lang, keywordRules
-        .filter(rule => rule.lang === lang)
-        .map(rule => ({ source: new RegExp(rule.source, 'ig'), target: rule.target })));
-    });
-    Logger.info('[INFO] [SpeechRecognition] 關鍵字規則載入完成');
-  } catch (error) {
-    Logger.error('[ERROR] [SpeechRecognition] 載入規則失敗:', error);
-  }
+  keywordRules = await response.json();
+  const uniqueLangs = [...new Set(keywordRules.map(r => r.lang))];
+
+  uniqueLangs.forEach(lang => {
+    const rulesForLang = keywordRules
+      .filter(r => r.lang === lang)
+      .map(r => ({
+        sourcePattern: r.source,   // 仍然是「regex pattern 字串」
+        target: r.target
+      }))
+      // 最長優先：避免短詞先吃掉長詞
+      .sort((a, b) => b.sourcePattern.length - a.sourcePattern.length);
+
+    // 預編譯：精準判斷是哪一條規則命中（避免每次都new RegExp）
+    const compiledRules = rulesForLang.map(r => ({
+      target: r.target,
+      exact: new RegExp(`^(?:${r.sourcePattern})$`, 'i') // 不要 g，避免 lastIndex 問題
+    }));
+
+    // 預編譯：一次掃描用的 master regex
+    const pattern = rulesForLang.map(r => `(?:${r.sourcePattern})`).join('|');
+    const master = pattern ? new RegExp(pattern, 'ig') : null;
+
+    cachedRules.set(lang, { rules: compiledRules, master });
+  });
 }
 
 /** 辨識語句比重調整的相關配置，這邊要注意Chrome 141版以後才支援，現在應該都可以用
@@ -264,8 +277,23 @@ function filterRayModeText(text, sourceLang) {
   }
 
   let result = text.replace(/[、。？,.]/g, ' ');
-  const rules = generateRayModeRules(sourceLang);
-  rules.forEach(rule => { result = result.replace(rule.source, rule.target); });
+  
+  const pack = generateRayModeRules(sourceLang);
+  
+  if (!pack || !pack.master) {
+    return result;
+  }
+
+  const { rules, master } = pack;
+
+  try {
+    result = result.replace(master, (match) => {
+      const hit = rules.find(r => r.exact.test(match));
+      return hit ? hit.target : match;
+    });
+  } catch (e) {
+    Logger.error('[ERROR] filterRayModeText 替換失敗:', e);
+  }
 
   return result;
 }
@@ -464,11 +492,21 @@ async function autoRestartRecognition(options = { delay: 0 }) {
 
 /** 在Ray Mode時發送翻譯會經過這邊先替換語句 */
 function processRayModeTranscript(text, sourceLang) {
-  if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') return '';
-  let result = text;
-  const rules = generateRayModeRules(sourceLang);
-  rules.forEach(rule => { result = result.replace(rule.source, rule.target); });
-  return result;
+  if (!text || !text.trim() || ['っ', 'っ。', '。', '？'].includes(text.trim())) return '';
+  const pack = cachedRules.get(sourceLang);
+  if (!pack || !pack.master) return text;
+
+  const { rules, master } = pack;
+
+  try {
+    return text.replace(master, (match) => {
+      const hit = rules.find(r => r.exact.test(match));
+      return hit ? hit.target : match;
+    });
+  } catch (e) {
+    let result = text;
+    return result;
+  }
 }
 
 // #endregion
