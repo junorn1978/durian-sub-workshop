@@ -141,6 +141,10 @@ async function configureRecognition(recognition, sourceLanguage) {
   recognition.interimResults = true;
   recognition.lang = sourceLanguage;
   recognition.continuous = processLocallyStatus;
+  /* Chrome強制使用true時，能夠正常使用的時間會比false要短，不太建議設定true，但on device就建議使用true(Chrome 144)
+   * 如果不是on device又是用true的話，建議將計時器const SILENCE_THRESHOLD = 3000; 修改為1000ms或者是800ms，不然使用可能沒辦法超過10分鐘
+   * Edge則建議使用true，因為Edge沒有這樣的問題
+   */
   //recognition.continuous = true;
   recognition.maxAlternatives = 1;
 

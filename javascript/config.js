@@ -29,7 +29,7 @@ export const browserInfo = (() => {
     browser: isEdge ? 'Edge' : isChrome ? 'Chrome' : 'Unknown', 
     isChrome, 
     /* Chrome & Edge(實驗通道版) Translator API 介面檢測 */
-    supportsTranslatorAPI: isChrome && 'Translator' in self 
+    supportsTranslatorAPI: 'Translator' in self
   };
 })();
 // #endregion

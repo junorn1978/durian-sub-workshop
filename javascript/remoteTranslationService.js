@@ -41,7 +41,7 @@ async function fetchWithTimeout(input, init = {}, ms = 10000) {
  * @param {string|null} previousText - 上文脈絡 (Context)
  * @returns {Promise<Object|null>} 翻譯結果物件
  */
-async function sendTranslation(text, targetLangs, serviceUrl, sequenceId, previousText = null) {
+async function sendTranslation(text, targetLangs, sourceLang, serviceUrl, sequenceId, previousText = null) {
   if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') {
     Logger.debug('[DEBUG]', '[remoteTranslationService.js]', '無效文字，跳過翻譯:', text);
     return null;
@@ -82,7 +82,8 @@ async function sendTranslation(text, targetLangs, serviceUrl, sequenceId, previo
 
   const payload = { 
     text, 
-    targetLangs, 
+    targetLangs,
+    sourceLang,
     sequenceId, 
     previousText: previousText || null 
   };
@@ -167,7 +168,7 @@ async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, 
   if (serviceType === 'gas') {
     return await sendTranslationToGas(text, targetLangs, sourceLang, serviceUrl, sequenceId);
   } else if (serviceType === 'link') {
-    return await sendTranslation(text, targetLangs, serviceUrl, sequenceId, previousText);
+    return await sendTranslation(text, targetLangs, sourceLang, serviceUrl, sequenceId, previousText);
   } else {
     Logger.error('[ERROR]', '[remoteTranslationService.js]', '無效的服務類型:', serviceType);
     throw new Error('無效的服務類型');
