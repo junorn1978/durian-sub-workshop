@@ -17,7 +17,6 @@ const translatorCache = new Map();
 let sequenceCounter = 0;
 let bufferCheckInterval = null;
 let _cachedTargetSpans  = null;
-let _cachedLangInputs   = null;
 
 const displayBuffers = { target1: [], target2: [], target3: [] };
 const currentDisplays = { target1: null, target2: null, target3: null };
@@ -86,7 +85,6 @@ function updateStatusDisplay(text, details = null) {
   }
   if (statusDisplay && statusDisplay.textContent !== displayText) {
     statusDisplay.textContent = displayText;
-    //statusDisplay.dataset.stroke = displayText;
   }
 }
 // #endregion
@@ -246,7 +244,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       const rules = sourceLangObj?.displayTimeRules || [];
 
       // 雲端/gemma/deepgram狀況下翻譯字幕依照規則殘留，其他不殘留。
-      const minDisplayTime = ((currentMode !== 'link' && currentMode !== 'gemma') || isDeepgramActive())
+      const minDisplayTime = ((currentMode !== 'link' /* && currentMode !== 'gemma' */) || isDeepgramActive())
                            ? 0
                            : (rules.find(rule => text.length <= rule.maxLength)?.time ?? 3);
       let data;

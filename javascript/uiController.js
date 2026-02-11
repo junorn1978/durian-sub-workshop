@@ -538,28 +538,76 @@ document.addEventListener('DOMContentLoaded', async function () {
    * 目前功能：Alt + B 切換字幕背景風格
    */
   const setupKeyboardShortcuts = () => {
+    // 定義 Mode B 的詳細配置 (包含文字與 UI 鎖定狀態)
+    const MODE_B_CONFIG = {
+      active: {
+        // 介面文字提示
+        messages: {
+          'source-text': '現在はモードBを使用しており、モードBでは言語3は使用できません。',
+          'target-text-1': 'モードBでは字幕は3行固定で表示され、行数を超えた場合はスクロール表示となります。字幕サイズは固定されています。',
+          'target-text-2': 'モードBは、素材と組み合わせた状態での使用を想定しています。',
+          'target-text-3': ''
+        },
+        // 需要鎖定(Disable)的輸入框 ID 列表
+        disabledInputs: [
+          'source-font-size',
+          'target1-font-size',
+          'target2-font-size',
+          'target3-font-size'
+        ]
+      },
+      inactive: {
+        messages: {
+          'source-text': '',
+          'target-text-1': '',
+          'target-text-2': '',
+          'target-text-3': ''
+        },
+        disabledInputs: [] // 恢復時沒有需要鎖定的東西
+      }
+    };
+
     document.addEventListener('keydown', (e) => {
-      // 偵測組合鍵: Alt + B (Background)
+      // 偵測組合鍵: Alt + B
       if (e.altKey && (e.code === 'KeyB' || e.key === 'b')) {
-        e.preventDefault(); // 防止瀏覽器預設行為
+        e.preventDefault();
 
         const subtitleContainer = document.getElementById('Subtitle-style');
         if (subtitleContainer) {
+          // 1. 切換狀態
           const isActive = subtitleContainer.classList.toggle('active-style');
+          const config = isActive ? MODE_B_CONFIG.active : MODE_B_CONFIG.inactive;
 
-          // 選用：顯示簡單的 Toast 或 Log 提示狀態
+          // 2. 更新文字 (Data-Driven)
+          Object.entries(config.messages).forEach(([id, text]) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = text;
+          });
+
+          // 3. 控制滑桿鎖定狀態 (這是新增的部分)
+          // 先取得所有可能被鎖定的 ID (從 active 列表拿)，然後根據目前的 isActive 決定是 true 還是 false
+          MODE_B_CONFIG.active.disabledInputs.forEach(id => {
+            const input = document.getElementById(id);
+            if (input) {
+              input.disabled = isActive; // Mode B 啟用時 -> disabled = true
+            }
+          });
+
           Logger.info('UI', `字幕背景風格已${isActive ? '啟用' : '停用'}`);
-
-          // (進階) 如果希望重新整理網頁後保留狀態，可解開下方註解：
           localStorage.setItem('subtitle-style-active', isActive);
         }
       }
     });
 
-    // (進階) 載入時恢復上次狀態 (若上方有儲存)
+    // (選用) 載入時恢復狀態的邏輯也需要同步更新
     const savedState = localStorage.getItem('subtitle-style-active') === 'true';
     if (savedState) {
       document.getElementById('Subtitle-style')?.classList.add('active-style');
+      // 這裡建議呼叫一次上面的邏輯來鎖定滑桿，或者手動鎖定：
+      MODE_B_CONFIG.active.disabledInputs.forEach(id => {
+        const input = document.getElementById(id);
+        if(input) input.disabled = true;
+      });
     }
   };
 

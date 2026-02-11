@@ -3,6 +3,7 @@
    ========================================= */
 :root {
   --text-font-size: 22px;
+  --text-font-size-mode-b: 18px;
   --font-size-half: 16.5px; /* 22px * 0.75 */
   --text-color: #FFFFFF;
   --stroke-color: #000000;
@@ -631,11 +632,13 @@ body {
 #Subtitle-style.active-style #source-text {
   height: 2.7em;
   padding: 0px 5px;
+  font-size: var(--text-font-size-mode-b) !important;
   overflow: hidden !important;
 }
 #Subtitle-style.active-style #target-text-1,
 #Subtitle-style.active-style #target-text-2,
 #Subtitle-style.active-style #target-text-3 {
+  font-size: var(--text-font-size-mode-b) !important;
   height: 3.9em;
   padding: 0px 5px;
   /* 動畫 */
@@ -644,4 +647,10 @@ body {
 /* 素材模式下語言三隱藏，因為不夠放 */
 #Subtitle-style.active-style #target-text-3 {
   display: none;
+}
+
+input[type="range"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(100%);
 }

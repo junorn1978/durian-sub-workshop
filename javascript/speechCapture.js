@@ -169,22 +169,15 @@ async function configureRecognition(recognition, sourceLanguage) {
  * @param {boolean} shouldTranslate - 是否觸發翻譯請求
  * @param {number} [speakerId] - [新增] 說話者 ID (0, 1, 2...)
  */
-async function handleDeepgramTranscript(text, isFinal, shouldTranslate) {
+async function handleDeepgramTranscript(text, isFinal, shouldTranslate, currentLang) {
 
-  const currentLang = await getSourceLanguage();
   let processedText = isRayModeActive() ? processRayModeTranscript(text, currentLang) : text;
   const textToTranslate = processedText.trim();
 
-  // 如果不是最終結果，加上裝飾符號
   if (!isFinal) { processedText = wrapWithNoteByAlignment(processedText, 'deepgram'); }
-  
-  // 更新字幕顯示
   if (processedText.trim() !== '') { updateSourceText(processedText.replace(/[、。？\s]+/g, ' ').trim()); }
 
-  // 處理翻譯請求
   if (shouldTranslate && processedText.trim() !== '') {
-    //const isJustPunctuation = /^[\p{P}\p{S}\s]+$/u.test(textToTranslate);
-
     if (textToTranslate) {
       Logger.info('[INFO] [Deepgram] 收到 Service 指令 (Speaker 0)，執行翻譯:', textToTranslate);
 
@@ -331,7 +324,7 @@ const updateSourceText = (() => {
       el = document.getElementById('source-text');
       if (!el) return;
     }
-    if (!text || text.trim().length === 0) return;
+    if (!text || text.trim().length === 0 || text === '。') return;
     if (text === lastRenderedText) { return; }
     el.textContent = text;
     lastRenderedText = text;
@@ -383,7 +376,7 @@ function setupSpeechRecognition() {
 
 
 
-  const SILENCE_THRESHOLD = 3000;
+  let SILENCE_THRESHOLD = 1000;
   let silenceTimer = null;
 
   let finalTranscript = '';
@@ -422,11 +415,14 @@ function setupSpeechRecognition() {
 
   newRecognition.onsoundstart = () => {
     Logger.debug('[DEBUG] [SpeechRecognition] soundstart事件觸發');
-    //resetSilenceTimer();
+    if (recognition.continuous) { 
+      SILENCE_THRESHOLD = 2000;
+      resetSilenceTimer();
+    }
   };
 
   newRecognition.onresult = async (event) => {
-    // Logger.debug('[DEBUG] [SpeechRecognition] onresult事件觸發');
+    SILENCE_THRESHOLD = recognition.continuous ? 10000: 3000;
     if (interimTranscript.trim().length > 0) { resetSilenceTimer(); }
     let hasFinalResult = false;
     interimTranscript = '';
@@ -539,7 +535,9 @@ function setupSpeechRecognitionHandlers() {
     /* Deepgram 優先權邏輯：若啟用 Deepgram 則嘗試啟動，失敗後 Fallback 至 Web Speech API */
     if (isDeepgramActive()) {
       try {
-        const deepgramStarted = await startDeepgram(sourceLang, handleDeepgramTranscript);
+        const deepgramStarted = await startDeepgram(sourceLang, (text, isFinal, shouldTranslate) => {
+          handleDeepgramTranscript(text, isFinal, shouldTranslate, sourceLang);
+        });
         if (deepgramStarted) {
           setRecognitionControlsState(true);
           isRecognitionActive = true;

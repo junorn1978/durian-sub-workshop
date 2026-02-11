@@ -1,4 +1,15 @@
 # 更新紀錄 (Changelog)
+## [v2.8.17]
+ - 修改deepgram的相關程式邏輯
+ - 調整ModeB的一些參數
+
+## [v2.8.15]
+### 修改
+ - 增加ray mode的關鍵字過濾表
+ - 取消deepgram強制開啟的選項
+ - 嘗試修正web speech api on device(chrome only)在剛安裝好之後一開始錄音時會卡住的問題，但因為同樣只是實驗性質所以隱藏下載
+
+ 
 ## [v2.8.11]
 ### 修改
  - 增加ray mode的關鍵字過濾表
