@@ -5,7 +5,7 @@
  */
 
 import { keywordRules } from './speechCapture.js';
-import { browserInfo, getLang, isRayModeActive, isDeepgramActive } from './config.js'; // [修改] 統一引入 getLang
+import { browserInfo, getLang, isRayModeActive, isDeepgramActive } from './config.js';
 import { sendLocalTranslation } from './translatorApiService.js';
 import { translateWithGemma } from './gemmaService.js';
 import { sendPromptTranslation } from './promptTranslationService.js';
@@ -34,19 +34,21 @@ function enqueue(task) {
   });
 }
 
-async function pump() {
-  if (inFlight >= MAX) return;
-  const next = queue.shift();
-  if (!next) return;
-  inFlight++;
-  try {
-    next.resolve(await next.task());
-  } catch (e) {
-    Logger.error('[ERROR] [TranslationController] 任務失敗:', { error: e.message });
-    next.reject(e);
-  } finally {
-    inFlight--;
-    pump();
+function pump() {
+  while (inFlight < MAX && queue.length > 0) {
+    const next = queue.shift();
+    inFlight++;
+
+    next.task()
+      .then(next.resolve)
+      .catch((e) => {
+        Logger.error('[ERROR] [TranslationController] 任務失敗:', { error: e.message });
+        next.reject(e);
+      })
+      .finally(() => {
+        inFlight--;
+        pump();
+      });
   }
 }
 // #endregion
@@ -63,7 +65,7 @@ function filterTextWithKeywords(text, targetLangId) {
 
   let result = text.replace(/"/g, ''); 
 
-  // [修改] 這裡的快取機制可保留，但比對時統一使用 ID
+  // 這裡的快取機制可保留，但比對時統一使用 ID
   const cachedRules = new Map();
   if (!cachedRules.has(targetLangId)) {
     cachedRules.set(targetLangId, keywordRules
@@ -116,11 +118,16 @@ async function updateTranslationUI(data, targetLangIds, minDisplayTime, sequence
   const spans = getTargetSpans();
 
   targetLangIds.forEach((langId, index) => {
-    const span = spans[`target${index + 1}`];
-    if (span && data?.translations && data.translations[index]) {
-      const filteredText = filterTextWithKeywords(data.translations[index], langId);
+    const targetKey = `target${index + 1}`;
+    const span = spans[targetKey];
+    if (span) {
+      let filteredText = '';
+      // 如果語系不是 none 且有翻譯資料，則進行過濾處理
+      if (langId && langId !== 'none' && data?.translations && data.translations[index]) {
+        filteredText = filterTextWithKeywords(data.translations[index], langId);
+      }
       
-      displayBuffers[`target${index + 1}`].push({
+      displayBuffers[targetKey].push({
         text: filteredText,
         minDisplayTime,
         sequenceId: data.sequenceId ?? sequenceId,
@@ -137,7 +144,7 @@ async function updateTranslationUI(data, targetLangIds, minDisplayTime, sequence
 
 function processDisplayBuffers() {
   const now = Date.now();
-  // [優化 1] 取得 DOM 快取，避免重複查詢
+  // 取得 DOM 快取，避免重複查詢
   const spans = getTargetSpans();
 
   ['target1', 'target2', 'target3'].forEach(key => {
@@ -179,7 +186,8 @@ function processDisplayBuffers() {
         // 更新 DOM
         span.textContent = next.text;
 
-        Logger.info('[INFO] [TranslationController] 更新翻譯文字:', { 
+        const level = next.text !== '' ? 'info' : 'debug';
+        Logger[level](`[${level.toUpperCase()}] [TranslationController] 更新翻譯文字:`, { 
           text: next.text,
           sequenceId: next.sequenceId
         });
@@ -225,7 +233,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       } else if (currentMode === 'link') {
         serviceUrl = document.getElementById('translation-link')?.value.trim() || '';
       }
-      // Gemma 模式不需要在這裡檢查 URL，因為是寫死的 localhost
+      // Gemma モードは localhost 固定のため URL チェック不要
 
       // 獲取目標語言 ID 列表 (包含 'none' 以保持索引位置，稍後過濾)
       const rawTargetLangIds = [
@@ -234,17 +242,15 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
         document.getElementById('target3-language')?.value
       ];
       
-      // 過濾出有效的 ID 用於判斷是否需要發送，但在呼叫某些服務時我們保留原始陣列以維持索引
       const activeLangIds = rawTargetLangIds.filter(id => id && id !== 'none');
 
       if (activeLangIds.length === 0) return;
 
-      // 取得來源語系物件以獲取時長規則
       const sourceLangObj = getLang(sourceLangId);
       const rules = sourceLangObj?.displayTimeRules || [];
 
-      // 雲端/gemma/deepgram狀況下翻譯字幕依照規則殘留，其他不殘留。
-      const minDisplayTime = ((currentMode !== 'link' /* && currentMode !== 'gemma' */) || isDeepgramActive())
+      // サーバーサイド処理 (Link/Gemma) は表示時間を計算、ローカル処理 (Fast/Prompt) は即時更新のため 0
+      const minDisplayTime = currentMode !== 'link' && currentMode !== 'gemma'
                            ? 0
                            : (rules.find(rule => text.length <= rule.maxLength)?.time ?? 3);
       let data;
@@ -252,33 +258,25 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       // --- 路由分流 (Routing) ---
 
       if (currentMode === 'gemma') {
-        // [新增] 分支: Gemma 本地模式
-        // 直接將 3 個目標語言 ID 傳入，Service 會回傳對應的陣列
         data = await translateWithGemma(text, rawTargetLangIds, sourceLangId, previousText);
         
-        // 如果回傳全空，可能是沒開 Server
         if (!data || !data.translations || data.translations.every(t => !t)) {
-           // 可以選擇是否要顯示錯誤狀態
-           // updateStatusDisplay('Gemma Server 未連接');
+           // TODO: サーバー未起動時のエラーハンドリング
         }
 
       } else if (currentMode === 'prompt' && 'LanguageModel' in self) {
-        // 分支 A: AI 模式
-        data = await sendPromptTranslation(text, activeLangIds, sourceLangId); // 注意這裡 PromptService 可能預期的是 activeLangIds
+        data = await sendPromptTranslation(text, activeLangIds, sourceLangId);
 
       } else if (currentMode === 'fast' && browserInfo.supportsTranslatorAPI) {
-        // 分支 B: Fast 模式
         data = await sendLocalTranslation(text, activeLangIds, sourceLangId);
 
       } else {
-        // 分支 C: 遠端模式 (GAS / Link)
-        if (!serviceUrl && currentMode !== 'gemma') return; // Double check
+        if (!serviceUrl && currentMode !== 'gemma') return;
         const targetCodes = activeLangIds.map(id => getLang(id)?.id || id);
         data = await processTranslationUrl(text, targetCodes, sourceLangId, serviceUrl, currentMode, sequenceId, previousText);
       }
 
       if (data) {
-        // 確保 sequenceId 正確
         data.sequenceId = sequenceId;
         await updateTranslationUI(data, rawTargetLangIds, minDisplayTime, sequenceId);
       }

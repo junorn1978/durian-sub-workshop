@@ -1,8 +1,8 @@
 /**
  * @file speechCapture.js
  * @description 主要處理語音擷取前參數設定到產生逐字稿的相關邏輯。
- * 有分使用瀏覽器內建Web speech api(免費)和deepgram(要錢)兩種方式，依照index.html的元素id[deepgram-enabled]
- * 決定使用哪一種方式。
+ * 支援瀏覽器內建 Web Speech API (免費) 與 Deepgram (付費) 兩種方式。
+ * 依據 index.html 的元素 ID [deepgram-enabled] 決定使用哪一種方式。
  */
 
 import { isRayModeActive, isDeepgramActive, browserInfo, getSourceLanguage, getLang, getAlignment } from './config.js';
@@ -130,22 +130,25 @@ async function configureRecognition(recognition, sourceLanguage) {
   const processLocallyStatus = await decideProcessLocally(sourceLanguage);
 
   /* 
-   * 這一段要注意，web speech api on device 只有Chrome支援、使用時
-   * 如果recognition.processLocally設置成false，自訂語句就不能使用(強制使用會跳語言不支援)
-   * 目前是設定成recognition.processLocally = true和使用chrome時，recognition.continuous會使用true
-   * 避免onend事件重新啟動這一段時間還有在講話的話就沒辦法辨識的狀態，但這一部份有利有弊，建議
-   * 依照實際狀況自行調整recognition.continuous參數。
+   * [注意] Web Speech API On-Device 模式目前僅 Chrome 支援。
+   * 若 recognition.processLocally 設為 false，則無法使用自訂語句 (phrases)，強制使用會導致錯誤。
+   * 
+   * 目前設定：當 recognition.processLocally = true 且為 Chrome 時，recognition.continuous 設為 true。
+   * 這是為了避免 onend 事件重啟期間若使用者仍在說話導致辨識中斷。
    */
   if (browserInfo.isChrome) { recognition.processLocally = processLocallyStatus; }
 
   recognition.interimResults = true;
   recognition.lang = sourceLanguage;
-  recognition.continuous = processLocallyStatus;
-  /* Chrome強制使用true時，能夠正常使用的時間會比false要短，不太建議設定true，但on device就建議使用true(Chrome 144)
-   * 如果不是on device又是用true的話，建議將計時器const SILENCE_THRESHOLD = 3000; 修改為1000ms或者是800ms，不然使用可能沒辦法超過10分鐘
-   * Edge則建議使用true，因為Edge沒有這樣的問題
+  /* 
+   * [關於 continuous 參數]
+   * Chrome: 強制 true 時，穩定運作時間可能較短。
+   *   - On-Device 模式 (Chrome 144+): 建議 true。
+   *   - Cloud 模式: 若設為 true，建議將 SILENCE_THRESHOLD 調低 (如 1000ms)，否則可能無法運作超過 10 分鐘。
+   * Edge: 建議 true，無上述問題。
    */
   //recognition.continuous = true;
+  recognition.continuous = processLocallyStatus;
   recognition.maxAlternatives = 1;
 
   if (browserInfo.isChrome && recognition.processLocally && 'phrases' in recognition) {
@@ -163,11 +166,12 @@ async function configureRecognition(recognition, sourceLanguage) {
   });
 }
 
-/* 處理來自 Deepgram 服務的串流回傳值
+/**
+ * 處理來自 Deepgram 服務的串流回傳值
  * @param {string} text - 目前完整的顯示文字
  * @param {boolean} isFinal - 是否為確認文字
  * @param {boolean} shouldTranslate - 是否觸發翻譯請求
- * @param {number} [speakerId] - [新增] 說話者 ID (0, 1, 2...)
+ * @param {string} currentLang - 當前語言代碼
  */
 async function handleDeepgramTranscript(text, isFinal, shouldTranslate, currentLang) {
 
@@ -225,9 +229,10 @@ async function loadKeywordRules() {
   });
 }
 
-/** 辨識語句比重調整的相關配置，這邊要注意Chrome 141版以後才支援，現在應該都可以用
- *  但限制很多，只有在使用install的方式安裝之後才能使用，否則會跳語言不支援而失敗(144版前，何時會修改不知道)
- *  目前因為程式碼沒有導入所以這一段目前沒效果，但以後可能會用到所以保留。
+/** 
+ * 載入辨識語句權重 (Phrases) 配置
+ * [注意] 此功能需 Chrome 141+ 且透過 install 方式安裝的 Web App 才支援。
+ * 目前若未滿足條件會導致錯誤，故程式碼中暫未全面啟用，保留供未來使用。
  */
 async function loadPhrasesConfig() {
   try {
@@ -263,7 +268,8 @@ function generateRayModeRules(sourceLang) {
   return cachedRules.get(sourceLang) || [];
 }
 
-/** * 在Ray mode時進行的逐字稿文字替換處理
+/** 
+ * 在 Ray mode 時進行的逐字稿文字替換處理
  * @param {string} text 
  * @param {string} sourceLang 
  * @returns {string} 清理後的文字
@@ -384,8 +390,8 @@ function setupSpeechRecognition() {
 
   // 斷句計時器
   const resetSilenceTimer = () => {
-    // edge重新啟動的速度太慢了，容易造成語音辨識很容易一直處在斷句→辨識重啟→遺漏語句→辨識錯誤再重啟的循環
-    // Edge不使用這個計時器，弊大於利
+    // Edge 重新啟動速度較慢，若使用計時器強制斷句，容易陷入「斷句 -> 重啟 -> 漏字 -> 錯亂」的循環。
+    // 因此 Edge 環境下不啟用此計時器。
     if (!browserInfo.isChrome) return;
 
     if (silenceTimer) clearTimeout(silenceTimer);
@@ -415,14 +421,14 @@ function setupSpeechRecognition() {
 
   newRecognition.onsoundstart = () => {
     Logger.debug('[DEBUG] [SpeechRecognition] soundstart事件觸發');
-    if (recognition.continuous) { 
+    if (newRecognition.continuous) { 
       SILENCE_THRESHOLD = 2000;
       resetSilenceTimer();
     }
   };
 
   newRecognition.onresult = async (event) => {
-    SILENCE_THRESHOLD = recognition.continuous ? 10000: 3000;
+    SILENCE_THRESHOLD = newRecognition.continuous ? 10000: 3000;
     if (interimTranscript.trim().length > 0) { resetSilenceTimer(); }
     let hasFinalResult = false;
     interimTranscript = '';
@@ -490,7 +496,7 @@ async function autoRestartRecognition(options = { delay: 0 }) {
   }, options.delay);
 }
 
-/** 在Ray Mode時發送翻譯會經過這邊先替換語句 */
+/** 在 Ray Mode 時發送翻譯會經過這邊先替換語句 */
 function processRayModeTranscript(text, sourceLang) {
   if (!text || !text.trim() || ['っ', 'っ。', '。', '？'].includes(text.trim())) return '';
   const pack = cachedRules.get(sourceLang);

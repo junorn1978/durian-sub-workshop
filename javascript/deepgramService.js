@@ -21,7 +21,7 @@ let currentInterimTranscript = "";
 let finalResultCount = 0;
 let globalStream = null;
 
-// Audio Context 相關變數 (取代 MediaRecorder)
+// Audio Context 相關變數
 let audioContext = null;
 let mediaStreamSource = null;
 let audioWorkletNode = null;
@@ -333,24 +333,15 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
 
       mediaStreamSource = audioContext.createMediaStreamSource(globalStream);
 
-      // ✅ High-pass filter：砍低頻噪音（很常立刻變穩）
+      // High-pass filter: 低周波ノイズをカットして安定性を向上 (90Hz)
       const highpass = audioContext.createBiquadFilter();
       highpass.type = "highpass";
-      highpass.frequency.value = 90; // 80~120 可調
+      highpass.frequency.value = 90;
       highpass.Q.value = 0.707;
 
       const preGainNode = audioContext.createGain();
       preGainNode.gain.value = 1;
 
-      // compressor 仍可保留，但先不要接（先做 A/B 測試）
-      const compressor = audioContext.createDynamicsCompressor();
-      compressor.threshold.value = -18; // 比 -10 溫和很多
-      compressor.knee.value = 24;
-      compressor.ratio.value = 2;       // 4 -> 2
-      compressor.attack.value = 0.01;   // 0.003 -> 0.01
-      compressor.release.value = 0.2;
-
-      // ✅ 先走「不壓縮」路徑（推薦你先這樣測）
       mediaStreamSource.connect(highpass);
       highpass.connect(preGainNode);
       preGainNode.connect(audioWorkletNode);
@@ -493,4 +484,3 @@ export function stopDeepgram() {
   clearAllTextElements();
 }
 // #endregion
-

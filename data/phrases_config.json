@@ -14,8 +14,9 @@
       { "phrase": "センチュー", "boost": 3.0 },
       { "phrase": "あつ森", "boost": 3.0 },
       { "phrase": "感じ", "boost": 3.0 },
-      { "phrase": "初見さん", "boost": 4.0 },
-      { "phrase": "オタマートン", "boost": 4.0 }
+      { "phrase": "初見さん", "boost": 3.0 },
+      { "phrase": "AMSR", "boost": 2.0 },
+      { "phrase": "オタマートン", "boost": 2.0 }
     ],
     "en-US": [
       { "phrase": "English phrase", "boost": 4.0 },

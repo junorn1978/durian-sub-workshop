@@ -4,7 +4,7 @@
  * 目前暫時不使用，因為還是處在實驗性質並且不穩定。
  */
 
-import { updateStatusDisplay } from './translationController.js';
+// import { updateStatusDisplay } from './translationController.js';
 import { getLang } from './config.js'; // [修改] 引入 getLang 取代舊有分散函式
 import { Logger } from './logger.js';
 
@@ -51,7 +51,7 @@ async function isLanguageSupportedLocally(langId) {
 async function downloadLanguagePack(langId, updateCallback) {
   if (!navigator.onLine) {
     Logger.warn("[WARN]", "[languagePackManager]", "無網路連線:", langId);
-    updateCallback('網路未連接，請檢查網路後再試。');
+    updateCallback('インターネットに接続されていません。ネットワークを確認してください。');
     return false;
   }
 
@@ -66,14 +66,14 @@ async function downloadLanguagePack(langId, updateCallback) {
 
   if (status.downloading) {
     downloadButton.disabled = true;
-    downloadButton.textContent = '下載中…'; 
+    downloadButton.textContent = 'ダウンロード中…'; 
     updateCallback(`「${langObj.label}」の言語パックをダウンロードしています`);
     return false;
   }
 
   if (!status.downloadable) {
     downloadButton.disabled = true;
-    downloadButton.textContent = '無法下載';
+    downloadButton.textContent = 'ダウンロード不可';
     updateCallback(`「${langObj.label}」の言語パックはダウンロードできません`);
     return false;
   }
@@ -81,27 +81,27 @@ async function downloadLanguagePack(langId, updateCallback) {
   try {
     Logger.info("[INFO]", "[languagePackManager]", "開始下載語言包:", langObj.id);
     downloadButton.disabled = true;
-    downloadButton.textContent = '下載中…';
+    downloadButton.textContent = 'ダウンロード中…';
     
     const options = { langs: [langObj.id], processLocally: true };
     const success = await SpeechRecognition.install(options);
     
     if (success) {
       Logger.info("[INFO]", "[languagePackManager]", `語言包 ${langObj.id} 安裝成功`);
-      downloadButton.textContent = '已下載';
+      downloadButton.textContent = 'ダウンロード済み';
       downloadButton.disabled = true;
       updateCallback(`「${langObj.label}」のローカル音声認識の準備が整いました。利用するにはブラウザの再起動が必要です。`);
       return true;
     } else {
       downloadButton.disabled = false;
-      downloadButton.textContent = '下載失敗';
-      updateCallback(`「${langObj.label}」の言語パックの下載に失敗しました。再試行してください。`);
+      downloadButton.textContent = 'ダウンロード失敗';
+      updateCallback(`「${langObj.label}」の言語パックのダウンロードに失敗しました。再試行してください。`);
       return false;
     }
   } catch (error) {
     Logger.error("[ERROR]", "[languagePackManager]", "下載異常:", { error: error.message });
     downloadButton.disabled = false;
-    downloadButton.textContent = '下載失敗';
+    downloadButton.textContent = 'ダウンロード失敗';
     return false;
   }
 }
@@ -121,7 +121,7 @@ async function updateLanguagePackButton(langId) {
   const langObj = getLang(langId);
   if (!langObj) {
     downloadButton.disabled = true;
-    downloadButton.textContent = '不支援';
+    downloadButton.textContent = '非対応';
     return;
   }
 
@@ -130,23 +130,23 @@ async function updateLanguagePackButton(langId) {
    */
   if (langObj.id === 'cmn-Hant-TW' || langObj.languageModelApiCode === 'zh-TW') {
     downloadButton.disabled = true;
-    downloadButton.textContent = '暫不支援';
+    downloadButton.textContent = '一時的に非対応';
     return;
   }
 
   const status = await isLanguageSupportedLocally(langId);
   if (status.supported) {
-    downloadButton.textContent = '已下載';
+    downloadButton.textContent = 'ダウンロード済み';
     downloadButton.disabled = true;
   } else if (status.downloadable) {
     downloadButton.disabled = false;
-    downloadButton.textContent = '下載語言包';
+    downloadButton.textContent = '言語パックをDL';
   } else if (status.downloading) {
     downloadButton.disabled = true;
-    downloadButton.textContent = '下載中…';
+    downloadButton.textContent = 'ダウンロード中…';
   } else {
     downloadButton.disabled = true;
-    downloadButton.textContent = '不支援本地';
+    downloadButton.textContent = 'ローカル非対応';
   }
 }
 

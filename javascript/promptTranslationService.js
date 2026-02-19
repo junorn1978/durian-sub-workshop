@@ -5,7 +5,6 @@
  */
 
 import { getLang } from './config.js'; // [修改] 引入 getLang
-import { updateStatusDisplay } from './translationController.js';
 import { Logger } from './logger.js';
 
 // #region [配置與工作階段管理]

@@ -127,18 +127,51 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
       },
       {
-        id: 'deepgram-enabled', type: 'select', key: 'deepgram-enabled', desc: 'Deepgram enabled state', default: 'false',
-        onChange: (val) => setDeepgramStatus(val), onLoad: (val) => {
-          setDeepgramStatus(val)
+        id: 'speech-engine-opt', type: 'select', key: 'speech-recognition-engine', desc: 'Speech Recognition Engine', default: 'deepgram',
+        onChange: (val) => {
+          const isDeepgram = val === 'deepgram';
+          setDeepgramStatus(isDeepgram ? 'true' : 'false');
+          
+          // 控制下載按鈕顯示 (僅 Chrome 且選擇 Web Speech API 時顯示)
+          const dlBtn = document.getElementById('download-language-pack');
+          if (dlBtn && browserInfo.isChrome) {
+            // 等on device成為穩定版本時才開放使用
+            // dlBtn.style.display = isDeepgram ? 'none' : 'flex';
+            dlBtn.style.display = isDeepgram ? 'none' : 'none';
+          }
 
-          /* 先保留，有可能還會使用，使用時上面的default要修改成true，setDeepgramStatus(val)要註解掉
-          setDeepgramStatus('true');
-          const el = document.getElementById('deepgram-enabled');
-           if (el) el.value = 'true';
+          // 控制說明連結顯示 (僅 Deepgram 顯示)
+          const helpLink = document.getElementById('engine-help-link');
+          if (helpLink) {
+            helpLink.style.display = isDeepgram ? 'inline-flex' : 'none';
+          }
+        },
+        onLoad: (val) => {
+          // [資料遷移] 檢查舊的 deepgram-enabled 設定
+          const oldKey = 'deepgram-enabled';
+          const oldVal = localStorage.getItem(oldKey);
+          
+          if (oldVal !== null) {
+            val = oldVal === 'true' ? 'deepgram' : 'webspeech';
+            localStorage.setItem('speech-recognition-engine', val);
+            localStorage.removeItem(oldKey); // 移除舊設定
+            const el = document.getElementById('speech-engine-opt');
+            if (el) el.value = val;
+          }
 
-           //寫回localstore
-           localStorage.setItem('deepgram-enabled', 'true');
-          */
+          const isDeepgram = val === 'deepgram';
+          setDeepgramStatus(isDeepgram ? 'true' : 'false');
+
+          const dlBtn = document.getElementById('download-language-pack');
+          if (dlBtn && browserInfo.isChrome) {
+            // dlBtn.style.display = isDeepgram ? 'none' : 'flex';
+            dlBtn.style.display = isDeepgram ? 'none' : 'none';
+          }
+
+          const helpLink = document.getElementById('engine-help-link');
+          if (helpLink) {
+            helpLink.style.display = isDeepgram ? 'inline-flex' : 'none';
+          }
         }
       },
       {

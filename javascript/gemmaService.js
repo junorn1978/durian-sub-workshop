@@ -1,6 +1,7 @@
 /**
  * @file gemmaService.js
  * @description 專門負責與本地 Gemma Server (Port 8080) 溝通的中介服務。
+ * 此模組負責將前端的翻譯請求轉發至本地運行的後端 API，支援單一或多目標語言的平行請求。
  */
 import { Logger } from './logger.js';
 import { getLang } from './config.js';
@@ -8,10 +9,14 @@ import { getLang } from './config.js';
 const GEMMA_API_URL = 'http://localhost:8080/translate';
 
 /**
- * 發送單一翻譯請求
- * @param {string} text - 原始文字
- * @param {string} targetLang - 目標語言代碼 (e.g., 'zh-TW')
- * @returns {Promise<string|null>} 翻譯結果或 null
+ * 發送單一翻譯請求至 Gemma 後端
+ * 
+ * @async
+ * @param {string} text - 原始待翻譯文字
+ * @param {string} targetLang - 目標語言 ID (例如: 'zh-TW')
+ * @param {string} sourceLang - 來源語言 ID (例如: 'ja-JP')
+ * @param {string|null} previousText - 上下文脈絡 (上一句翻譯結果或原文)
+ * @returns {Promise<string|null>} 翻譯後的字串，若請求失敗或無結果則回傳 null
  */
 async function translateOne(text, targetLang, sourceLang, previousText) {
   try {
@@ -44,10 +49,16 @@ async function translateOne(text, targetLang, sourceLang, previousText) {
 }
 
 /**
- * 批次處理多語言翻譯
+ * 批次處理多語言翻譯請求
+ * 
+ * 針對傳入的多個目標語言 ID，平行發送請求至本地 Gemma 服務以提升效率。
+ * 
+ * @async
  * @param {string} text - 來源文字
- * @param {Array<string>} targetLangIds - 目標語言 ID 列表 (對應 target1, target2, target3)
- * @returns {Promise<Object>} 符合 Controller 格式的物件 { translations: [], sequenceId: null }
+ * @param {string[]} targetLangIds - 目標語言 ID 列表 (對應 UI 上的 target1, target2, target3)
+ * @param {string} sourceLangId - 來源語言 ID
+ * @param {string|null} [previousText=null] - 上下文脈絡
+ * @returns {Promise<{translations: Array<string|null>, sequenceId: null}>} 符合 Controller 格式的物件
  */
 export async function translateWithGemma(text, targetLangIds, sourceLangId, previousText = null) {
   if (!targetLangIds || targetLangIds.length === 0) {
