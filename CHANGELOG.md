@@ -1,5 +1,5 @@
 # 更新紀錄 (Changelog)
-## [v2.9.3]
+## [v2.10.0]
 ### 新增
  - 實作 Google Translate Extension (GTX) 翻譯邏輯，提供更快速且免 API Key 的翻譯選項。
  - 將 GTX 翻譯模式設為系統預設值。
@@ -8,6 +8,8 @@
  - 重構翻譯請求分流邏輯，新增對 GTX 模式的支援。
  - 優化 GTX 翻譯的錯誤處理，包含 429 Too Many Requests 的自動重試機制。
  - 將預設語音辨識引擎從 Deepgram 改為 Web Speech API (免費)。
+ - 更新 UI 翻譯模式名稱，標註 GTX 為標準模式，並調整其他模式名稱以利識別。
+ - 調整語音轉錄文字顯示的表情符號（針對 Chrome 環境）。
 
 ## [v2.9.2]
 ### 新增
