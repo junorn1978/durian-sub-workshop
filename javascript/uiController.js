@@ -532,7 +532,7 @@ document.addEventListener('DOMContentLoaded', async function () {
       Storage.save('translation-mode-selection', mode, 'Translation Mode');
     };
 
-    const savedMode = Storage.load('translation-mode-selection') || 'link';
+    const savedMode = Storage.load('translation-mode-selection') || 'gtx';
     modeSelect.value = savedMode;
     // 確保如果存的是 gemma 但 select 裡還沒加入選項時的 fallback (雖然 HTML 會同步更新)
     applyMode(savedMode);

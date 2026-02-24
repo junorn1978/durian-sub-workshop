@@ -1,4 +1,13 @@
 # 更新紀錄 (Changelog)
+## [v2.9.3]
+### 新增
+ - 實作 Google Translate Extension (GTX) 翻譯邏輯，提供更快速且免 API Key 的翻譯選項。
+ - 將 GTX 翻譯模式設為系統預設值。
+
+### 修改
+ - 重構翻譯請求分流邏輯，新增對 GTX 模式的支援。
+ - 優化 GTX 翻譯的錯誤處理，包含 429 Too Many Requests 的自動重試機制。
+
 ## [v2.9.2]
 ### 新增
  - 增加說明檔
