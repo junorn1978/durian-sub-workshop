@@ -196,6 +196,7 @@ function resetSentenceBuffer() {
 function cleanupAudioResources() {
   if (keepAliveInterval) { clearInterval(keepAliveInterval); keepAliveInterval = null; }
   if (watchdogInterval)  { clearInterval(watchdogInterval); watchdogInterval = null; }
+  if (speechFlushTimer)  { clearTimeout(speechFlushTimer);   speechFlushTimer  = null; }
 
   if (mediaStreamSource) {
     mediaStreamSource.disconnect();
@@ -211,6 +212,13 @@ function cleanupAudioResources() {
   if (audioContext) {
     audioContext.close().catch(err => Logger.error("AudioContext 關閉失敗", err));
     audioContext = null;
+  }
+
+  if (globalStream) {
+    globalStream.getTracks().forEach(track => {
+      track.stop();
+    });
+    globalStream = null;
   }
 
   if (socket) {
@@ -245,7 +253,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
   const keywordConfig = await loadDeepgramKeywords();
 
   isIntentionalStop = false; 
-  retryCount = 0;            
+  retryCount = 0;
 
   try {
     globalStream = await navigator.mediaDevices.getUserMedia({
@@ -421,6 +429,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
               retryCount++;
               updateStatusDisplay(`接続が切断されました。${delay/500}秒後に再接続します...`);
               cleanupAudioResources(); 
+              isRunning = false;
               setTimeout(() => {
                 startDeepgram(langId, onTranscriptUpdate);
               }, delay);
@@ -452,31 +461,13 @@ export function stopDeepgram() {
   finalResultCount = 0;
   lastSpeechTime = 0;
 
-  if (keepAliveInterval) { clearInterval(keepAliveInterval); keepAliveInterval = null; }
-  if (watchdogInterval)  { clearInterval(watchdogInterval);  watchdogInterval  = null; }
-  if (speechFlushTimer)  { clearTimeout(speechFlushTimer);   speechFlushTimer  = null; }
-
-  if (mediaStreamSource) {
-    mediaStreamSource.disconnect();
-    mediaStreamSource = null;
+  // 嘗試發送關閉訊號給 Server (如果連線還在)
+  if (socket && socket.readyState === 1) {
+    socket.send(JSON.stringify({ type: "CloseStream" }));
   }
 
-  if (audioWorkletNode) {
-    audioWorkletNode.port.onmessage = null;
-    audioWorkletNode.disconnect();
-    audioWorkletNode = null;
-  }
-
-  if (audioContext) {
-    audioContext.close().catch(err => Logger.error("AudioContext 關閉失敗", err));
-    audioContext = null;
-  }
-  
-  if (socket) {
-    if (socket.readyState === 1) socket.send(JSON.stringify({ type: "CloseStream" }));
-    socket.close();
-    socket = null;
-  }
+  // 統一呼叫清理函式，確保硬體資源 (globalStream) 被正確釋放
+  cleanupAudioResources();
 
   Logger.info("[INFO]", "[DeepgramService]", "Deepgram 服務已停止");
 

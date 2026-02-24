@@ -22,33 +22,36 @@ const displayBuffers = { target1: [], target2: [], target3: [] };
 const currentDisplays = { target1: null, target2: null, target3: null };
 // #endregion
 
-// #region [併發控制 (維持不變)]
+// #region [併發控制]
 const queue = [];
 let inFlight = 0;
 const MAX = 5;
 
-function enqueue(task) {
-  return new Promise((resolve, reject) => {
-    queue.push({ task, resolve, reject });
+export function enqueue(task) {
+  const { promise, resolve, reject } = Promise.withResolvers();
+  queue.push({ task, resolve, reject });
+  pump();
+  return promise;
+}
+
+async function processTask(next) {
+  inFlight++;
+  try {
+    const result = await next.task();
+    next.resolve(result);
+  } catch (error) {
+    Logger.error('[ERROR] [TranslationController] 任務失敗:', { error: error.message });
+    next.reject(error);
+  } finally {
+    inFlight--;
     pump();
-  });
+  }
 }
 
 function pump() {
   while (inFlight < MAX && queue.length > 0) {
     const next = queue.shift();
-    inFlight++;
-
-    next.task()
-      .then(next.resolve)
-      .catch((e) => {
-        Logger.error('[ERROR] [TranslationController] 任務失敗:', { error: e.message });
-        next.reject(e);
-      })
-      .finally(() => {
-        inFlight--;
-        pump();
-      });
+    processTask(next);
   }
 }
 // #endregion
@@ -65,7 +68,6 @@ function filterTextWithKeywords(text, targetLangId) {
 
   let result = text.replace(/"/g, ''); 
 
-  // 這裡的快取機制可保留，但比對時統一使用 ID
   const cachedRules = new Map();
   if (!cachedRules.has(targetLangId)) {
     cachedRules.set(targetLangId, keywordRules
@@ -122,7 +124,6 @@ async function updateTranslationUI(data, targetLangIds, minDisplayTime, sequence
     const span = spans[targetKey];
     if (span) {
       let filteredText = '';
-      // 如果語系不是 none 且有翻譯資料，則進行過濾處理
       if (langId && langId !== 'none' && data?.translations && data.translations[index]) {
         filteredText = filterTextWithKeywords(data.translations[index], langId);
       }
@@ -144,12 +145,10 @@ async function updateTranslationUI(data, targetLangIds, minDisplayTime, sequence
 
 function processDisplayBuffers() {
   const now = Date.now();
-  // 取得 DOM 快取，避免重複查詢
   const spans = getTargetSpans();
 
   ['target1', 'target2', 'target3'].forEach(key => {
     const span = spans[key];
-    // 檢查 buffer 是否為空，若為空直接跳過，省去後續計算
     if (!span || displayBuffers[key].length === 0) return;
 
     try {
@@ -259,10 +258,6 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
 
       if (currentMode === 'gemma') {
         data = await translateWithGemma(text, rawTargetLangIds, sourceLangId, previousText);
-        
-        if (!data || !data.translations || data.translations.every(t => !t)) {
-           // TODO: サーバー未起動時のエラーハンドリング
-        }
 
       } else if (currentMode === 'prompt' && 'LanguageModel' in self) {
         data = await sendPromptTranslation(text, activeLangIds, sourceLangId);
@@ -281,7 +276,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
         await updateTranslationUI(data, rawTargetLangIds, minDisplayTime, sequenceId);
       }
     } catch (error) {
-      Logger.error('[ERROR] [translationController.js] 異常:', error.message);
+      Logger.error('[ERROR] [translationController] 異常:', error.message);
       updateStatusDisplay('翻訳エラー:', { error: error.message });
       setTimeout(() => updateStatusDisplay(''), 5000);
       throw error;
