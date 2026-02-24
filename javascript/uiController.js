@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
       },
       {
-        id: 'speech-engine-opt', type: 'select', key: 'speech-recognition-engine', desc: 'Speech Recognition Engine', default: 'deepgram',
+        id: 'speech-engine-opt', type: 'select', key: 'speech-recognition-engine', desc: 'Speech Recognition Engine', default: 'webspeech',
         onChange: (val) => {
           const isDeepgram = val === 'deepgram';
           setDeepgramStatus(isDeepgram ? 'true' : 'false');

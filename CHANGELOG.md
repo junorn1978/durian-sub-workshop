@@ -7,6 +7,7 @@
 ### 修改
  - 重構翻譯請求分流邏輯，新增對 GTX 模式的支援。
  - 優化 GTX 翻譯的錯誤處理，包含 429 Too Many Requests 的自動重試機制。
+ - 將預設語音辨識引擎從 Deepgram 改為 Web Speech API (免費)。
 
 ## [v2.9.2]
 ### 新增
