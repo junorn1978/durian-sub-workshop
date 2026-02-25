@@ -37,10 +37,11 @@
         <div class="mode-selector-group">
           <label for="translation-mode">翻訳モード</label>
           <select id="translation-mode" title="翻訳エンジンの選択">
-            <option value="link" selected>翻訳クラウド接続</option>
-            <option value="gas">Google翻訳 (無料)</option>
-            <option value="gemma">ローカル Gemma（実験機能）</option>
-            <option value="fast">高速翻訳 (無料非推奨)</option>
+            <option value="gtx" selected>Google 翻訳 (無料)</option>
+            <option value="link">翻訳クラウド接続</option>
+            <option value="gas">Google Script Apps接続</option>
+            <option value="gemma">translateGemma（実験機能）</option>
+            <option value="fast">高速翻訳 (翻訳精度低め)</option>
             <option value="ai" disabled>ブラウザAI (実験機能)</option>
           </select>
         </div>
@@ -266,8 +267,8 @@
               </div>
 
               <select id="speech-engine-opt" class="card-select" title="音声認識エンジンの選択">
-                <option value="deepgram" selected>Deepgram (高精度/有料)</option>
-                <option value="webspeech">Web Speech API (無料)</option>
+                <option value="deepgram">Deepgram (高精度/有料)</option>
+                <option value="webspeech" selected>Web Speech API (無料)</option>
               </select>
 
               <button id="download-language-pack" class="menu3-button" style="display: none; width: 100%; margin-top: 8px; font-size: 12px; justify-content: center;">オフライン言語パックDL</button>

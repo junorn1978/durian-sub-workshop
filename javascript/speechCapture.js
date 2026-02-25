@@ -348,8 +348,8 @@ function wrapWithNoteByAlignment(baseText, symbolType) {
   // web speech api → Chrome → 🎵
   // web speech api → Edge   → 🎼️
   const symbolTextA = symbolType === 'deepgram' ? '​​🐹'
-                         : browserInfo.isChrome ? '​​🌻'
-                                                : '​🎵';
+                         : browserInfo.isChrome ? '​​🐿️'
+                                                : '​🐭';
   const symbolTextB = '🐹';
 
   return alignment === 'center' ? `${symbolTextA}${baseText}${symbolTextB}`

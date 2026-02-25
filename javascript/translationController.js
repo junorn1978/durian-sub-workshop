@@ -8,6 +8,7 @@ import { keywordRules } from './speechCapture.js';
 import { browserInfo, getLang, isRayModeActive, isDeepgramActive } from './config.js';
 import { sendLocalTranslation } from './translatorApiService.js';
 import { translateWithGemma } from './gemmaService.js';
+import { translateWithGTX } from './gtxTranslationService.js';
 import { sendPromptTranslation } from './promptTranslationService.js';
 import { processTranslationUrl } from './remoteTranslationService.js';
 import { Logger } from './logger.js';
@@ -256,7 +257,10 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
 
       // --- 路由分流 (Routing) ---
 
-      if (currentMode === 'gemma') {
+      if (currentMode === 'gtx') {
+        data = await translateWithGTX(text, rawTargetLangIds, sourceLangId);
+
+      } else if (currentMode === 'gemma') {
         data = await translateWithGemma(text, rawTargetLangIds, sourceLangId, previousText);
 
       } else if (currentMode === 'prompt' && 'LanguageModel' in self) {
