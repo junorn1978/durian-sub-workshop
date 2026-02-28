@@ -513,12 +513,6 @@ document.addEventListener('DOMContentLoaded', async function () {
         case 'link':
           if (linkWrapper) { linkWrapper.style.display = 'block'; document.getElementById('translation-link')?.focus(); }
           break;
-        case 'gemma':
-          // [新增] Gemma 模式
-          // 不需要顯示任何額外輸入框，因為連接的是 localhost:8080
-          // 可以顯示一個簡單的狀態文字提醒用戶開啟後端
-          //updateStatusDisplay('Local Gemma Mode: Ready (Ensure server is running on port 8080)');
-          break;
         case 'fast':
           if (!browserInfo.isChrome) { alert('高速翻訳はEdgeに対応しておりません。'); applyMode('link'); return; }
           localStorage.setItem('local-translation-api-active', 'true');
@@ -535,9 +529,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     };
 
     const savedMode = Storage.load('translation-mode-selection') || 'gtx';
-    modeSelect.value = savedMode;
-    // 確保如果存的是 gemma 但 select 裡還沒加入選項時的 fallback (雖然 HTML 會同步更新)
-    applyMode(savedMode);
+    modeSelect.value = savedMode === 'gemma' ? 'gtx' : savedMode;
+    applyMode(modeSelect.value);
     
     modeSelect.addEventListener('change', (e) => applyMode(e.target.value));
   };

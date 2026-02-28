@@ -7,7 +7,6 @@
 import { keywordRules } from './speechCapture.js';
 import { browserInfo, getLang, isRayModeActive, isDeepgramActive } from './config.js';
 import { sendLocalTranslation } from './translatorApiService.js';
-import { translateWithGemma } from './gemmaService.js';
 import { translateWithGTX } from './gtxTranslationService.js';
 import { sendPromptTranslation } from './promptTranslationService.js';
 import { processTranslationUrl } from './remoteTranslationService.js';
@@ -233,8 +232,6 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       } else if (currentMode === 'link') {
         serviceUrl = document.getElementById('translation-link')?.value.trim() || '';
       }
-      // Gemma モードは localhost 固定のため URL チェック不要
-
       // 獲取目標語言 ID 列表 (包含 'none' 以保持索引位置，稍後過濾)
       const rawTargetLangIds = [
         document.getElementById('target1-language')?.value,
@@ -249,8 +246,8 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       const sourceLangObj = getLang(sourceLangId);
       const rules = sourceLangObj?.displayTimeRules || [];
 
-      // サーバーサイド処理 (Link/Gemma) は表示時間を計算、ローカル処理 (Fast/Prompt) は即時更新のため 0
-      const minDisplayTime = currentMode !== 'link' && currentMode !== 'gemma'
+      // サーバーサイド処理 (Link) は表示時間を計算、ローカル処理 (Fast/Prompt) は即時更新のため 0
+      const minDisplayTime = currentMode !== 'link'
                            ? 0
                            : (rules.find(rule => text.length <= rule.maxLength)?.time ?? 3);
       let data;
@@ -260,9 +257,6 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       if (currentMode === 'gtx') {
         data = await translateWithGTX(text, rawTargetLangIds, sourceLangId);
 
-      } else if (currentMode === 'gemma') {
-        data = await translateWithGemma(text, rawTargetLangIds, sourceLangId, previousText);
-
       } else if (currentMode === 'prompt' && 'LanguageModel' in self) {
         data = await sendPromptTranslation(text, activeLangIds, sourceLangId);
 
@@ -270,7 +264,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
         data = await sendLocalTranslation(text, activeLangIds, sourceLangId);
 
       } else {
-        if (!serviceUrl && currentMode !== 'gemma') return;
+        if (!serviceUrl) return;
         const targetCodes = activeLangIds.map(id => getLang(id)?.id || id);
         data = await processTranslationUrl(text, targetCodes, sourceLangId, serviceUrl, currentMode, sequenceId, previousText);
       }
