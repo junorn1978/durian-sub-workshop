@@ -8,9 +8,15 @@
  * @returns {boolean} 是否顯示日誌
  */
 export function isDebugEnabled() {
-  const isDebugMode = new URLSearchParams(window.location.search).get('debug') === 'true';
-  const savedPref = localStorage.getItem('log-level-preference');
-  return isDebugMode || savedPref === 'true';
+  const savedPref = localStorage.getItem('log-system-debug-enabled');
+  
+  // 如果使用者在 UI 有明確設定過 (true 或 false)，則以 UI 設定為主
+  if (savedPref !== null) {
+    return savedPref === 'true';
+  }
+
+  // 若沒設定過 (首次開啟)，則看網址參數是否有 ?debug=true
+  return new URLSearchParams(window.location.search).get('debug') === 'true';
 }
 
 /**
@@ -18,6 +24,6 @@ export function isDebugEnabled() {
  * @param {boolean|string} enabled 
  */
 export function setLogLevel(enabled) {
-  const val = (enabled === true || enabled === 'true' || enabled === 1 || enabled === '1');
-  localStorage.setItem('log-level-preference', val ? 'true' : 'false');
+  const val = (enabled === true || enabled === 'true');
+  localStorage.setItem('log-system-debug-enabled', val ? 'true' : 'false');
 }

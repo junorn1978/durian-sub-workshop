@@ -1,4 +1,14 @@
 # 更新紀錄 (Changelog)
+## [v2.11.2]
+### 修改
+ - 修正日誌設定 (Log Level) 邏輯：
+   - 更改 localStorage Key 為 `log-system-debug-enabled` 以避免與舊版數值衝突。
+   - 調整 `isDebugEnabled()` 優先權，確保 UI 的 Disable 設定能正確覆蓋 URL 參數。
+   - 優化 `uiController.js` 初始化邏輯，避免在已存有設定的情況下被網址參數強制覆寫。
+ - 代碼清理：
+   - 移除 `uiController.js` 中過時的 `deepgram-enabled` 資料遷移與刪除邏輯。
+   - 更新 `speechCapture.js` 檔案頂部描述註解。
+
 ## [v2.11.1]
 ### 修改
  - 移除 translateGemma (實驗功能) 的相關程式碼與 UI 選項，該功能已被 Custom URL 取代，藉此精簡專案體積與邏輯複雜度。

@@ -35,8 +35,12 @@ document.addEventListener('DOMContentLoaded', async function () {
   const urlParams = new URLSearchParams(window.location.search);
   const isDebugMode = urlParams.get('debug') === 'true';
 
-  const savedDebug = localStorage.getItem('log-level-preference') === 'true';
-  setLogLevel(isDebugMode || savedDebug);
+  const savedDebug = localStorage.getItem('log-system-debug-enabled');
+  // 如果 localStorage 已經有設定，則維持現狀；否則看 isDebugMode。
+  // 這樣即便網址帶有 ?debug=true，第二次以後若在 UI 關閉，它也會遵循 localStorage 的設定。
+  if (savedDebug === null) {
+    setLogLevel(isDebugMode);
+  }
   
   if (isDebugEnabled()) console.info('UI', '應用程式初始化開始...');
 
@@ -149,18 +153,6 @@ document.addEventListener('DOMContentLoaded', async function () {
           }
         },
         onLoad: (val) => {
-          // [資料遷移] 檢查舊的 deepgram-enabled 設定
-          const oldKey = 'deepgram-enabled';
-          const oldVal = localStorage.getItem(oldKey);
-          
-          if (oldVal !== null) {
-            val = oldVal === 'true' ? 'deepgram' : 'webspeech';
-            localStorage.setItem('speech-recognition-engine', val);
-            localStorage.removeItem(oldKey); // 移除舊設定
-            const el = document.getElementById('speech-engine-opt');
-            if (el) el.value = val;
-          }
-
           const isDeepgram = val === 'deepgram';
           setDeepgramStatus(isDeepgram ? 'true' : 'false');
 
@@ -187,7 +179,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
   // #region [瀏覽器功能限制檢查]
   if (!browserInfo.isChrome) {
-    console.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
+    if (isDebugEnabled()) console.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
 
     ['prompt-api-download', 'download-language-pack'].forEach(id => {
       const el = document.getElementById(id);
@@ -621,7 +613,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             }
           });
 
-          console.info('UI', `字幕背景風格已${isActive ? '啟用' : '停用'}`);
+          if (isDebugEnabled()) console.info('UI', `字幕背景風格已${isActive ? '啟用' : '停用'}`);
           localStorage.setItem('subtitle-style-active', isActive);
         }
       }

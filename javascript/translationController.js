@@ -186,7 +186,7 @@ function processDisplayBuffers() {
         span.textContent = next.text;
 
         const level = next.text !== '' ? 'info' : 'debug';
-        console[level](`[${level.toUpperCase()}] [TranslationController] 更新翻譯文字:`, { 
+        if (isDebugEnabled()) console[level](`[${level.toUpperCase()}] [TranslationController] 更新翻譯文字:`, { 
           text: next.text,
           sequenceId: next.sequenceId
         });
