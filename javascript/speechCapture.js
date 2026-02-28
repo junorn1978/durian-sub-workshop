@@ -8,7 +8,7 @@
 import { isRayModeActive, isDeepgramActive, browserInfo, getSourceLanguage, getLang, getAlignment } from './config.js';
 import { sendTranslationRequest, updateStatusDisplay } from './translationController.js';
 import { startDeepgram, stopDeepgram } from './deepgramService.js';
-import { Logger } from './logger.js';
+import { isDebugEnabled } from './logger.js';
 
 // #region [狀態變數與快取]
 
@@ -50,7 +50,7 @@ async function showMicInfoOnce() {
   hasShownMicInfo = true;
 
   if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-    Logger.warn('[WARN] [SpeechRecognition] 此瀏覽器不支援 mediaDevices.enumerateDevices()');
+    if (isDebugEnabled()) console.warn('[WARN] [SpeechRecognition] 此瀏覽器不支援 mediaDevices.enumerateDevices()');
     return;
   }
 
@@ -59,7 +59,7 @@ async function showMicInfoOnce() {
     try {
       tempStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     } catch (err) {
-      Logger.warn('[WARN] [SpeechRecognition] 取得麥克風權限失敗（名稱可能會顯示為空）:', err);
+      if (isDebugEnabled()) console.warn('[WARN] [SpeechRecognition] 取得麥克風權限失敗（名稱可能會顯示為空）:', err);
     }
 
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -69,7 +69,7 @@ async function showMicInfoOnce() {
     const otherMicEl = document.getElementById('other-mic');
     if (!audioInputs.length) {
       const msg = '利用可能な音声入力デバイスが見つかりません。マイクが正しく接続されているか、システムの設定をご確認ください。';
-      Logger.info('[INFO] [SpeechRecognition]', msg);
+      if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition]', msg);
       if (micInfoEl) micInfoEl.textContent = msg;
       return;
     }
@@ -86,11 +86,11 @@ async function showMicInfoOnce() {
         });
     }
 
-    Logger.info('[INFO] [SpeechRecognition] 偵測到的裝置列表:', audioInputs);
+    if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition] 偵測到的裝置列表:', audioInputs);
     if (micInfoEl) micInfoEl.textContent = infoText;
     if (otherMicEl) otherMicEl.textContent = otherMic;
   } catch (err) {
-    Logger.error('[ERROR] [SpeechRecognition] 取得麥克風資訊失敗:', err);
+    if (isDebugEnabled()) console.error('[ERROR] [SpeechRecognition] 取得麥克風資訊失敗:', err);
   } finally {
     if (tempStream) {
       tempStream.getTracks().forEach(t => t.stop());
@@ -158,7 +158,7 @@ async function configureRecognition(recognition, sourceLanguage) {
     recognition.phrases = [];
   }
 
-  Logger.debug('[DEBUG] [SpeechRecognition] 辨識參數已就緒:', {
+  if (isDebugEnabled()) console.debug('[DEBUG] [SpeechRecognition] 辨識參數已就緒:', {
     lang: recognition.lang,
     processLocally: recognition.processLocally,
     phrasesCount: recognition.phrases.length,
@@ -183,7 +183,7 @@ async function handleDeepgramTranscript(text, isFinal, shouldTranslate, currentL
 
   if (shouldTranslate && processedText.trim() !== '') {
     if (textToTranslate) {
-      Logger.info('[INFO] [Deepgram] 收到 Service 指令 (Speaker 0)，執行翻譯:', textToTranslate);
+      if (isDebugEnabled()) console.info('[INFO] [Deepgram] 收到 Service 指令 (Speaker 0)，執行翻譯:', textToTranslate);
 
       sendTranslationRequest(textToTranslate, previousText, currentLang);
       previousText = textToTranslate;
@@ -253,7 +253,7 @@ async function loadPhrasesConfig() {
       cachedPhrases.set('default', phrasesConfig.defaults.map(p => new SpeechRecognitionPhrase(p.phrase, p.boost)));
     }
   } catch (error) {
-    Logger.error('[ERROR] [SpeechRecognition] 載入短語配置失敗:', error);
+    if (isDebugEnabled()) console.error('[ERROR] [SpeechRecognition] 載入短語配置失敗:', error);
     phrasesConfig = { languages: {} };
   }
 }
@@ -295,7 +295,7 @@ function filterRayModeText(text, sourceLang) {
       return hit ? hit.target : match;
     });
   } catch (e) {
-    Logger.error('[ERROR] filterRayModeText 替換失敗:', e);
+    if (isDebugEnabled()) console.error('[ERROR] filterRayModeText 替換失敗:', e);
   }
 
   return result;
@@ -398,7 +398,7 @@ function setupSpeechRecognition() {
 
     // 設定新的計時器
     silenceTimer = setTimeout(() => {
-      Logger.debug(`[DEBUG] [SpeechRecognition] 偵測到靜音超過 ${SILENCE_THRESHOLD}ms，強制重啟`);
+      if (isDebugEnabled()) console.debug(`[DEBUG] [SpeechRecognition] 偵測到靜音超過 ${SILENCE_THRESHOLD}ms，強制重啟`);
 
       if (interimTranscript.trim().length > 0) {
         let forcedFinalText = interimTranscript.replace(/[、。？\s]+/g, ' ').trim();
@@ -408,7 +408,7 @@ function setupSpeechRecognition() {
         }
 
         if (forcedFinalText) {
-          Logger.info('[INFO] [SpeechRecognition] (強制斷句) 發送翻譯請求文字:', forcedFinalText);
+          if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition] (強制斷句) 發送翻譯請求文字:', forcedFinalText);
           sendTranslationRequest(forcedFinalText, previousText, newRecognition.lang);
           previousText = forcedFinalText;
           updateSourceText(forcedFinalText);
@@ -420,7 +420,7 @@ function setupSpeechRecognition() {
   };
 
   newRecognition.onsoundstart = () => {
-    Logger.debug('[DEBUG] [SpeechRecognition] soundstart事件觸發');
+    if (isDebugEnabled()) console.debug('[DEBUG] [SpeechRecognition] soundstart事件觸發');
     if (newRecognition.continuous) { 
       SILENCE_THRESHOLD = 2000;
       resetSilenceTimer();
@@ -448,7 +448,7 @@ function setupSpeechRecognition() {
       let sendTranslationRequestText = finalTranscript.replace(/[、。？\s]+/g, ' ').trim();
       if (isRayModeActive()) { sendTranslationRequestText = filterRayModeText(sendTranslationRequestText, newRecognition.lang); }
 
-      Logger.info('[INFO] [SpeechRecognition] 發送翻譯請求文字:', sendTranslationRequestText);
+      if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition] 發送翻譯請求文字:', sendTranslationRequestText);
       sendTranslationRequest(sendTranslationRequestText, previousText, newRecognition.lang);
       previousText = sendTranslationRequestText;
     }
@@ -460,10 +460,10 @@ function setupSpeechRecognition() {
     if (processedText.trim() !== '') { updateSourceText(processedText); }
   };
 
-  newRecognition.onnomatch = () => Logger.warn('[WARN] [SpeechRecognition] 無匹配辨識結果');
+  newRecognition.onnomatch = () => { if (isDebugEnabled()) console.warn('[WARN] [SpeechRecognition] 無匹配辨識結果'); };
   newRecognition.onend = () => {
     if (silenceTimer) clearTimeout(silenceTimer);
-    Logger.debug('[DEBUG] [SpeechRecognition] onend事件觸發');
+    if (isDebugEnabled()) console.debug('[DEBUG] [SpeechRecognition] onend事件觸發');
     
     finalTranscript = '';
     interimTranscript = '';
@@ -471,7 +471,7 @@ function setupSpeechRecognition() {
   }
   newRecognition.onerror = (event) => {
     if (silenceTimer) clearTimeout(silenceTimer);
-    if (event.error !== 'aborted') Logger.error('[ERROR] [SpeechRecognition] 辨識錯誤:', event.error);
+    if (event.error !== 'aborted') if (isDebugEnabled()) console.error('[ERROR] [SpeechRecognition] 辨識錯誤:', event.error);
   };
 
   return newRecognition;
@@ -550,7 +550,7 @@ function setupSpeechRecognitionHandlers() {
           return;
         }
       } catch (err) {
-        Logger.error('[ERROR] [SpeechRecognition] Deepgram 啟動失敗:', err);
+        if (isDebugEnabled()) console.error('[ERROR] [SpeechRecognition] Deepgram 啟動失敗:', err);
       }
     }
 

@@ -307,13 +307,10 @@
             </div>
 
             <div class="card-row">
-              <span class="card-label">ログレベル (Debug)</span>
+              <span class="card-label">ログ表示 (Debug)</span>
               <select id="log-level-opt" class="card-select" title="コンソールの出力詳細度">
-                <option value="0">DEBUG (全て)</option>
-                <option value="1" selected>INFO (情報)</option>
-                <option value="2">WARN (警告)</option>
-                <option value="3">ERROR (エラー)</option>
-                <option value="99">NONE (なし)</option>
+                <option value="true">有効 (Enable)</option>
+                <option value="false" selected>無効 (Disable)</option>
               </select>
             </div>
           </div>
@@ -355,7 +352,7 @@
   </div>
 
   <div id="status-panel">
-    <div class="status-info" id="status-display">声音認識反応ないの場合は、一度止めて数秒待ってから、もう一回録音ボタンを押し直すことをお勧めします。</div>
+    <div class="status-info" id="status-display">声音認識反応ないの場合は、一度止めて數秒待ってから、もう一回録音ボタンを押し直すことをお勧めします。</div>
   </div>
 
   <datalist id="color-list">
@@ -375,6 +372,8 @@
     <option value="#FFFFFF"></option>
     <option value="#00FF00"></option>
   </datalist>
+
+  <div id="version-display" style="position: fixed; right: 8px; bottom: 4px; font-size: 10px; color: rgba(109, 19, 19, 0.5); pointer-events: none; z-index: 9999; font-family: sans-serif; letter-spacing: 0.5px;">v2.11.0</div>
 
   <script type="module" src="javascript/uiController.js"></script>
   <script type="module" src="javascript/speechCapture.js"></script>

@@ -6,7 +6,7 @@
 
 import { getLang, getSourceLanguage } from './config.js';
 import { sequenceCounter, translatorCache, updateStatusDisplay, updateTranslationUI } from './translationController.js';
-import { Logger } from './logger.js';
+import { isDebugEnabled } from './logger.js';
 
 // #region [全域狀態與佇列]
 /** @type {Array<Object>} 待下載的語言對佇列 */
@@ -45,7 +45,7 @@ export async function checkTranslationAvailability() {
 
   progressSpan.textContent = '確認中...';
   const sourceCodeObj = getLang(sourceLang);
-  if (!sourceCodeObj) { Logger.error("找不到來源語系物件"); return; }
+  if (!sourceCodeObj) { if (isDebugEnabled()) console.error("找不到來源語系物件"); return; }
   
   const sourceCode = sourceCodeObj.languageModelApiCode;
   const newQueue = [];
@@ -64,7 +64,7 @@ export async function checkTranslationAvailability() {
         newQueue.push({ source: sourceCode, target: targetCode, label: targetCodeLabel });
       }
     } catch (e) {
-      Logger.warn(`[Translator API] 語系 ${sourceCode}->${targetCode} 狀態檢查失敗`);
+      if (isDebugEnabled()) console.warn(`[Translator API] 語系 ${sourceCode}->${targetCode} 狀態檢查失敗`);
     }
   }
 
@@ -132,7 +132,7 @@ async function ensureModelLoaded(sourceLanguage, targetLanguage, label) {
     });
     return true;
   } catch (error) {
-    Logger.error('[Translator API] 下載失敗:', error);
+    if (isDebugEnabled()) console.error('[Translator API] 下載失敗:', error);
     if (progressSpan) progressSpan.textContent = 'ダウンロード失敗';
     return false;
   }
@@ -153,7 +153,7 @@ export async function sendLocalTranslation(text, targetLangs, sourceLang) {
   if (!text || text.trim() === '' || text.trim() === 'っ') return null;
 
   const sourceLangObj = getLang(sourceLang);
-  if (!sourceLangObj) { Logger.error ("找不到來源語系物件"); return null; };
+  if (!sourceLangObj) { console.error ("找不到來源語系物件"); return null; };
   const sourceLanguage = sourceLangObj.languageModelApiCode;
 
   // 日文語音辨識通常缺乏標點，透過預處理器補強以提升翻譯品質
@@ -162,7 +162,7 @@ export async function sendLocalTranslation(text, targetLangs, sourceLang) {
     processedText = preprocessJapaneseText(text);
   }
 
-  Logger.debug('[DEBUG] [Translator API] 翻譯前文字:', processedText);
+  if (isDebugEnabled()) console.debug('[DEBUG] [Translator API] 翻譯前文字:', processedText);
   const translations = new Array(targetLangs.length).fill('');
 
   for (let i = 0; i < targetLangs.length; i++) {
@@ -183,7 +183,7 @@ export async function sendLocalTranslation(text, targetLangs, sourceLang) {
 
       translations[i] = await translator.translate(processedText);
     } catch (error) {
-      Logger.error('[ERROR] [Translator API] 翻譯異常:', error);
+      if (isDebugEnabled()) console.error('[ERROR] [Translator API] 翻譯異常:', error);
     }
   }
 

@@ -6,7 +6,7 @@
 
 // import { updateStatusDisplay } from './translationController.js';
 import { getLang } from './config.js'; // [修改] 引入 getLang 取代舊有分散函式
-import { Logger } from './logger.js';
+import { isDebugEnabled } from './logger.js';
 
 // #region [狀態檢查邏輯]
 
@@ -26,14 +26,14 @@ async function isLanguageSupportedLocally(langId) {
   try {
     /* 技術備註：SpeechRecognition.available 是 2025 Chrome 用於查詢裝置語音模型狀態的標準 API */
     const status = await SpeechRecognition.available(options);
-    Logger.debug("[DEBUG]", "[languagePackManager]", "檢查語言包支援:", { id: langObj.id, status });
+    if (isDebugEnabled()) console.debug("[DEBUG]", "[languagePackManager]", "檢查語言包支援:", { id: langObj.id, status });
     return {
       supported: status === 'available',
       downloadable: status === 'downloadable',
       downloading: status === 'downloading'
     };
   } catch (error) {
-    Logger.error("[ERROR]", "[languagePackManager]", "檢查語言包狀態失敗:", error);
+    if (isDebugEnabled()) console.error("[ERROR]", "[languagePackManager]", "檢查語言包狀態失敗:", error);
     return { supported: false, downloadable: false, downloading: false };
   }
 }
@@ -50,14 +50,14 @@ async function isLanguageSupportedLocally(langId) {
  */
 async function downloadLanguagePack(langId, updateCallback) {
   if (!navigator.onLine) {
-    Logger.warn("[WARN]", "[languagePackManager]", "無網路連線:", langId);
+    if (isDebugEnabled()) console.warn("[WARN]", "[languagePackManager]", "無網路連線:", langId);
     updateCallback('インターネットに接続されていません。ネットワークを確認してください。');
     return false;
   }
 
   const downloadButton = document.getElementById('download-language-pack');
   if (!downloadButton) {
-    Logger.error("[ERROR]", "[languagePackManager]", "未找到下載按鍵");
+    if (isDebugEnabled()) console.error("[ERROR]", "[languagePackManager]", "未找到下載按鍵");
     return false;
   }
 
@@ -79,7 +79,7 @@ async function downloadLanguagePack(langId, updateCallback) {
   }
 
   try {
-    Logger.info("[INFO]", "[languagePackManager]", "開始下載語言包:", langObj.id);
+    if (isDebugEnabled()) console.info("[INFO]", "[languagePackManager]", "開始下載語言包:", langObj.id);
     downloadButton.disabled = true;
     downloadButton.textContent = 'ダウンロード中…';
     
@@ -87,7 +87,7 @@ async function downloadLanguagePack(langId, updateCallback) {
     const success = await SpeechRecognition.install(options);
     
     if (success) {
-      Logger.info("[INFO]", "[languagePackManager]", `語言包 ${langObj.id} 安裝成功`);
+      if (isDebugEnabled()) console.info("[INFO]", "[languagePackManager]", `語言包 ${langObj.id} 安裝成功`);
       downloadButton.textContent = 'ダウンロード済み';
       downloadButton.disabled = true;
       updateCallback(`「${langObj.label}」のローカル音声認識の準備が整いました。利用するにはブラウザの再起動が必要です。`);
@@ -99,7 +99,7 @@ async function downloadLanguagePack(langId, updateCallback) {
       return false;
     }
   } catch (error) {
-    Logger.error("[ERROR]", "[languagePackManager]", "下載異常:", { error: error.message });
+    if (isDebugEnabled()) console.error("[ERROR]", "[languagePackManager]", "下載異常:", { error: error.message });
     downloadButton.disabled = false;
     downloadButton.textContent = 'ダウンロード失敗';
     return false;
@@ -161,7 +161,7 @@ async function setupLanguagePackButton(languageSelectorId, updateCallback) {
   const sourceLanguageSelect = document.getElementById(languageSelectorId);
 
   if (!speechLangPack || !sourceLanguageSelect) {
-    Logger.error("[ERROR]", "[languagePackManager]", "初始化失敗：元件未找到");
+    if (isDebugEnabled()) console.error("[ERROR]", "[languagePackManager]", "初始化失敗：元件未找到");
     return;
   }
 
@@ -186,7 +186,7 @@ async function setupLanguagePackButton(languageSelectorId, updateCallback) {
         await downloadLanguagePack(langId, updateCallback);
       }
     } catch (error) {
-      Logger.error("[ERROR]", "[languagePackManager]", "執行點擊邏輯失敗", error);
+      if (isDebugEnabled()) console.error("[ERROR]", "[languagePackManager]", "執行點擊邏輯失敗", error);
     }
   });
 

@@ -11,7 +11,7 @@ import { translateWithGemma } from './gemmaService.js';
 import { translateWithGTX } from './gtxTranslationService.js';
 import { sendPromptTranslation } from './promptTranslationService.js';
 import { processTranslationUrl } from './remoteTranslationService.js';
-import { Logger } from './logger.js';
+import { isDebugEnabled } from './logger.js';
 
 // #region [狀態與快取]
 const translatorCache = new Map();
@@ -41,7 +41,7 @@ async function processTask(next) {
     const result = await next.task();
     next.resolve(result);
   } catch (error) {
-    Logger.error('[ERROR] [TranslationController] 任務失敗:', { error: error.message });
+    if (isDebugEnabled()) console.error('[ERROR] [TranslationController] 任務失敗:', { error: error.message });
     next.reject(error);
   } finally {
     inFlight--;
@@ -187,13 +187,13 @@ function processDisplayBuffers() {
         span.textContent = next.text;
 
         const level = next.text !== '' ? 'info' : 'debug';
-        Logger[level](`[${level.toUpperCase()}] [TranslationController] 更新翻譯文字:`, { 
+        console[level](`[${level.toUpperCase()}] [TranslationController] 更新翻譯文字:`, { 
           text: next.text,
           sequenceId: next.sequenceId
         });
       }
     } catch (error) {
-      Logger.error('[ERROR] [TranslationController] processDisplayBuffers 錯誤:', error.message);
+      if (isDebugEnabled()) console.error('[ERROR] [TranslationController] processDisplayBuffers 錯誤:', error.message);
     }
   });
 }
@@ -215,7 +215,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
     try {
       const modeSelect = document.getElementById('translation-mode');
       const currentMode = modeSelect ? modeSelect.value : 'none';
-      if (currentMode === 'none') { Logger.error('[ERROR] [TranslationController], 無效的翻譯模式'); return; }
+      if (currentMode === 'none') { if (isDebugEnabled()) console.error('[ERROR] [TranslationController], 無效的翻譯模式'); return; }
 
       let serviceUrl = '';
 
@@ -223,7 +223,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       if (currentMode === 'gas') {
         const gasId = document.getElementById('gas-script-id')?.value.trim() || '';
         if (!gasId.match(/^[a-zA-Z0-9_-]+$/)) {
-          Logger.error('[ERROR] [TranslationController], 無效的 GAS ID');
+          if (isDebugEnabled()) console.error('[ERROR] [TranslationController], 無效的 GAS ID');
           updateStatusDisplay('無效的 Google Apps Script ID');
           setTimeout(() => updateStatusDisplay(''), 5000);
           return;
@@ -280,7 +280,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
         await updateTranslationUI(data, rawTargetLangIds, minDisplayTime, sequenceId);
       }
     } catch (error) {
-      Logger.error('[ERROR] [translationController] 異常:', error.message);
+      if (isDebugEnabled()) console.error('[ERROR] [translationController] 異常:', error.message);
       updateStatusDisplay('翻訳エラー:', { error: error.message });
       setTimeout(() => updateStatusDisplay(''), 5000);
       throw error;

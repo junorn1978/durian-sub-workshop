@@ -9,7 +9,7 @@ import { setupPromptModelDownload } from './promptTranslationService.js';
 import { setupLanguagePackButton } from './languagePackManager.js';
 import { checkTranslationAvailability, monitorLocalTranslationAPI } from './translatorApiService.js';
 import { browserInfo, loadLanguageConfig, setAlignment, setRayModeStatus, setForceSingleLineStatus, setDeepgramStatus } from './config.js';
-import { Logger, LogLevel, setLogLevel } from './logger.js';
+import { isDebugEnabled, setLogLevel } from './logger.js';
 
 const setupToggleVisibility = (btnId, inputId) => {
   const btn = document.getElementById(btnId);
@@ -35,8 +35,10 @@ document.addEventListener('DOMContentLoaded', async function () {
   const urlParams = new URLSearchParams(window.location.search);
   const isDebugMode = urlParams.get('debug') === 'true';
 
-  setLogLevel(isDebugMode ? LogLevel.DEBUG : LogLevel.INFO);
-  Logger.info('UI', '應用程式初始化開始...');
+  const savedDebug = localStorage.getItem('log-level-preference') === 'true';
+  setLogLevel(isDebugMode || savedDebug);
+  
+  if (isDebugEnabled()) console.info('UI', '應用程式初始化開始...');
 
   setTimeout(() => {
     const statusDisplay = document.getElementById('status-display');
@@ -175,8 +177,8 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
       },
       {
-        id: 'log-level-opt', type: 'select', key: 'log-level-preference', desc: 'Console Log Level', default: '1',
-        onChange: (val) => setLogLevel(parseInt(val, 10)), onLoad: (val) => setLogLevel(parseInt(val, 10))
+        id: 'log-level-opt', type: 'select', key: 'log-level-preference', desc: 'Console Log Enable', default: 'false',
+        onChange: (val) => setLogLevel(val), onLoad: (val) => setLogLevel(val)
       },
     ],
     panels: { 'Subtitle': 'source-styles-panel', 'options': 'options-panel' }
@@ -185,7 +187,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
   // #region [瀏覽器功能限制檢查]
   if (!browserInfo.isChrome) {
-    Logger.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
+    console.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
 
     ['prompt-api-download', 'download-language-pack'].forEach(id => {
       const el = document.getElementById(id);
@@ -626,7 +628,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             }
           });
 
-          Logger.info('UI', `字幕背景風格已${isActive ? '啟用' : '停用'}`);
+          console.info('UI', `字幕背景風格已${isActive ? '啟用' : '停用'}`);
           localStorage.setItem('subtitle-style-active', isActive);
         }
       }

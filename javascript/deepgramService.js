@@ -7,7 +7,7 @@
 import { setRecognitionControlsState, clearAllTextElements, } from "./speechCapture.js";
 import { updateStatusDisplay, } from "./translationController.js";
 import { getLang } from "./config.js";
-import { Logger } from "./logger.js";
+import { isDebugEnabled } from "./logger.js";
 
 // #region [全域狀態變數]
 let socket = null;
@@ -116,7 +116,7 @@ async function fetchDeepgramKey() {
     const data = await response.json();
     return data.key ? data.key.trim() : null;
   } catch (error) {
-    Logger.error("[ERROR]", "[DeepgramService]", "取得 Key 失敗", error);
+    if (isDebugEnabled()) console.error("[ERROR]", "[DeepgramService]", "取得 Key 失敗", error);
     return null;
   }
 }
@@ -156,7 +156,7 @@ function triggerForcedFlush(onTranscriptUpdate) {
   const fullTextToFlush = (sentenceBuffer + currentInterimTranscript).trim();
 
   if (fullTextToFlush.length > 0) {
-    Logger.info("[INFO]", "[DeepgramService]", "⏳ 計時器強制斷句 (含 Interim)", fullTextToFlush);
+    if (isDebugEnabled()) console.info("[INFO]", "[DeepgramService]", "⏳ 計時器強制斷句 (含 Interim)", fullTextToFlush);
     
     if (onTranscriptUpdate) { onTranscriptUpdate(fullTextToFlush, true, true); }
     resetSentenceBuffer();
@@ -210,7 +210,7 @@ function cleanupAudioResources() {
   }
 
   if (audioContext) {
-    audioContext.close().catch(err => Logger.error("AudioContext 關閉失敗", err));
+    audioContext.close().catch(err => { if (isDebugEnabled()) console.error("AudioContext 關閉失敗", err); });
     audioContext = null;
   }
 
@@ -238,7 +238,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
   updateStatusDisplay('接続中。しばらくお待ちください...');
   const langObj = getLang(langId);
   if (!langObj) {
-    Logger.error("[ERROR] [Deepgram] 找不到語系定義:", langId);
+    if (isDebugEnabled()) console.error("[ERROR] [Deepgram] 找不到語系定義:", langId);
     return false;
   }
 
@@ -269,7 +269,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
     const track = globalStream.getAudioTracks()[0];
     const settings = track.getSettings();
 
-    Logger.info("[INFO] [Microphone] 麥克風實際生效參數:", {
+    if (isDebugEnabled()) console.info("[INFO] [Microphone] 麥克風實際生效參數:", {
       echoCancellation: settings.echoCancellation,
       noiseSuppression: settings.noiseSuppression,
       autoGainControl: settings.autoGainControl,
@@ -284,11 +284,11 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
     try {
         audioContext = new AudioContext({ sampleRate: 16000 });
     } catch (e) {
-        Logger.warn("[WARN]", "不支援指定採樣率，使用系統預設值", e);
+        if (isDebugEnabled()) console.warn("[WARN]", "不支援指定採樣率，使用系統預設值", e);
         audioContext = new AudioContext();
     }
     const finalSampleRate = audioContext.sampleRate;
-    Logger.info("[INFO]", "[AudioContext] 最終運作 SampleRate:", finalSampleRate);
+    if (isDebugEnabled()) console.info("[INFO]", "[AudioContext] 最終運作 SampleRate:", finalSampleRate);
 
 
     // 計算 Buffer Size (目標: 每 100ms 發送一次)
@@ -296,7 +296,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
     let targetBufferSize = Math.round(finalSampleRate * TARGET_CHUNK_SEC);
     
     targetBufferSize = Math.max(256, Math.round(targetBufferSize / 256) * 256);
-    Logger.info("[INFO]", "[AudioWorklet] 計算出的 Buffer Size:", targetBufferSize, `(約 ${(targetBufferSize/finalSampleRate*1000).toFixed(1)}ms)`);
+    if (isDebugEnabled()) console.info("[INFO]", "[AudioWorklet] 計算出的 Buffer Size:", targetBufferSize, `(約 ${(targetBufferSize/finalSampleRate*1000).toFixed(1)}ms)`);
 
 
     const blob = new Blob([PCM_PROCESSOR_CODE], { type: "application/javascript" });
@@ -383,7 +383,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
 
         if (received.type === "UtteranceEnd") {
           if (bufferText.length > 0) {
-            Logger.info("[INFO]", "[DeepgramService]", "⚡ UtteranceEnd 觸發斷句 (AI)");
+            if (isDebugEnabled()) console.info("[INFO]", "[DeepgramService]", "⚡ UtteranceEnd 觸發斷句 (AI)");
             if (onTranscriptUpdate && bufferText !== '？' && bufferText !== '。' && bufferText !== '、') {
               onTranscriptUpdate(bufferText, true, true);
             }
@@ -413,7 +413,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
           }
         }
       } catch (e) {
-        Logger.error("[ERROR]", "[DeepgramService]", "解析訊息失敗", e);
+        if (isDebugEnabled()) console.error("[ERROR]", "[DeepgramService]", "解析訊息失敗", e);
       }
     };
 
@@ -422,7 +422,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
           stopDeepgram();
           updateStatusDisplay('');
       } else {
-          Logger.warn("[WARN] Deepgram 意外斷線，準備重連...");
+          if (isDebugEnabled()) console.warn("[WARN] Deepgram 意外斷線，準備重連...");
 
           if (retryCount < MAX_RETRIES) {
               const delay = 2000; 
@@ -440,11 +440,11 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
       }
     }
     socket.onerror = (e) => {
-      Logger.error("[ERROR]", "[DeepgramService]", "Socket 錯誤", e);
+      if (isDebugEnabled()) console.error("[ERROR]", "[DeepgramService]", "Socket 錯誤", e);
       updateStatusDisplay("Deepgram 接続エラー。バックエンドまたはネットワークを確認してください。");
     };
   } catch (error) {
-    Logger.error("[ERROR]", "[DeepgramService]", "啟動失敗", error);
+    if (isDebugEnabled()) console.error("[ERROR]", "[DeepgramService]", "啟動失敗", error);
     stopDeepgram();
     return false;
   }
@@ -469,7 +469,7 @@ export function stopDeepgram() {
   // 統一呼叫清理函式，確保硬體資源 (globalStream) 被正確釋放
   cleanupAudioResources();
 
-  Logger.info("[INFO]", "[DeepgramService]", "Deepgram 服務已停止");
+  if (isDebugEnabled()) console.info("[INFO]", "[DeepgramService]", "Deepgram 服務已停止");
 
   setRecognitionControlsState(false);
   clearAllTextElements();

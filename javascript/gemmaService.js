@@ -3,7 +3,7 @@
  * @description 專門負責與本地 Gemma Server (Port 8080) 溝通的中介服務。
  * 此模組負責將前端的翻譯請求轉發至本地運行的後端 API，支援單一或多目標語言的平行請求。
  */
-import { Logger } from './logger.js';
+import { isDebugEnabled } from './logger.js';
 import { getLang } from './config.js';
 
 const GEMMA_API_URL = 'http://localhost:8080/translate';
@@ -43,7 +43,7 @@ async function translateOne(text, targetLang, sourceLang, previousText) {
     return data.translations && data.translations[0] ? data.translations[0] : null;
 
   } catch (error) {
-    Logger.error('[GemmaService] Request failed:', error.message);
+    if (isDebugEnabled()) console.error('[GemmaService] Request failed:', error.message);
     return null;
   }
 }
@@ -87,7 +87,7 @@ export async function translateWithGemma(text, targetLangIds, sourceLangId, prev
     };
 
   } catch (error) {
-    Logger.error('[GemmaService] Batch translation error:', error);
+    if (isDebugEnabled()) console.error('[GemmaService] Batch translation error:', error);
     return { translations: [] };
   }
 }
