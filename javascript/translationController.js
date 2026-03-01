@@ -20,6 +20,7 @@ let _cachedTargetSpans  = null;
 
 const displayBuffers = { target1: [], target2: [], target3: [] };
 const currentDisplays = { target1: null, target2: null, target3: null };
+const keywordRuleCache = new Map();
 // #endregion
 
 // #region [併發控制]
@@ -68,13 +69,12 @@ function filterTextWithKeywords(text, targetLangId) {
 
   let result = text.replace(/"/g, ''); 
 
-  const cachedRules = new Map();
-  if (!cachedRules.has(targetLangId)) {
-    cachedRules.set(targetLangId, keywordRules
+  if (!keywordRuleCache.has(targetLangId)) {
+    keywordRuleCache.set(targetLangId, keywordRules
       .filter(rule => rule.lang === targetLangId)
       .map(rule => ({ source: new RegExp(rule.source, 'ig'), target: rule.target })));
   }
-  cachedRules.get(targetLangId)?.forEach(rule => {
+  keywordRuleCache.get(targetLangId)?.forEach(rule => {
     result = result.replace(rule.source, rule.target);
   });
   return result;
@@ -257,7 +257,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       if (currentMode === 'gtx') {
         data = await translateWithGTX(text, rawTargetLangIds, sourceLangId);
 
-      } else if (currentMode === 'prompt' && 'LanguageModel' in self) {
+      } else if (currentMode === 'promptapi' && 'LanguageModel' in self) {
         data = await sendPromptTranslation(text, activeLangIds, sourceLangId);
 
       } else if (currentMode === 'fast' && browserInfo.supportsTranslatorAPI) {

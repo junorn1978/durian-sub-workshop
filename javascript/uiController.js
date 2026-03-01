@@ -511,7 +511,7 @@ document.addEventListener('DOMContentLoaded', async function () {
           if (fastModeControls) fastModeControls.style.display = 'flex';
           checkTranslationAvailability();
           break;
-        case 'ai':
+        case 'promptapi':
           if (!browserInfo.isChrome) { alert('ブラウザAI翻訳はEdgeに対応しておりません。'); applyMode('link'); return; }
           localStorage.setItem('local-prompt-api-active', 'true');
           setupPromptModelDownload();
@@ -521,7 +521,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     };
 
     const savedMode = Storage.load('translation-mode-selection') || 'gtx';
-    modeSelect.value = savedMode === 'gemma' ? 'gtx' : savedMode;
+    modeSelect.value = savedMode === 'gemma' ? 'gtx' : savedMode === 'ai' ? 'promptapi' : savedMode;
     applyMode(modeSelect.value);
     
     modeSelect.addEventListener('change', (e) => applyMode(e.target.value));
