@@ -11,6 +11,7 @@ import { translateWithGTX } from './gtxTranslationService.js';
 import { sendPromptTranslation } from './promptTranslationService.js';
 import { processTranslationUrl } from './remoteTranslationService.js';
 import { isDebugEnabled } from './logger.js';
+import { publishTranslationsToObs } from './obsBridge.js';
 
 // #region [狀態與快取]
 const translatorCache = new Map();
@@ -146,6 +147,8 @@ async function updateTranslationUI(data, targetLangIds, minDisplayTime, sequence
 function processDisplayBuffers() {
   const now = Date.now();
   const spans = getTargetSpans();
+  let hasVisualUpdate = false;
+  let latestSequenceId = null;
 
   ['target1', 'target2', 'target3'].forEach(key => {
     const span = spans[key];
@@ -184,6 +187,8 @@ function processDisplayBuffers() {
         
         // 更新 DOM
         span.textContent = next.text;
+        hasVisualUpdate = true;
+        latestSequenceId = next.sequenceId;
 
         const level = next.text !== '' ? 'info' : 'debug';
         if (isDebugEnabled()) console[level](`[${level.toUpperCase()}] [TranslationController] 更新翻譯文字:`, { 
@@ -195,6 +200,14 @@ function processDisplayBuffers() {
       if (isDebugEnabled()) console.error('[ERROR] [TranslationController] processDisplayBuffers 錯誤:', error.message);
     }
   });
+
+  if (hasVisualUpdate) {
+    publishTranslationsToObs([
+      spans.target1?.textContent || '',
+      spans.target2?.textContent || '',
+      spans.target3?.textContent || ''
+    ], latestSequenceId);
+  }
 }
 // #endregion
 

@@ -9,6 +9,7 @@ import { isRayModeActive, isDeepgramActive, browserInfo, getSourceLanguage, getL
 import { sendTranslationRequest, updateStatusDisplay } from './translationController.js';
 import { startDeepgram, stopDeepgram } from './deepgramService.js';
 import { isDebugEnabled } from './logger.js';
+import { publishSourceTextToObs } from './obsBridge.js';
 
 // #region [狀態變數與快取]
 
@@ -334,6 +335,7 @@ const updateSourceText = (() => {
     if (text === lastRenderedText) { return; }
     el.textContent = text;
     lastRenderedText = text;
+    publishSourceTextToObs(text);
   };
 })();
 
@@ -344,6 +346,14 @@ const updateSourceText = (() => {
  */
 function wrapWithNoteByAlignment(baseText, symbolType) {
   const alignment = getAlignment();
+  const isObsBridgeEnabled = localStorage.getItem('obs-ws-enabled') === 'true';
+  if (isObsBridgeEnabled) {
+    const leftBracket = '\u3010';
+    const rightBracket = '\u3011';
+    return alignment === 'center' ? `${leftBracket}${baseText}${rightBracket}`
+         : alignment === 'right'  ? `${leftBracket}${baseText}`
+                                  : `${baseText}${leftBracket}`;
+  }
   // deepgram api            → 🐹 
   // web speech api → Chrome → 🎵
   // web speech api → Edge   → 🎼️

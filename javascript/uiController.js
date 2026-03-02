@@ -10,6 +10,7 @@ import { setupLanguagePackButton } from './languagePackManager.js';
 import { checkTranslationAvailability, monitorLocalTranslationAPI } from './translatorApiService.js';
 import { browserInfo, loadLanguageConfig, setAlignment, setRayModeStatus, setForceSingleLineStatus, setDeepgramStatus } from './config.js';
 import { isDebugEnabled, setLogLevel } from './logger.js';
+import { handleObsBridgeSettingsChanged } from './obsBridge.js';
 
 const setupToggleVisibility = (btnId, inputId) => {
   const btn = document.getElementById(btnId);
@@ -110,6 +111,38 @@ document.addEventListener('DOMContentLoaded', async function () {
       { id: 'display-panel-color', type: 'body-color', css: '--body-background', desc: 'Body background color' },
       { id: 'translation-link', type: 'text', desc: 'Translation link' },
       { id: 'gas-script-id', type: 'text', desc: 'GAS Script ID' },
+      {
+        id: 'obs-ws-enabled', type: 'select', key: 'obs-ws-enabled',
+        desc: 'OBS WebSocket Bridge', default: 'false',
+        onChange: () => handleObsBridgeSettingsChanged(),
+        onLoad: () => handleObsBridgeSettingsChanged()
+      },
+      {
+        id: 'obs-ws-url', type: 'text', desc: 'OBS WebSocket URL',
+        onChange: () => handleObsBridgeSettingsChanged(),
+        onLoad: () => handleObsBridgeSettingsChanged()
+      },
+      {
+        id: 'obs-ws-password', type: 'text', desc: 'OBS WebSocket Password',
+        onChange: () => handleObsBridgeSettingsChanged(),
+        onLoad: () => handleObsBridgeSettingsChanged()
+      },
+      {
+        id: 'obs-send-source', type: 'select', key: 'obs-send-source',
+        desc: 'OBS Send Source Text', default: 'true',
+        onChange: () => handleObsBridgeSettingsChanged(),
+        onLoad: () => handleObsBridgeSettingsChanged()
+      },
+      {
+        id: 'obs-send-translation', type: 'select', key: 'obs-send-translation',
+        desc: 'OBS Send Translation Text', default: 'true',
+        onChange: () => handleObsBridgeSettingsChanged(),
+        onLoad: () => handleObsBridgeSettingsChanged()
+      },
+      { id: 'obs-input-source', type: 'text', desc: 'OBS Source Input Name', onChange: () => handleObsBridgeSettingsChanged(), onLoad: () => handleObsBridgeSettingsChanged() },
+      { id: 'obs-input-target1', type: 'text', desc: 'OBS Target 1 Input Name', onChange: () => handleObsBridgeSettingsChanged(), onLoad: () => handleObsBridgeSettingsChanged() },
+      { id: 'obs-input-target2', type: 'text', desc: 'OBS Target 2 Input Name', onChange: () => handleObsBridgeSettingsChanged(), onLoad: () => handleObsBridgeSettingsChanged() },
+      { id: 'obs-input-target3', type: 'text', desc: 'OBS Target 3 Input Name', onChange: () => handleObsBridgeSettingsChanged(), onLoad: () => handleObsBridgeSettingsChanged() },
       {
         id: 'raymode', type: 'checkbox', key: 'raymode-active', desc: 'Raymode active state',
         onChange: (checked) => setRayModeStatus(checked),
@@ -357,9 +390,13 @@ document.addEventListener('DOMContentLoaded', async function () {
         load(el) {
           const saved = Storage.load(config.id);
           if (saved) el.value = saved;
+          if (config.onLoad) config.onLoad(el.value || '');
         },
         setupListener(el) {
-          el.addEventListener('input', (e) => Storage.save(config.id, e.target.value, config.desc));
+          el.addEventListener('input', (e) => {
+            Storage.save(config.id, e.target.value, config.desc);
+            if (config.onChange) config.onChange(e.target.value);
+          });
         },
         reset() { }
       },

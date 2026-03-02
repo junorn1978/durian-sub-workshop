@@ -313,6 +313,54 @@
               </select>
             </div>
           </div>
+          <div class="option-card">
+            <div class="card-title">OBS Bridge</div>
+            <div class="card-row">
+              <span class="card-label">Enable OBS WS</span>
+              <select id="obs-ws-enabled" class="card-select" title="Enable or disable OBS WebSocket bridge">
+                <option value="false" selected>Disable</option>
+                <option value="true">Enable</option>
+              </select>
+            </div>
+            <div class="card-row">
+              <span class="card-label">Send Source</span>
+              <select id="obs-send-source" class="card-select" title="Send source speech text to OBS bridge">
+                <option value="true" selected>Enable</option>
+                <option value="false">Disable</option>
+              </select>
+            </div>
+            <div class="card-row">
+              <span class="card-label">Send Translation</span>
+              <select id="obs-send-translation" class="card-select" title="Send translation text to OBS bridge">
+                <option value="true" selected>Enable</option>
+                <option value="false">Disable</option>
+              </select>
+            </div>
+            <div class="card-row" style="align-items: flex-start; flex-direction: column; gap: 6px;">
+              <span class="card-label">OBS WS URL</span>
+              <input type="text" id="obs-ws-url" class="card-select" placeholder="ws://127.0.0.1:4455" autocomplete="off" spellcheck="false" autocorrect="off">
+            </div>
+            <div class="card-row" style="align-items: flex-start; flex-direction: column; gap: 6px;">
+              <span class="card-label">OBS Password</span>
+              <input type="password" id="obs-ws-password" class="card-select" placeholder="OBS WebSocket password" autocomplete="off" spellcheck="false" autocorrect="off">
+            </div>
+            <div class="card-row" style="align-items: flex-start; flex-direction: column; gap: 6px;">
+              <span class="card-label">Source Input</span>
+              <input type="text" id="obs-input-source" class="card-select" placeholder="Hamu_Source" autocomplete="off" spellcheck="false" autocorrect="off">
+            </div>
+            <div class="card-row" style="align-items: flex-start; flex-direction: column; gap: 6px;">
+              <span class="card-label">Target1 Input</span>
+              <input type="text" id="obs-input-target1" class="card-select" placeholder="Hamu_Target1" autocomplete="off" spellcheck="false" autocorrect="off">
+            </div>
+            <div class="card-row" style="align-items: flex-start; flex-direction: column; gap: 6px;">
+              <span class="card-label">Target2 Input</span>
+              <input type="text" id="obs-input-target2" class="card-select" placeholder="Hamu_Target2" autocomplete="off" spellcheck="false" autocorrect="off">
+            </div>
+            <div class="card-row" style="align-items: flex-start; flex-direction: column; gap: 6px;">
+              <span class="card-label">Target3 Input</span>
+              <input type="text" id="obs-input-target3" class="card-select" placeholder="Hamu_Target3" autocomplete="off" spellcheck="false" autocorrect="off">
+            </div>
+          </div>
         </div>
 
         <div class="options-column">
@@ -372,7 +420,7 @@
     <option value="#00FF00"></option>
   </datalist>
 
-  <div id="version-display" style="position: fixed; right: 8px; bottom: 4px; font-size: 10px; color: rgba(109, 19, 19, 0.5); pointer-events: none; z-index: 9999; font-family: sans-serif; letter-spacing: 0.5px;">v2.11.3</div>
+  <div id="version-display" style="position: fixed; right: 8px; bottom: 4px; font-size: 10px; color: rgba(109, 19, 19, 0.5); pointer-events: none; z-index: 9999; font-family: sans-serif; letter-spacing: 0.5px;">v2.12.0</div>
 
   <script type="module" src="javascript/uiController.js"></script>
   <script type="module" src="javascript/speechCapture.js"></script>
