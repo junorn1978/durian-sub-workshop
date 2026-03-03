@@ -1,23 +1,13 @@
 /**
  * @file obsBridge.js
- * @description Direct OBS WebSocket bridge (obs-websocket v5).
+ * @description Direct OBS WebSocket bridge (obs-websocket v5) - Broadcast Only.
  */
 
 const OBS_ENABLED_KEY = 'obs-ws-enabled';
 const OBS_URL_KEY = 'obs-ws-url';
 const OBS_PASSWORD_KEY = 'obs-ws-password';
-const OBS_SEND_SOURCE_KEY = 'obs-send-source';
-const OBS_SEND_TRANSLATION_KEY = 'obs-send-translation';
-const OBS_INPUT_SOURCE_KEY = 'obs-input-source';
-const OBS_INPUT_TARGET1_KEY = 'obs-input-target1';
-const OBS_INPUT_TARGET2_KEY = 'obs-input-target2';
-const OBS_INPUT_TARGET3_KEY = 'obs-input-target3';
 
 const DEFAULT_OBS_WS_URL = 'ws://127.0.0.1:4455';
-const DEFAULT_INPUT_SOURCE = 'Hamu_Source';
-const DEFAULT_INPUT_TARGET1 = 'Hamu_Target1';
-const DEFAULT_INPUT_TARGET2 = 'Hamu_Target2';
-const DEFAULT_INPUT_TARGET3 = 'Hamu_Target3';
 const RECONNECT_DELAY_MS = 2000;
 
 let socket = null;
@@ -37,16 +27,6 @@ function isEnabled() {
   return localStorage.getItem(OBS_ENABLED_KEY) === 'true';
 }
 
-function shouldSendSource() {
-  const value = localStorage.getItem(OBS_SEND_SOURCE_KEY);
-  return value === null ? true : value === 'true';
-}
-
-function shouldSendTranslation() {
-  const value = localStorage.getItem(OBS_SEND_TRANSLATION_KEY);
-  return value === null ? true : value === 'true';
-}
-
 function getObsUrl() {
   const value = (localStorage.getItem(OBS_URL_KEY) || '').trim();
   return value || DEFAULT_OBS_WS_URL;
@@ -54,15 +34,6 @@ function getObsUrl() {
 
 function getPassword() {
   return (localStorage.getItem(OBS_PASSWORD_KEY) || '').trim();
-}
-
-function getInputNames() {
-  return {
-    source: (localStorage.getItem(OBS_INPUT_SOURCE_KEY) || '').trim() || DEFAULT_INPUT_SOURCE,
-    target1: (localStorage.getItem(OBS_INPUT_TARGET1_KEY) || '').trim() || DEFAULT_INPUT_TARGET1,
-    target2: (localStorage.getItem(OBS_INPUT_TARGET2_KEY) || '').trim() || DEFAULT_INPUT_TARGET2,
-    target3: (localStorage.getItem(OBS_INPUT_TARGET3_KEY) || '').trim() || DEFAULT_INPUT_TARGET3
-  };
 }
 
 function normalizeTranslations(translations) {
@@ -154,49 +125,13 @@ function sendIdentify(authentication = '') {
   sendRaw({ op: 1, d: identifyData });
 }
 
-function sendSetInputText(inputName, textValue, kind) {
-  if (!authenticated || !inputName) return;
-  requestCounter += 1;
-  const typeTag = kind || 'src';
-  sendRaw({
-    op: 6,
-    d: {
-      requestType: 'SetInputSettings',
-      requestId: `hamu-${typeTag}-${requestCounter}`,
-      requestData: {
-        inputName,
-        inputSettings: {
-          text: textValue
-        },
-        overlay: true
-      }
-    }
-  });
-}
-
-function handleRequestResponse(data) {
-  const requestType = data?.requestType || '';
-  if (requestType !== 'SetInputSettings') return;
-  const requestId = data?.requestId || '';
-  if (!requestId.includes('tr-')) return;
-
-  const requestStatus = data?.requestStatus || {};
-  if (requestStatus?.result) return;
-
-  const code = requestStatus?.code ?? 'unknown';
-  const comment = requestStatus?.comment || '';
-  setBridgeStatus(`OBS Bridge error: request=${requestId} code=${code} ${comment}`.trim());
-}
-
 function pushSourceToObs() {
   if (!authenticated) {
     pendingSourcePush = true;
     return;
   }
   pendingSourcePush = false;
-  if (!shouldSendSource()) return;
-  const inputNames = getInputNames();
-  sendSetInputText(inputNames.source, latestSourceText, 'src');
+  broadcastSubtitleUpdate();
 }
 
 function pushTranslationsToObs() {
@@ -205,11 +140,70 @@ function pushTranslationsToObs() {
     return;
   }
   pendingTranslationPush = false;
-  if (!shouldSendTranslation()) return;
-  const inputNames = getInputNames();
-  sendSetInputText(inputNames.target1, latestTranslations[0] || '', 'tr-1');
-  sendSetInputText(inputNames.target2, latestTranslations[1] || '', 'tr-2');
-  sendSetInputText(inputNames.target3, latestTranslations[2] || '', 'tr-3');
+  broadcastSubtitleUpdate();
+}
+
+function getStyleFor(prefix) {
+  const colorEl = document.getElementById(`${prefix}-font-color`);
+  const strokeColorEl = document.getElementById(`${prefix}-font-stroke-color`);
+  const sizeEl = document.getElementById(`${prefix}-font-size`);
+  const strokeSizeEl = document.getElementById(`${prefix}-font-stroke-size`);
+  return {
+    color: colorEl ? colorEl.value : '#FFFFFF',
+    strokeColor: strokeColorEl ? strokeColorEl.value : '#000000',
+    fontSize: sizeEl ? `${sizeEl.value}px` : '20px',
+    strokeSize: strokeSizeEl ? `${strokeSizeEl.value}px` : '4px'
+  };
+}
+
+function broadcastSubtitleUpdate() {
+  if (!authenticated) return;
+  requestCounter += 1;
+  
+  let alignment = 'center';
+  const alignRadios = document.getElementsByName('alignment');
+  if (alignRadios) {
+    for (const radio of alignRadios) {
+      if (radio.checked) {
+        alignment = radio.value;
+        break;
+      }
+    }
+  }
+
+  const sourceEl = document.getElementById('source-text');
+  const target1El = document.getElementById('target-text-1');
+
+  const sourceClasses = sourceEl ? Array.from(sourceEl.classList).filter(c => c.startsWith('visual-') || c.startsWith('overflow-')) : [];
+  const targetClasses = target1El ? Array.from(target1El.classList).filter(c => c.startsWith('overflow-')) : [];
+
+  sendRaw({
+    op: 6,
+    d: {
+      requestType: 'BroadcastCustomEvent',
+      requestId: `hamu-broadcast-${requestCounter}`,
+      requestData: {
+        eventData: {
+          type: 'hamham_subtitle_update',
+          source: latestSourceText || '',
+          target1: latestTranslations[0] || '',
+          target2: latestTranslations[1] || '',
+          target3: latestTranslations[2] || '',
+          alignment: alignment,
+          layoutClasses: {
+            source: sourceClasses,
+            targets: targetClasses
+          },
+          styles: {
+            source: getStyleFor('source'),
+            target1: getStyleFor('target1'),
+            target2: getStyleFor('target2'),
+            target3: getStyleFor('target3')
+          }
+        }
+      }
+    }
+  });
 }
 
 function flushPendingPushes() {
@@ -285,10 +279,6 @@ function ensureConnection() {
       setBridgeStatus('OBS Bridge: identified/authenticated');
       flushPendingPushes();
       return;
-    }
-
-    if (op === 7) {
-      handleRequestResponse(data);
     }
   };
 

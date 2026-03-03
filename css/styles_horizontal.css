@@ -654,3 +654,17 @@ input[type="range"]:disabled {
   cursor: not-allowed;
   filter: grayscale(100%);
 }
+
+/* =========================================
+   14. OBS Bridge Card Specific Styles
+   ========================================= */
+.obs-input-group {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.obs-input-group input.card-select {
+  width: 100%;
+  box-sizing: border-box;
+}

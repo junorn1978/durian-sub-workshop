@@ -128,22 +128,6 @@ document.addEventListener('DOMContentLoaded', async function () {
         onLoad: () => handleObsBridgeSettingsChanged()
       },
       {
-        id: 'obs-send-source', type: 'select', key: 'obs-send-source',
-        desc: 'OBS Send Source Text', default: 'true',
-        onChange: () => handleObsBridgeSettingsChanged(),
-        onLoad: () => handleObsBridgeSettingsChanged()
-      },
-      {
-        id: 'obs-send-translation', type: 'select', key: 'obs-send-translation',
-        desc: 'OBS Send Translation Text', default: 'true',
-        onChange: () => handleObsBridgeSettingsChanged(),
-        onLoad: () => handleObsBridgeSettingsChanged()
-      },
-      { id: 'obs-input-source', type: 'text', desc: 'OBS Source Input Name', onChange: () => handleObsBridgeSettingsChanged(), onLoad: () => handleObsBridgeSettingsChanged() },
-      { id: 'obs-input-target1', type: 'text', desc: 'OBS Target 1 Input Name', onChange: () => handleObsBridgeSettingsChanged(), onLoad: () => handleObsBridgeSettingsChanged() },
-      { id: 'obs-input-target2', type: 'text', desc: 'OBS Target 2 Input Name', onChange: () => handleObsBridgeSettingsChanged(), onLoad: () => handleObsBridgeSettingsChanged() },
-      { id: 'obs-input-target3', type: 'text', desc: 'OBS Target 3 Input Name', onChange: () => handleObsBridgeSettingsChanged(), onLoad: () => handleObsBridgeSettingsChanged() },
-      {
         id: 'raymode', type: 'checkbox', key: 'raymode-active', desc: 'Raymode active state',
         onChange: (checked) => setRayModeStatus(checked),
         onLoad: (checked) => setRayModeStatus(checked)
