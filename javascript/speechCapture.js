@@ -346,17 +346,9 @@ const updateSourceText = (() => {
  */
 function wrapWithNoteByAlignment(baseText, symbolType) {
   const alignment = getAlignment();
-  const isObsBridgeEnabled = localStorage.getItem('obs-ws-enabled') === 'true';
-  if (isObsBridgeEnabled) {
-    const leftBracket = '\u3010';
-    const rightBracket = '\u3011';
-    return alignment === 'center' ? `${leftBracket}${baseText}${rightBracket}`
-         : alignment === 'right'  ? `${leftBracket}${baseText}`
-                                  : `${baseText}${leftBracket}`;
-  }
   // deepgram api            → 🐹 
-  // web speech api → Chrome → 🎵
-  // web speech api → Edge   → 🎼️
+  // web speech api → Chrome → 🐿️
+  // web speech api → Edge   → 🐭
   const symbolTextA = symbolType === 'deepgram' ? '​​🐹'
                          : browserInfo.isChrome ? '​​🐿️'
                                                 : '​🐭';

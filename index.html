@@ -314,7 +314,12 @@
             </div>
           </div>
           <div class="option-card">
-            <div class="card-title">OBS Bridge</div>
+            <div class="card-title" style="display: flex; align-items: center; justify-content: space-between;">
+              <span>OBS Bridge</span>
+              <a href="guide_obs.html" target="_blank" class="link-help-btn" title="OBS連携ガイドを見る" style="position: static; transform: none; display: inline-flex; align-items: center; color: #888; margin: 0; padding: 0; background: none; border: none; height: auto; width: auto;">
+                <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              </a>
+            </div>
             <div class="card-row">
               <span class="card-label">Enable OBS WS</span>
               <select id="obs-ws-enabled" class="card-select" title="Enable or disable OBS WebSocket bridge">
@@ -328,7 +333,15 @@
             </div>
             <div class="card-row obs-input-group">
               <span class="card-label">OBS Password</span>
-              <input type="password" id="obs-ws-password" class="card-select" placeholder="OBS WebSocket password" autocomplete="off" spellcheck="false" autocorrect="off">
+              <div style="position: relative; width: 100%;">
+                <input type="text" id="obs-ws-password" class="card-select input-masked" placeholder="OBS WebSocket password" autocomplete="off" spellcheck="false" autocorrect="off" style="width: 100%; padding-right: 30px; box-sizing: border-box;">
+                <button type="button" id="toggle-obs-pwd-visibility" class="visibility-btn" title="表示/非表示">
+                  <svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                </button>
+              </div>
+            </div>
+            <div class="card-row" style="margin-top: 10px;">
+              <a id="obs-drag-link" href="#" draggable="true" class="menu3-button" style="text-decoration: none; width: 100%; justify-content: center; font-size: 14px; background-color: #2B65D9; color: white; cursor: grab;" title="このボタンをOBSのソース一覧にドラッグ＆ドロップしてください">OBSへドラッグ＆ドロップ</a>
             </div>
           </div>
         </div>

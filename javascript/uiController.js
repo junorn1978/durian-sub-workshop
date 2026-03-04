@@ -32,6 +32,19 @@ const setupToggleVisibility = (btnId, inputId) => {
   }
 };
 
+const updateObsDragLink = () => {
+  const linkEl = document.getElementById('obs-drag-link');
+  if (!linkEl) return;
+  const url = document.getElementById('obs-ws-url')?.value || 'ws://127.0.0.1:4455';
+  const pwd = document.getElementById('obs-ws-password')?.value || '';
+  
+  const baseUrl = window.location.href.split('?')[0].replace(/index\.html$/, '').replace(/\/$/, '');
+  const overlayUrl = `${baseUrl}/obs_overlay.html`;
+  
+  const dragHref = `${overlayUrl}?url=${encodeURIComponent(url)}&pwd=${encodeURIComponent(pwd)}`;
+  linkEl.href = dragHref;
+};
+
 document.addEventListener('DOMContentLoaded', async function () {
   const urlParams = new URLSearchParams(window.location.search);
   const isDebugMode = urlParams.get('debug') === 'true';
@@ -119,13 +132,13 @@ document.addEventListener('DOMContentLoaded', async function () {
       },
       {
         id: 'obs-ws-url', type: 'text', desc: 'OBS WebSocket URL',
-        onChange: () => handleObsBridgeSettingsChanged(),
-        onLoad: () => handleObsBridgeSettingsChanged()
+        onChange: () => { handleObsBridgeSettingsChanged(); updateObsDragLink(); },
+        onLoad: () => { handleObsBridgeSettingsChanged(); updateObsDragLink(); }
       },
       {
         id: 'obs-ws-password', type: 'text', desc: 'OBS WebSocket Password',
-        onChange: () => handleObsBridgeSettingsChanged(),
-        onLoad: () => handleObsBridgeSettingsChanged()
+        onChange: () => { handleObsBridgeSettingsChanged(); updateObsDragLink(); },
+        onLoad: () => { handleObsBridgeSettingsChanged(); updateObsDragLink(); }
       },
       {
         id: 'raymode', type: 'checkbox', key: 'raymode-active', desc: 'Raymode active state',
@@ -670,6 +683,7 @@ document.addEventListener('DOMContentLoaded', async function () {
   setupDisplayPanelInteraction();
   setupTranslationModeHandler();
   setupMicPrivacyHandler();
+  setupToggleVisibility('toggle-obs-pwd-visibility', 'obs-ws-password');
 
   const defaultTab = document.getElementById('Subtitle');
   if (defaultTab) defaultTab.click();
@@ -681,6 +695,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     // 並且問題可能很多，非必要不建議使用。
     setupPromptModelDownload();
   };
+  
+  updateObsDragLink(); // Initialize the link href
   // #endregion
 
 // #region [模式B字幕處理方式(CSS限制寬度和高度、超過使用滾動方式移動)]
@@ -809,3 +825,4 @@ document.addEventListener('DOMContentLoaded', async function () {
 
   // #endregion
 });
+
