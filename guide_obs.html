@@ -151,7 +151,8 @@
             1. OBS Studio を起動し、上部メニューの<strong>「ツール」</strong>から<strong>「WebSocket サーバー設定」</strong>を開きます。<br>
             2. <strong>「WebSocket サーバーを有効にする」</strong>にチェックを入れます。<br>
             3. 「サーバーポート」が <code>4455</code> であることを確認します。<br>
-            4. <strong>「認証を有効にする」</strong>にチェックを入れ、「パスワードを生成」ボタンを押すか、任意のパスワードを入力します。（このパスワードをコピーしておいてください）<br>
+            4. <strong>「認証を有効にする」</strong>にチェックを入れ、「パスワードを生成」ボタンを押すか、任意のパスワードを入力します。<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;⚠️ <strong>重要：</strong>必ず<strong>「接続情報を表示」</strong>ボタンを押して、パスワードが見える状態にしてからコピーしてください。（伏せ字のままだと正しくコピーされません）<br>
             5. 「OK」を押して閉じます。
           </div>
         </div>
@@ -165,7 +166,9 @@
             1. ハムハム字幕アトリエの「その他」設定パネルを開きます。<br>
             2. <strong>「OBS Bridge」</strong>の項目を見つけます。<br>
             3. 「Enable OBS WS」を <strong>Enable</strong> に変更します。<br>
-            4. 「OBS WS URL」に <code>ws://127.0.0.1:4455</code> を入力します。（OBSが同じPCで動いている場合）<br>
+            4. 「OBS WS URL」に <code>ws://127.0.0.1:4455</code> を入力します。<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 0.9em; color: #666;">※ OBSとブラウザが同じPCなら、この数字（ローカルホスト）のままでOKです。</span><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 0.9em; color: #666;">※ 別のPCのOBSに繋ぐ場合のみ、そのPCのIPアドレス（例: <code>ws://192.168.1.15:4455</code>）に変更してください。</span><br>
             5. 「OBS Password」に、Step 1で設定（コピー）したパスワードを貼り付けます。
           </div>
         </div>

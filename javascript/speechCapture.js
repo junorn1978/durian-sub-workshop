@@ -9,7 +9,7 @@ import { isRayModeActive, isDeepgramActive, browserInfo, getSourceLanguage, getL
 import { sendTranslationRequest, updateStatusDisplay } from './translationController.js';
 import { startDeepgram, stopDeepgram } from './deepgramService.js';
 import { isDebugEnabled } from './logger.js';
-import { publishSourceTextToObs } from './obsBridge.js';
+import { publishSourceTextToObs, publishTranslationsToObs } from './obsBridge.js';
 
 // #region [狀態變數與快取]
 
@@ -366,6 +366,8 @@ function clearAllTextElements() {
     try { if (el.getAnimations) el.getAnimations().forEach(a => a.cancel()); } catch (e) { }
     el.textContent = '';
   }
+  publishSourceTextToObs('');
+  publishTranslationsToObs([]);
 }
 
 // #endregion
