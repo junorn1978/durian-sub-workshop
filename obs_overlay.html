@@ -116,9 +116,16 @@
     }
 
     async function sha256Base64(text) {
-      const data = new TextEncoder().encode(text);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      return toBase64(new Uint8Array(hashBuffer));
+      try {
+        const data = new TextEncoder().encode(text);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        return toBase64(new Uint8Array(hashBuffer));
+      } catch (err) {
+        console.error("Crypto API error:", err);
+        sourceEl.textContent = "Crypto API Error: " + err.message;
+        applyStyle(sourceEl, { color: "#ff0000", strokeColor: "#000000", strokeSize: "2px", fontSize: "24px" });
+        throw err;
+      }
     }
 
     async function buildAuthToken(password, salt, challenge) {
@@ -208,9 +215,11 @@
 
     function applyStyle(el, styleObj) {
       if (!styleObj) return;
-      el.style.color = styleObj.color;
-      el.style.webkitTextStroke = `${styleObj.strokeSize} ${styleObj.strokeColor}`;
-      el.style.fontSize = styleObj.fontSize;
+      if (styleObj.color) el.style.color = styleObj.color;
+      if (styleObj.strokeSize !== undefined && styleObj.strokeColor) {
+        el.style.webkitTextStroke = `${styleObj.strokeSize} ${styleObj.strokeColor}`;
+      }
+      if (styleObj.fontSize) el.style.fontSize = styleObj.fontSize;
     }
 
     function applyClasses(el, classes) {
@@ -221,15 +230,26 @@
 
     function connect() {
       if (!initialConnectionDone) {
-        sourceEl.textContent = '';
+        sourceEl.textContent = 'Connecting to OBS WebSocket...';
         target1El.textContent = '';
         target2El.textContent = '';
         target3El.textContent = '';
       }
 
-      socket = new WebSocket(wsUrl);
+      console.log(`Attempting connection to ${wsUrl}`);
+      
+      try {
+        socket = new WebSocket(wsUrl);
+      } catch (err) {
+        console.error("Failed to create WebSocket instance:", err);
+        sourceEl.textContent = `WebSocket Error: ${err.message}. Blocked by HTTPS Mixed Content?`;
+        applyStyle(sourceEl, { color: "#ff0000", strokeColor: "#000000", strokeSize: "2px", fontSize: "24px" });
+        return;
+      }
 
-      socket.onopen = () => {};
+      socket.onopen = () => {
+        console.log("WebSocket connection opened.");
+      };
 
       socket.onmessage = (event) => {
         let msg;
@@ -256,6 +276,8 @@
 
         if (op === 2) {
            initialConnectionDone = true;
+           console.log("OBS WebSocket authenticated successfully.");
+           sourceEl.textContent = ''; // Clear connecting message
         }
 
         if (op === 5 && d.eventType === 'CustomEvent' && d.eventData && d.eventData.type === 'hamham_subtitle_update') {
@@ -293,11 +315,17 @@
         }
       };
 
-      socket.onerror = () => {
-         console.warn("OBS WebSocket connection error");
+      socket.onerror = (err) => {
+         console.error("OBS WebSocket connection error", err);
+         sourceEl.textContent = `Error connecting to ${wsUrl}. If using GitHub Pages, HTTP/HTTPS mixed content might be blocking it.`;
+         applyStyle(sourceEl, { color: "#ffaa00", strokeColor: "#000000", strokeSize: "2px", fontSize: "20px" });
       };
 
-      socket.onclose = () => {
+      socket.onclose = (event) => {
+        console.log(`WebSocket closed (Code: ${event.code}). Reconnecting in 3s...`);
+        if (!initialConnectionDone) {
+             sourceEl.textContent = `Connection closed. Retrying...`;
+        }
         setTimeout(connect, 3000);
       };
     }
