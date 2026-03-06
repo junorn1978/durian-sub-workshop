@@ -36,11 +36,11 @@ function generateObsOverlayUrl(fileName) {
 
 export function triggerAutoSetup() {
   if (!isEnabled()) {
-    alert("請先啟用 OBS WebSocket Bridge 並連線");
+    alert("先に OBS WebSocket Bridge を有効にして接続してください。");
     return;
   }
   if (!authenticated) {
-    alert("OBS WebSocket 尚未連線成功，請確認 URL 與密碼，並等待連線完成。");
+    alert("OBS WebSocket にまだ接続されていません。URLとパスワードを確認し、接続が完了するまでお待ちください。");
     pendingAutoSetup = true;
     ensureConnection();
     return;
@@ -92,7 +92,7 @@ async function executeAutoSetup() {
   try {
     const currentSceneResponse = await sendSingleRequest('GetCurrentProgramScene');
     const mainSceneName = currentSceneResponse.currentProgramSceneName || currentSceneResponse.sceneName || currentSceneResponse.sceneUuid;
-    if (!mainSceneName) throw new Error("無法取得目前場景名稱");
+    if (!mainSceneName) throw new Error("現在のシーン名を取得できませんでした");
 
     console.log(`[OBS Bridge] Auto setup starting for main scene: ${mainSceneName}`);
 
@@ -167,11 +167,11 @@ async function executeAutoSetup() {
       }
     }
 
-    alert("OBS 字幕來源自動構建完成！\n已直接為您建立五個獨立字幕來源到目前場景中。\n預設僅開啟『全顯示』，您可以自由排版或手動進行群組化。");
+    alert("OBS 字幕ソースの自動構築が完了しました！\n現在のシーンに5つの独立した字幕ソースを作成しました。\nデフォルトでは『全顯示(全体)』のみが表示されています。自由に配置やグループ化を行ってください。");
 
   } catch (error) {
     console.error("[OBS Bridge] Auto setup failed:", error);
-    alert("OBS 自動構建失敗: " + error.message);
+    alert("OBS 自動構築に失敗しました: " + error.message);
   }
 }
 
