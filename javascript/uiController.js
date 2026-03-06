@@ -10,7 +10,7 @@ import { setupLanguagePackButton } from './languagePackManager.js';
 import { checkTranslationAvailability, monitorLocalTranslationAPI } from './translatorApiService.js';
 import { browserInfo, loadLanguageConfig, setAlignment, setRayModeStatus, setForceSingleLineStatus, setDeepgramStatus } from './config.js';
 import { isDebugEnabled, setLogLevel } from './logger.js';
-import { handleObsBridgeSettingsChanged } from './obsBridge.js';
+import { handleObsBridgeSettingsChanged, triggerAutoSetup } from './obsBridge.js';
 
 const setupToggleVisibility = (btnId, inputId) => {
   const btn = document.getElementById(btnId);
