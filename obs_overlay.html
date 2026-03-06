@@ -97,9 +97,10 @@
   </div>
 
   <script>
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     const urlParams = new URLSearchParams(window.location.search);
-    const wsUrl = urlParams.get('url') || 'ws://127.0.0.1:4455';
-    const wsPwd = urlParams.get('pwd') || '';
+    const wsUrl = hashParams.get('url') || urlParams.get('url') || 'ws://127.0.0.1:4455';
+    const wsPwd = hashParams.get('pwd') || urlParams.get('pwd') || '';
 
     const sourceEl = document.getElementById('source-text');
     const target1El = document.getElementById('target-text-1');

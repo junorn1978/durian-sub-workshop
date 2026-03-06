@@ -41,7 +41,7 @@ const updateObsDragLink = () => {
   const baseUrl = window.location.href.split('?')[0].replace(/index\.html$/, '').replace(/\/$/, '');
   const overlayUrl = `${baseUrl}/obs_overlay.html`;
   
-  const dragHref = `${overlayUrl}?url=${encodeURIComponent(url)}&pwd=${encodeURIComponent(pwd)}`;
+  const dragHref = `${overlayUrl}#url=${encodeURIComponent(url)}&pwd=${encodeURIComponent(pwd)}`;
   linkEl.href = dragHref;
 };
 
