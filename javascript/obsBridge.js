@@ -124,8 +124,21 @@ async function executeAutoSetup() {
         });
         console.log(`[OBS Bridge] Created source in main scene: ${source.name}`);
       } catch (e) {
-        console.warn(`[OBS Bridge] Failed to create source ${source.name}. Reason:`, e.message);
+        console.warn(`[OBS Bridge] Failed to create source ${source.name}. It likely already exists globally in OBS. Reason:`, e.message);
+        
         try {
+          // 既然來源已經存在於 OBS 中，我們需要確保它有被加進「當前場景」
+          try {
+             await sendSingleRequest('CreateSceneItem', {
+                sceneName: mainSceneName,
+                sourceName: source.name
+             });
+             console.log(`[OBS Bridge] Added existing source ${source.name} to the current scene.`);
+          } catch(errAdd) {
+             // 如果加入失敗，通常是因為它「已經在這個場景裡了」，這是可以接受的
+          }
+
+          // 更新它的設定 (網址可能變了、密碼可能變了)
           await sendSingleRequest('SetInputSettings', {
             inputName: source.name,
             inputSettings: {
@@ -141,6 +154,7 @@ async function executeAutoSetup() {
               sceneName: mainSceneName,
               sourceName: source.name
           });
+          
           await sendSingleRequest('SetSceneItemEnabled', {
               sceneName: mainSceneName,
               sceneItemId: idRes.sceneItemId,
