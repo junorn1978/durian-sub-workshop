@@ -23,6 +23,155 @@ let pendingSourcePush = false;
 let pendingTranslationPush = false;
 let lastStatusText = '';
 
+// --- OBS Auto Setup Feature ---
+
+let pendingAutoSetup = false;
+
+function generateObsOverlayUrl(fileName) {
+  const baseUrl = window.location.href.split('?')[0].replace(/index\.html$/, '').replace(/\/$/, '');
+  const url = getObsUrl();
+  const pwd = getPassword();
+  return `${baseUrl}/${fileName}#url=${encodeURIComponent(url)}&pwd=${encodeURIComponent(pwd)}`;
+}
+
+export function triggerAutoSetup() {
+  if (!isEnabled()) {
+    alert("請先啟用 OBS WebSocket Bridge 並連線");
+    return;
+  }
+  if (!authenticated) {
+    alert("OBS WebSocket 尚未連線成功，請確認 URL 與密碼，並等待連線完成。");
+    pendingAutoSetup = true;
+    ensureConnection();
+    return;
+  }
+  executeAutoSetup();
+}
+
+function sendSingleRequest(requestType, requestData) {
+  return new Promise((resolve, reject) => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      reject(new Error("Socket not open"));
+      return;
+    }
+    const requestId = `hamu-req-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    
+    const listener = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.op === 7 && msg.d.requestId === requestId) {
+          socket.removeEventListener('message', listener);
+          if (msg.d.requestStatus.result) {
+              resolve(msg.d.responseData);
+          } else {
+              reject(new Error(msg.d.requestStatus.comment || "Request failed"));
+          }
+        }
+      } catch (e) {}
+    };
+    
+    socket.addEventListener('message', listener);
+    
+    sendRaw({
+      op: 6,
+      d: {
+        requestType: requestType,
+        requestId: requestId,
+        requestData: requestData
+      }
+    });
+    
+    setTimeout(() => {
+        socket.removeEventListener('message', listener);
+        reject(new Error(`Request ${requestType} timeout`));
+    }, 5000);
+  });
+}
+
+async function executeAutoSetup() {
+  try {
+    const currentSceneResponse = await sendSingleRequest('GetCurrentProgramScene');
+    const sceneName = currentSceneResponse.currentProgramSceneName || currentSceneResponse.sceneName || currentSceneResponse.sceneUuid;
+    if (!sceneName) throw new Error("無法取得目前場景名稱");
+
+    console.log(`[OBS Bridge] Auto setup starting for scene: ${sceneName}`);
+
+    const sourcesToCreate = [
+      { name: 'HamHam字幕-語音', file: 'obs_overlay_source.html', visible: true },
+      { name: 'HamHam字幕-翻譯1', file: 'obs_overlay_target1.html', visible: true },
+      { name: 'HamHam字幕-翻譯2', file: 'obs_overlay_target2.html', visible: false },
+      { name: 'HamHam字幕-翻譯3', file: 'obs_overlay_target3.html', visible: false }
+    ];
+
+    const groupName = '🌟 ハムハム字幕群組';
+    const createdItemIds = [];
+
+    for (const source of sourcesToCreate) {
+      try {
+        const url = generateObsOverlayUrl(source.file);
+        const createRes = await sendSingleRequest('CreateInput', {
+          sceneName: sceneName,
+          inputName: source.name,
+          inputKind: 'browser_source',
+          inputSettings: {
+            url: url,
+            width: 1280,
+            height: 200,
+            reroute_audio: false,
+            css: 'body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }'
+          },
+          sceneItemEnabled: source.visible
+        });
+        createdItemIds.push(createRes.sceneItemId);
+        console.log(`[OBS Bridge] Created source: ${source.name} (ID: ${createRes.sceneItemId})`);
+      } catch (e) {
+        console.warn(`[OBS Bridge] Failed to create source ${source.name}, might already exist:`, e.message);
+        try {
+            const idRes = await sendSingleRequest('GetSceneItemId', {
+                sceneName: sceneName,
+                sourceName: source.name
+            });
+            createdItemIds.push(idRes.sceneItemId);
+            
+            await sendSingleRequest('SetInputSettings', {
+                inputName: source.name,
+                inputSettings: {
+                    url: generateObsOverlayUrl(source.file),
+                    width: 1280,
+                    height: 200,
+                    css: 'body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }'
+                }
+            });
+        } catch(err2) {
+             console.error(`[OBS Bridge] Cannot recover source ${source.name}:`, err2.message);
+        }
+      }
+    }
+
+    if (createdItemIds.length > 0) {
+        try {
+            await sendSingleRequest('CreateGroup', {
+                sceneName: sceneName,
+                groupName: groupName,
+                sceneItemIds: createdItemIds
+            });
+            console.log(`[OBS Bridge] Group created and items moved.`);
+        } catch(e) {
+            console.warn(`[OBS Bridge] CreateGroup failed, perhaps they are already grouped or name conflict:`, e.message);
+        }
+    }
+
+    alert("OBS 字幕來源自動構建完成！請查看 OBS 畫面。\n（如果來源已存在可能會略過建立群組步驟，請手動整理）");
+
+  } catch (error) {
+    console.error("[OBS Bridge] Auto setup failed:", error);
+    alert("OBS 自動構建失敗: " + error.message);
+  }
+}
+
+// ------------------------------
+
+
 function isEnabled() {
   return localStorage.getItem(OBS_ENABLED_KEY) === 'true';
 }
@@ -209,6 +358,11 @@ function broadcastSubtitleUpdate() {
 function flushPendingPushes() {
   if (pendingSourcePush) pushSourceToObs();
   if (pendingTranslationPush) pushTranslationsToObs();
+  
+  if (pendingAutoSetup) {
+      pendingAutoSetup = false;
+      setTimeout(() => executeAutoSetup(), 500);
+  }
 }
 
 function handleHello(data) {
