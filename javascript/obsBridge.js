@@ -91,26 +91,36 @@ function sendSingleRequest(requestType, requestData) {
 async function executeAutoSetup() {
   try {
     const currentSceneResponse = await sendSingleRequest('GetCurrentProgramScene');
-    const sceneName = currentSceneResponse.currentProgramSceneName || currentSceneResponse.sceneName || currentSceneResponse.sceneUuid;
-    if (!sceneName) throw new Error("無法取得目前場景名稱");
+    const mainSceneName = currentSceneResponse.currentProgramSceneName || currentSceneResponse.sceneName || currentSceneResponse.sceneUuid;
+    if (!mainSceneName) throw new Error("無法取得目前場景名稱");
 
-    console.log(`[OBS Bridge] Auto setup starting for scene: ${sceneName}`);
+    console.log(`[OBS Bridge] Auto setup starting for main scene: ${mainSceneName}`);
 
+    // 定義要建立的來源
     const sourcesToCreate = [
-      { name: 'HamHam字幕-語音', file: 'obs_overlay_source.html', visible: true },
-      { name: 'HamHam字幕-翻譯1', file: 'obs_overlay_target1.html', visible: true },
+      { name: 'HamHam字幕-全顯示', file: 'obs_overlay.html', visible: true },
+      { name: 'HamHam字幕-語音', file: 'obs_overlay_source.html', visible: false },
+      { name: 'HamHam字幕-翻譯1', file: 'obs_overlay_target1.html', visible: false },
       { name: 'HamHam字幕-翻譯2', file: 'obs_overlay_target2.html', visible: false },
       { name: 'HamHam字幕-翻譯3', file: 'obs_overlay_target3.html', visible: false }
     ];
 
-    const groupName = '🌟 ハムハム字幕群組';
-    const createdItemIds = [];
+    const groupSceneName = '🌟 ハムハム字幕群組';
 
+    // 1. 嘗試建立作為「群組」的新場景
+    try {
+      await sendSingleRequest('CreateScene', { sceneName: groupSceneName });
+      console.log(`[OBS Bridge] Created group scene: ${groupSceneName}`);
+    } catch (e) {
+      console.log(`[OBS Bridge] Group scene might already exist: ${groupSceneName}`);
+    }
+
+    // 2. 將所有的 Browser Source 建立在「群組場景」裡面
     for (const source of sourcesToCreate) {
       try {
         const url = generateObsOverlayUrl(source.file);
-        const createRes = await sendSingleRequest('CreateInput', {
-          sceneName: sceneName,
+        await sendSingleRequest('CreateInput', {
+          sceneName: groupSceneName, // 直接建立在群組場景裡
           inputName: source.name,
           inputKind: 'browser_source',
           inputSettings: {
@@ -122,46 +132,48 @@ async function executeAutoSetup() {
           },
           sceneItemEnabled: source.visible
         });
-        createdItemIds.push(createRes.sceneItemId);
-        console.log(`[OBS Bridge] Created source: ${source.name} (ID: ${createRes.sceneItemId})`);
+        console.log(`[OBS Bridge] Created source in group: ${source.name}`);
       } catch (e) {
-        console.warn(`[OBS Bridge] Failed to create source ${source.name}, might already exist:`, e.message);
+        console.warn(`[OBS Bridge] Failed to create source ${source.name}, attempting to update...`);
         try {
-            const idRes = await sendSingleRequest('GetSceneItemId', {
-                sceneName: sceneName,
-                sourceName: source.name
-            });
-            createdItemIds.push(idRes.sceneItemId);
-            
-            await sendSingleRequest('SetInputSettings', {
-                inputName: source.name,
-                inputSettings: {
-                    url: generateObsOverlayUrl(source.file),
-                    width: 1280,
-                    height: 200,
-                    css: 'body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }'
-                }
-            });
+          await sendSingleRequest('SetInputSettings', {
+            inputName: source.name,
+            inputSettings: {
+              url: generateObsOverlayUrl(source.file),
+              width: 1280,
+              height: 200,
+              css: 'body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }'
+            }
+          });
+          
+          // 嘗試更新顯示狀態
+          const idRes = await sendSingleRequest('GetSceneItemId', {
+              sceneName: groupSceneName,
+              sourceName: source.name
+          });
+          await sendSingleRequest('SetSceneItemEnabled', {
+              sceneName: groupSceneName,
+              sceneItemId: idRes.sceneItemId,
+              sceneItemEnabled: source.visible
+          });
         } catch(err2) {
-             console.error(`[OBS Bridge] Cannot recover source ${source.name}:`, err2.message);
+          console.error(`[OBS Bridge] Cannot recover source ${source.name}:`, err2.message);
         }
       }
     }
 
-    if (createdItemIds.length > 0) {
-        try {
-            await sendSingleRequest('CreateGroup', {
-                sceneName: sceneName,
-                groupName: groupName,
-                sceneItemIds: createdItemIds
-            });
-            console.log(`[OBS Bridge] Group created and items moved.`);
-        } catch(e) {
-            console.warn(`[OBS Bridge] CreateGroup failed, perhaps they are already grouped or name conflict:`, e.message);
-        }
+    // 3. 把「群組場景」當作一個來源，加到「使用者目前的場景」中
+    try {
+       await sendSingleRequest('CreateSceneItem', {
+          sceneName: mainSceneName,
+          sourceName: groupSceneName
+       });
+       console.log(`[OBS Bridge] Added group scene to main scene.`);
+    } catch(e) {
+       console.log(`[OBS Bridge] Group scene is likely already in the main scene.`);
     }
 
-    alert("OBS 字幕來源自動構建完成！請查看 OBS 畫面。\n（如果來源已存在可能會略過建立群組步驟，請手動整理）");
+    alert("OBS 字幕來源自動構建完成！\n已為您建立『🌟 ハムハム字幕群組』並加入到目前畫面中。\n預設僅開啟『全顯示』，您可以點進群組自由開關其他獨立來源。");
 
   } catch (error) {
     console.error("[OBS Bridge] Auto setup failed:", error);
