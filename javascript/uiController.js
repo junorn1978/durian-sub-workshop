@@ -708,6 +708,14 @@ document.addEventListener('DOMContentLoaded', async function () {
   };
   
   updateObsDragLink(); // Initialize the link href
+  
+  // Bind Auto Setup Button
+  const autoSetupBtn = document.getElementById('obs-auto-setup-btn');
+  if (autoSetupBtn) {
+    autoSetupBtn.addEventListener('click', () => {
+      triggerAutoSetup();
+    });
+  }
   // #endregion
 
 // #region [模式B字幕處理方式(CSS限制寬度和高度、超過使用滾動方式移動)]
