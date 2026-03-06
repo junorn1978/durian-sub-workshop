@@ -124,7 +124,7 @@ async function executeAutoSetup() {
         });
         console.log(`[OBS Bridge] Created source in main scene: ${source.name}`);
       } catch (e) {
-        console.warn(`[OBS Bridge] Failed to create source ${source.name}, attempting to update...`);
+        console.warn(`[OBS Bridge] Failed to create source ${source.name}. Reason:`, e.message);
         try {
           await sendSingleRequest('SetInputSettings', {
             inputName: source.name,
@@ -146,6 +146,7 @@ async function executeAutoSetup() {
               sceneItemId: idRes.sceneItemId,
               sceneItemEnabled: source.visible
           });
+          console.log(`[OBS Bridge] Successfully updated existing source: ${source.name}`);
         } catch(err2) {
           console.error(`[OBS Bridge] Cannot recover source ${source.name}:`, err2.message);
         }
