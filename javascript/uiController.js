@@ -34,17 +34,28 @@ const setupToggleVisibility = (btnId, inputId) => {
 
 const updateObsDragLink = () => {
   const linkEl = document.getElementById('obs-drag-link');
-  if (!linkEl) return;
+  const linkSourceEl = document.getElementById('obs-drag-link-source');
+  const linkTarget1El = document.getElementById('obs-drag-link-target1');
+  const linkTarget2El = document.getElementById('obs-drag-link-target2');
+  const linkTarget3El = document.getElementById('obs-drag-link-target3');
+
   const url = document.getElementById('obs-ws-url')?.value || 'ws://127.0.0.1:4455';
   const pwd = document.getElementById('obs-ws-password')?.value || '';
-  
-  const baseUrl = window.location.href.split('?')[0].replace(/index\.html$/, '').replace(/\/$/, '');
-  const overlayUrl = `${baseUrl}/obs_overlay.html`;
-  
-  const dragHref = `${overlayUrl}#url=${encodeURIComponent(url)}&pwd=${encodeURIComponent(pwd)}`;
-  linkEl.href = dragHref;
-};
 
+  const baseUrl = window.location.href.split('?')[0].replace(/index\.html$/, '').replace(/\/$/, '');
+
+  const setupLink = (el, fileName) => {
+    if (!el) return;
+    const overlayUrl = `${baseUrl}/${fileName}`;
+    el.href = `${overlayUrl}#url=${encodeURIComponent(url)}&pwd=${encodeURIComponent(pwd)}`;
+  };
+
+  setupLink(linkEl, 'obs_overlay.html');
+  setupLink(linkSourceEl, 'obs_overlay_source.html');
+  setupLink(linkTarget1El, 'obs_overlay_target1.html');
+  setupLink(linkTarget2El, 'obs_overlay_target2.html');
+  setupLink(linkTarget3El, 'obs_overlay_target3.html');
+};
 document.addEventListener('DOMContentLoaded', async function () {
   const urlParams = new URLSearchParams(window.location.search);
   const isDebugMode = urlParams.get('debug') === 'true';
