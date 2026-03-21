@@ -183,8 +183,8 @@ document.addEventListener('DOMContentLoaded', async function () {
           const dlBtn = document.getElementById('download-language-pack');
           if (dlBtn && browserInfo.isChrome) {
             // 等on device成為穩定版本時才開放使用
-            // dlBtn.style.display = isDeepgram ? 'none' : 'flex';
-            dlBtn.style.display = isDeepgram ? 'none' : 'none';
+            dlBtn.style.display = isDeepgram ? 'none' : 'flex';
+            //dlBtn.style.display = isDeepgram ? 'none' : 'none';
           }
 
           // 控制說明連結顯示 (僅 Deepgram 顯示)
@@ -199,8 +199,8 @@ document.addEventListener('DOMContentLoaded', async function () {
 
           const dlBtn = document.getElementById('download-language-pack');
           if (dlBtn && browserInfo.isChrome) {
-            // dlBtn.style.display = isDeepgram ? 'none' : 'flex';
-            dlBtn.style.display = isDeepgram ? 'none' : 'none';
+            dlBtn.style.display = isDeepgram ? 'none' : 'flex';
+            //dlBtn.style.display = isDeepgram ? 'none' : 'none';
           }
 
           const helpLink = document.getElementById('engine-help-link');

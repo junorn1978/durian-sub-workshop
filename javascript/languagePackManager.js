@@ -2,6 +2,9 @@
  * @file languagePackManager.js
  * @description 語音語言包管理模組。負責檢測瀏覽器本地語音辨識支援度及執行模型安裝程序。
  * 目前暫時不使用，因為還是處在實驗性質並且不穩定。
+ * 目前已知可能會造成啟動失敗的原因有
+ * 1. 下載語言包之前沒有啟動過語音辨識
+ * 2. 預設值不是對應的語言(這一個似乎在Chrome 148版有改善的樣子，但不敢確定)
  */
 
 // import { updateStatusDisplay } from './translationController.js';
