@@ -10,6 +10,7 @@
 // import { updateStatusDisplay } from './translationController.js';
 import { getLang } from './config.js'; // [修改] 引入 getLang 取代舊有分散函式
 import { isDebugEnabled } from './logger.js';
+import { isWebSpeechRecognitionRunning } from './speechCapture.js';
 
 // #region [狀態檢查邏輯]
 
@@ -52,6 +53,11 @@ async function isLanguageSupportedLocally(langId) {
  * @returns {Promise<boolean>}
  */
 async function downloadLanguagePack(langId, updateCallback) {
+  if (!isWebSpeechRecognitionRunning()) {
+    updateCallback('先に開始ボタンを押して、音声認識を起動してから、オフライン言語パックをダウンロードまたはインストールしてください。');
+    return false;
+  }
+
   if (!navigator.onLine) {
     if (isDebugEnabled()) console.warn("[WARN]", "[languagePackManager]", "無網路連線:", langId);
     updateCallback('インターネットに接続されていません。ネットワークを確認してください。');

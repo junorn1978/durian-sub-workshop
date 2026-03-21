@@ -21,6 +21,7 @@ let recognition = null;
 
 /** @type {boolean} 全域辨識啟用狀態 */
 let isRecognitionActive = false;
+let activeRecognitionEngine = null;
 
 /** @type {Array<Object>} Ray Mode 關鍵字規則集 */
 let keywordRules = [];
@@ -114,6 +115,10 @@ function setRecognitionControlsState(isStarting) {
     startButton.disabled = false;
     stopButton.disabled = true;
   }
+}
+
+function isWebSpeechRecognitionRunning() {
+  return isRecognitionActive && activeRecognitionEngine === 'webspeech';
 }
 
 // #endregion
@@ -551,6 +556,7 @@ function setupSpeechRecognitionHandlers() {
         if (deepgramStarted) {
           setRecognitionControlsState(true);
           isRecognitionActive = true;
+          activeRecognitionEngine = 'deepgram';
           return;
         }
       } catch (err) {
@@ -563,15 +569,18 @@ function setupSpeechRecognitionHandlers() {
     await configureRecognition(recognition, sourceLang);
     try {
       recognition.start();
+      activeRecognitionEngine = 'webspeech';
     } catch (error) {
       setRecognitionControlsState(false);
       isRecognitionActive = false;
+      activeRecognitionEngine = null;
     }
   });
 
   stopButton.addEventListener('click', () => {
     setRecognitionControlsState(false);
     isRecognitionActive = false;
+    activeRecognitionEngine = null;
     if (isDeepgramActive()) stopDeepgram();
     if (recognition) { recognition.abort(); clearAllTextElements(); }
   });
@@ -584,6 +593,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupSpeechRecognitionHandlers();
   setRecognitionControlsState(false);
   isRecognitionActive = false;
+  activeRecognitionEngine = null;
 
   showMicInfoOnce().catch(() => { });
 
@@ -594,4 +604,4 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // #endregion
 
-export { keywordRules, setRecognitionControlsState, clearAllTextElements };
+export { keywordRules, setRecognitionControlsState, clearAllTextElements, isWebSpeechRecognitionRunning };
