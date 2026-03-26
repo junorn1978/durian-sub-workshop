@@ -306,6 +306,31 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
         processorOptions: { bufferSize: targetBufferSize }
     });
 
+    // 立即建立音訊管線，在 WebSocket 連線前就開始收集 PCM 資料
+    mediaStreamSource = audioContext.createMediaStreamSource(globalStream);
+
+    const highpass = audioContext.createBiquadFilter();
+    highpass.type = "highpass";
+    highpass.frequency.value = 90;
+    highpass.Q.value = 0.707;
+
+    const preGainNode = audioContext.createGain();
+    preGainNode.gain.value = 1;
+
+    mediaStreamSource.connect(highpass);
+    highpass.connect(preGainNode);
+    preGainNode.connect(audioWorkletNode);
+
+    const pendingAudioChunks = [];
+
+    audioWorkletNode.port.onmessage = (event) => {
+      if (socket?.readyState === 1) {
+        socket.send(event.data);
+      } else {
+        pendingAudioChunks.push(event.data);
+      }
+    };
+
     const deepgramCode = langObj.deepgramCode;
     let selectedModel = NOVA3_SUPPORTED_LANGS.includes(deepgramCode) ? "nova-3" : "nova-2";
     let finalLangParam = MULTI_SUPPORTED_LANGS.includes(deepgramCode) ? "multi" : deepgramCode;
@@ -318,7 +343,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
       utterance_end_ms: "1000",
       endpointing:      "200",
       vad_events:       "true",
-      encoding:         "linear16", 
+      encoding:         "linear16",
       sample_rate:      finalSampleRate.toString()
     });
 
@@ -338,26 +363,14 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
       isRunning = true;
       updateStatusDisplay("Deepgram 接続成功 (Raw Audio Mode)");
 
-      mediaStreamSource = audioContext.createMediaStreamSource(globalStream);
-
-      // High-pass filter: 低周波ノイズをカットして安定性を向上 (90Hz)
-      const highpass = audioContext.createBiquadFilter();
-      highpass.type = "highpass";
-      highpass.frequency.value = 90;
-      highpass.Q.value = 0.707;
-
-      const preGainNode = audioContext.createGain();
-      preGainNode.gain.value = 1;
-
-      mediaStreamSource.connect(highpass);
-      highpass.connect(preGainNode);
-      preGainNode.connect(audioWorkletNode);
-
-      audioWorkletNode.port.onmessage = (event) => {
-        if (socket?.readyState === 1) {
-          socket.send(event.data);
+      // 送出連線前暫存的音訊資料
+      if (pendingAudioChunks.length > 0) {
+        if (isDebugEnabled()) console.info("[INFO]", "[DeepgramService]", `送出 ${pendingAudioChunks.length} 個暫存音訊片段`);
+        for (const chunk of pendingAudioChunks) {
+          socket.send(chunk);
         }
-      };
+        pendingAudioChunks.length = 0;
+      }
 
       keepAliveInterval = setInterval(() => {
         if (socket?.readyState === 1) socket.send(JSON.stringify({ type: "KeepAlive" }));
