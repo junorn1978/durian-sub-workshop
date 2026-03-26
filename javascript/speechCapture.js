@@ -10,6 +10,7 @@ import { sendTranslationRequest, updateStatusDisplay } from './translationContro
 import { startDeepgram, stopDeepgram } from './deepgramService.js';
 import { isDebugEnabled } from './logger.js';
 import { publishSourceTextToObs, publishTranslationsToObs } from './obsBridge.js';
+import { loadKeywordRules, filterRayModeText, processRayModeTranscript } from './rayModeFilter.js';
 
 // #region [狀態變數與快取]
 
@@ -22,12 +23,6 @@ let recognition = null;
 /** @type {boolean} 全域辨識啟用狀態 */
 let isRecognitionActive = false;
 let activeRecognitionEngine = null;
-
-/** @type {Array<Object>} Ray Mode 關鍵字規則集 */
-let keywordRules = [];
-
-/** @type {Map<string, Array<Object>>} 以語言為 Key 的正規表達式規則快取 */
-const cachedRules = new Map();
 
 /** @type {Object} 短語庫配置物件 */
 let phrasesConfig = {};
@@ -202,39 +197,7 @@ async function handleDeepgramTranscript(text, isFinal, shouldTranslate, currentL
 
 // #region [規則載入與文字過濾]
 
-/** 異步載入 Ray Mode 字詞轉換規則 */
-async function loadKeywordRules() {
-  const response = await fetch('data/ray_mode_keywords.json');
-  if (!response.ok) throw new Error('無法載入關鍵字規則');
-
-  keywordRules = await response.json();
-  const uniqueLangs = [...new Set(keywordRules.map(r => r.lang))];
-
-  uniqueLangs.forEach(lang => {
-    const rulesForLang = keywordRules
-      .filter(r => r.lang === lang)
-      .map(r => ({
-        sourcePattern: r.source,   // 仍然是「regex pattern 字串」
-        target: r.target
-      }))
-      // 最長優先：避免短詞先吃掉長詞
-      .sort((a, b) => b.sourcePattern.length - a.sourcePattern.length);
-
-    // 預編譯：精準判斷是哪一條規則命中（避免每次都new RegExp）
-    const compiledRules = rulesForLang.map(r => ({
-      target: r.target,
-      exact: new RegExp(`^(?:${r.sourcePattern})$`, 'i') // 不要 g，避免 lastIndex 問題
-    }));
-
-    // 預編譯：一次掃描用的 master regex
-    const pattern = rulesForLang.map(r => `(?:${r.sourcePattern})`).join('|');
-    const master = pattern ? new RegExp(pattern, 'ig') : null;
-
-    cachedRules.set(lang, { rules: compiledRules, master });
-  });
-}
-
-/** 
+/**
  * 載入辨識語句權重 (Phrases) 配置
  * [注意] 此功能需 Chrome 141+ 且透過 install 方式安裝的 Web App 才支援。
  * 目前若未滿足條件會導致錯誤，故程式碼中暫未全面啟用，保留供未來使用。
@@ -266,44 +229,6 @@ async function loadPhrasesConfig() {
 /** 獲取快取的語言短語 */
 function getPhrasesForLang(sourceLang) {
   return cachedPhrases.get(sourceLang) || cachedPhrases.get('default') || [];
-}
-
-/** 獲取快取的 Ray Mode 轉換規則 */
-function generateRayModeRules(sourceLang) {
-  return cachedRules.get(sourceLang) || [];
-}
-
-/** 
- * 在 Ray mode 時進行的逐字稿文字替換處理
- * @param {string} text 
- * @param {string} sourceLang 
- * @returns {string} 清理後的文字
- */
-function filterRayModeText(text, sourceLang) {
-  if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') {
-    return '';
-  }
-
-  let result = text.replace(/[、。？,.]/g, ' ');
-  
-  const pack = generateRayModeRules(sourceLang);
-  
-  if (!pack || !pack.master) {
-    return result;
-  }
-
-  const { rules, master } = pack;
-
-  try {
-    result = result.replace(master, (match) => {
-      const hit = rules.find(r => r.exact.test(match));
-      return hit ? hit.target : match;
-    });
-  } catch (e) {
-    if (isDebugEnabled()) console.error('[ERROR] filterRayModeText 替換失敗:', e);
-  }
-
-  return result;
 }
 
 /** 偵測瀏覽器是否支援本地辨識模式 */
@@ -504,25 +429,6 @@ async function autoRestartRecognition(options = { delay: 0 }) {
   }, options.delay);
 }
 
-/** 在 Ray Mode 時發送翻譯會經過這邊先替換語句 */
-function processRayModeTranscript(text, sourceLang) {
-  if (!text || !text.trim() || ['っ', 'っ。', '。', '？'].includes(text.trim())) return '';
-  const pack = cachedRules.get(sourceLang);
-  if (!pack || !pack.master) return text;
-
-  const { rules, master } = pack;
-
-  try {
-    return text.replace(master, (match) => {
-      const hit = rules.find(r => r.exact.test(match));
-      return hit ? hit.target : match;
-    });
-  } catch (e) {
-    let result = text;
-    return result;
-  }
-}
-
 // #endregion
 
 // #region [事件掛載與生命週期]
@@ -603,4 +509,4 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // #endregion
 
-export { keywordRules, setRecognitionControlsState, clearAllTextElements, isWebSpeechRecognitionRunning };
+export { setRecognitionControlsState, clearAllTextElements, isWebSpeechRecognitionRunning };

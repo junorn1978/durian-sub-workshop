@@ -4,8 +4,8 @@
  * 2025 優化版：全面採用統一語系物件 (getLang) 模式。
  */
 
-import { keywordRules } from './speechCapture.js';
-import { browserInfo, getLang, isRayModeActive, isDeepgramActive } from './config.js';
+import { browserInfo, getLang, isDeepgramActive } from './config.js';
+import { filterTextWithKeywords } from './rayModeFilter.js';
 import { sendLocalTranslation } from './translatorApiService.js';
 import { translateWithGTX } from './gtxTranslationService.js';
 import { sendPromptTranslation } from './promptTranslationService.js';
@@ -21,7 +21,6 @@ let _cachedTargetSpans  = null;
 
 const displayBuffers = { target1: [], target2: [], target3: [] };
 const currentDisplays = { target1: null, target2: null, target3: null };
-const keywordRuleCache = new Map();
 // #endregion
 
 // #region [併發控制]
@@ -59,27 +58,6 @@ function pump() {
 // #endregion
 
 // #region [文字處理與過濾]
-
-/**
- * 針對翻譯後的結果進行 Ray Mode 關鍵字過濾
- * @param {string} text 
- * @param {string} targetLangId - 傳入目標語言 ID 
- */
-function filterTextWithKeywords(text, targetLangId) {
-  if (!isRayModeActive()) return text;
-
-  let result = text.replace(/"/g, ''); 
-
-  if (!keywordRuleCache.has(targetLangId)) {
-    keywordRuleCache.set(targetLangId, keywordRules
-      .filter(rule => rule.lang === targetLangId)
-      .map(rule => ({ source: new RegExp(rule.source, 'ig'), target: rule.target })));
-  }
-  keywordRuleCache.get(targetLangId)?.forEach(rule => {
-    result = result.replace(rule.source, rule.target);
-  });
-  return result;
-}
 
 function updateStatusDisplay(text, details = null) {
   const statusDisplay = document.getElementById('status-display');

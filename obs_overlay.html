@@ -102,6 +102,20 @@
     const wsUrl = hashParams.get('url') || urlParams.get('url') || 'ws://127.0.0.1:4455';
     const wsPwd = hashParams.get('pwd') || urlParams.get('pwd') || '';
 
+    // Mode-based element visibility (single file replaces 5 separate overlay HTMLs)
+    const mode = hashParams.get('mode') || urlParams.get('mode') || 'all';
+    const hideMap = {
+      source:  '#target-text-1,#target-text-2,#target-text-3',
+      target1: '#source-text,#target-text-2,#target-text-3',
+      target2: '#source-text,#target-text-1,#target-text-3',
+      target3: '#source-text,#target-text-1,#target-text-2'
+    };
+    if (hideMap[mode]) {
+      const s = document.createElement('style');
+      s.textContent = hideMap[mode] + '{display:none!important}';
+      document.head.appendChild(s);
+    }
+
     const sourceEl = document.getElementById('source-text');
     const target1El = document.getElementById('target-text-1');
     const target2El = document.getElementById('target-text-2');

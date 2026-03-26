@@ -43,17 +43,18 @@ const updateObsDragLink = () => {
 
   const baseUrl = window.location.href.split('?')[0].replace(/index\.html$/, '').replace(/\/$/, '');
 
-  const setupLink = (el, fileName) => {
+  const setupLink = (el, fileName, mode) => {
     if (!el) return;
     const overlayUrl = `${baseUrl}/${fileName}`;
-    el.href = `${overlayUrl}#url=${encodeURIComponent(url)}&pwd=${encodeURIComponent(pwd)}`;
+    const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : '';
+    el.href = `${overlayUrl}#url=${encodeURIComponent(url)}&pwd=${encodeURIComponent(pwd)}${modeParam}`;
   };
 
   setupLink(linkEl, 'obs_overlay.html');
-  setupLink(linkSourceEl, 'obs_overlay_source.html');
-  setupLink(linkTarget1El, 'obs_overlay_target1.html');
-  setupLink(linkTarget2El, 'obs_overlay_target2.html');
-  setupLink(linkTarget3El, 'obs_overlay_target3.html');
+  setupLink(linkSourceEl, 'obs_overlay.html', 'source');
+  setupLink(linkTarget1El, 'obs_overlay.html', 'target1');
+  setupLink(linkTarget2El, 'obs_overlay.html', 'target2');
+  setupLink(linkTarget3El, 'obs_overlay.html', 'target3');
 };
 document.addEventListener('DOMContentLoaded', async function () {
   const urlParams = new URLSearchParams(window.location.search);

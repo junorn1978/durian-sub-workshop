@@ -27,11 +27,12 @@ let lastStatusText = '';
 
 let pendingAutoSetup = false;
 
-function generateObsOverlayUrl(fileName) {
+function generateObsOverlayUrl(mode) {
   const baseUrl = window.location.href.split('?')[0].replace(/index\.html$/, '').replace(/\/$/, '');
   const url = getObsUrl();
   const pwd = getPassword();
-  return `${baseUrl}/${fileName}#url=${encodeURIComponent(url)}&pwd=${encodeURIComponent(pwd)}`;
+  const modeParam = mode && mode !== 'all' ? `&mode=${encodeURIComponent(mode)}` : '';
+  return `${baseUrl}/obs_overlay.html#url=${encodeURIComponent(url)}&pwd=${encodeURIComponent(pwd)}${modeParam}`;
 }
 
 export function triggerAutoSetup() {
@@ -98,17 +99,17 @@ async function executeAutoSetup() {
 
     // 定義要建立的來源
     const sourcesToCreate = [
-      { name: 'HamHam字幕-全顯示', file: 'obs_overlay.html', visible: true },
-      { name: 'HamHam字幕-語音', file: 'obs_overlay_source.html', visible: false },
-      { name: 'HamHam字幕-翻譯1', file: 'obs_overlay_target1.html', visible: false },
-      { name: 'HamHam字幕-翻譯2', file: 'obs_overlay_target2.html', visible: false },
-      { name: 'HamHam字幕-翻譯3', file: 'obs_overlay_target3.html', visible: false }
+      { name: 'HamHam字幕-全顯示', mode: 'all', visible: true },
+      { name: 'HamHam字幕-語音', mode: 'source', visible: false },
+      { name: 'HamHam字幕-翻譯1', mode: 'target1', visible: false },
+      { name: 'HamHam字幕-翻譯2', mode: 'target2', visible: false },
+      { name: 'HamHam字幕-翻譯3', mode: 'target3', visible: false }
     ];
 
     // 直接將所有的 Browser Source 建立在「使用者目前的場景」裡面
     for (const source of sourcesToCreate) {
       try {
-        const url = generateObsOverlayUrl(source.file);
+        const url = generateObsOverlayUrl(source.mode);
         await sendSingleRequest('CreateInput', {
           sceneName: mainSceneName,
           inputName: source.name,
@@ -142,7 +143,7 @@ async function executeAutoSetup() {
           await sendSingleRequest('SetInputSettings', {
             inputName: source.name,
             inputSettings: {
-              url: generateObsOverlayUrl(source.file),
+              url: generateObsOverlayUrl(source.mode),
               width: 1280,
               height: 200,
               css: 'body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }'

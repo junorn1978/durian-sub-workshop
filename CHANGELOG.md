@@ -1,4 +1,11 @@
 # 更新紀錄 (Changelog)
+## [v2.15.0]
+### 修改
+ - 將 5 個 OBS Overlay HTML 合併為單一檔案，透過 URL 參數 `mode` 切換顯示模式，消除約 1300 行重複碼。
+ - 將 Ray Mode 關鍵字過濾邏輯從 speechCapture.js / translationController.js 抽取至獨立模組 rayModeFilter.js，統一管理來源端與目標端的規則快取與過濾。
+ - 移除 deepgramService.js / speechCapture.js 中的無用註解與死碼。
+ - 修正 deepgramService.js 重連延遲顯示計算錯誤（delay/500 → delay/1000）。
+
 ## [v2.14.6]
 ### 修改
  - 修正deepgram重啟秒數不正確的問題
