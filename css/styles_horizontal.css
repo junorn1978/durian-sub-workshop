@@ -4,13 +4,11 @@
 :root {
   --text-font-size: 22px;
   --text-font-size-mode-b: 18px;
-  --font-size-half: 16.5px; /* 22px * 0.75 */
   --text-color: #FFFFFF;
   --stroke-color: #000000;
   --stroke-width: 5px;
   --text-align: center;
   --body-background: #00FF00;
-  --overflow-height: 26.4px; /* font-size * 1.2，JS用 */
   --display-panel-height: 55%;
 }
 
@@ -106,9 +104,6 @@ body {
   /* 視覺平滑化 */
   scroll-behavior: auto; /* JS 控制動畫，所以 CSS 設為 auto */
 }
-
-.flash { animation: fadeIn 120ms linear; }
-@keyframes fadeIn { from { opacity: 0.9; } to { opacity: 1; } }
 
 /* =========================================
    4. 介面框架佈局 (UI Framework)
@@ -323,7 +318,7 @@ body {
   padding: 0 5px;
 }
 
-.menu-button, .menu2-button, .menu3-button, .status-button, .options-button {
+.menu-button, .menu3-button, .options-button {
   width: 100px;
   min-width: 100px;
   height: 25px;
@@ -340,10 +335,10 @@ body {
   align-items: center;
   justify-content: center;
 }
-.menu-button:hover, .menu2-button:hover, .menu3-button:hover, .status-button:hover, .options-button:hover {
+.menu-button:hover, .menu3-button:hover, .options-button:hover {
   background-color: #E0E0E0;
 }
-.menu-button.active, .menu2-button.active, .menu3-button.active, .status-button.active, .options-button.active {
+.menu-button.active, .menu3-button.active, .options-button.active {
   border: 2px solid #000000;
   background-color: #D28BC4;
 }

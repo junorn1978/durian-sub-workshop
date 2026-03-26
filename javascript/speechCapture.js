@@ -153,7 +153,6 @@ async function configureRecognition(recognition, sourceLanguage) {
    *   - Cloud 模式: 若設為 true，建議將 SILENCE_THRESHOLD 調低 (如 1000ms)，否則可能無法運作超過 10 分鐘。
    * Edge: 建議 true，無上述問題。
    */
-  //recognition.continuous = true;
   recognition.continuous = processLocallyStatus;
   recognition.maxAlternatives = 1;
 
