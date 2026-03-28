@@ -3,7 +3,7 @@
  * @description UI 介面控制核心，管理所有樣式設定、語言選單、翻譯模式切換及 localStorage 持久化。
  */
 
-import { updateStatusDisplay } from './translationController.js';
+import { updateStatusDisplay } from './uiState.js';
 import { setupPromptModelDownload } from './promptTranslationService.js';
 import { setupLanguagePackButton } from './languagePackManager.js';
 import { checkTranslationAvailability, monitorLocalTranslationAPI } from './translatorApiService.js';

@@ -6,15 +6,15 @@
 
 import { browserInfo, getLang, isDeepgramActive } from './config.js';
 import { filterTextWithKeywords } from './rayModeFilter.js';
-import { sendLocalTranslation } from './translatorApiService.js';
+import { destroyLocalTranslators, sendLocalTranslation } from './translatorApiService.js';
 import { translateWithGTX } from './gtxTranslationService.js';
 import { sendPromptTranslation } from './promptTranslationService.js';
 import { processTranslationUrl } from './remoteTranslationService.js';
 import { isDebugEnabled } from './logger.js';
 import { publishTranslationsToObs } from './obsBridge.js';
+import { updateStatusDisplay as updateStatusDisplayShared } from './uiState.js';
 
 // #region [狀態與快取]
-const translatorCache = new Map();
 let sequenceCounter = 0;
 let bufferCheckInterval = null;
 let _cachedTargetSpans  = null;
@@ -60,15 +60,7 @@ function pump() {
 // #region [文字處理與過濾]
 
 function updateStatusDisplay(text, details = null) {
-  const statusDisplay = document.getElementById('status-display');
-  let displayText = text;
-  if (details) {
-    const detailStrings = Object.entries(details).map(([k, v]) => `${k}=${v}`).join(', ');
-    displayText = `${text} ${detailStrings}`;
-  }
-  if (statusDisplay && statusDisplay.textContent !== displayText) {
-    statusDisplay.textContent = displayText;
-  }
+  updateStatusDisplayShared(text, details);
 }
 // #endregion
 
@@ -275,11 +267,10 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
 // #endregion
 
 window.addEventListener('beforeunload', () => {
-  translatorCache.forEach((t) => { try { t.destroy(); } catch (e) {} });
-  translatorCache.clear();
+  destroyLocalTranslators();
   if (bufferCheckInterval) clearInterval(bufferCheckInterval);
   queue.forEach(task => task.reject(new Error('頁面即將關閉')));
   queue.length = 0;
 });
 
-export { sendTranslationRequest, sequenceCounter, translatorCache, updateStatusDisplay, updateTranslationUI };
+export { sendTranslationRequest };

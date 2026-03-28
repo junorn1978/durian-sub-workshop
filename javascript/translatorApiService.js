@@ -5,7 +5,6 @@
  */
 
 import { getLang, getSourceLanguage } from './config.js';
-import { sequenceCounter, translatorCache, updateStatusDisplay, updateTranslationUI } from './translationController.js';
 import { isDebugEnabled } from './logger.js';
 
 // #region [全域狀態與佇列]
@@ -14,6 +13,7 @@ let downloadQueue = [];
 
 /** @type {boolean} 佇列是否已執行過初始化掃描 */
 let isQueueInitialized = false;
+const translatorCache = new Map();
 // #endregion
 
 // #region [UI 監控與初始化]
@@ -188,6 +188,17 @@ export async function sendLocalTranslation(text, targetLangs, sourceLang) {
   }
 
   return { translations };
+}
+
+export function destroyLocalTranslators() {
+  translatorCache.forEach((translator) => {
+    try {
+      translator.destroy();
+    } catch (_) {
+      // no-op
+    }
+  });
+  translatorCache.clear();
 }
 
 /**

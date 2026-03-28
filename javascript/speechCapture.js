@@ -6,11 +6,12 @@
  */
 
 import { isRayModeActive, isDeepgramActive, browserInfo, getSourceLanguage, getLang, getAlignment } from './config.js';
-import { sendTranslationRequest, updateStatusDisplay } from './translationController.js';
+import { sendTranslationRequest } from './translationController.js';
 import { startDeepgram, stopDeepgram } from './deepgramService.js';
 import { isDebugEnabled } from './logger.js';
-import { publishSourceTextToObs, publishTranslationsToObs } from './obsBridge.js';
+import { publishSourceTextToObs } from './obsBridge.js';
 import { loadKeywordRules, filterRayModeText, processRayModeTranscript } from './rayModeFilter.js';
+import { updateStatusDisplay, setRecognitionControlsState, clearAllTextElements } from './uiState.js';
 
 // #region [狀態變數與快取]
 
@@ -99,21 +100,15 @@ async function showMicInfoOnce() {
  * 切換錄音控制按鈕的 DOM 狀態
  * @param {boolean} isStarting - 是否進入啟動流程
  */
-function setRecognitionControlsState(isStarting) {
-  const startButton = document.getElementById('start-recording');
-  const stopButton = document.getElementById('stop-recording');
-
-  if (isStarting) {
-    startButton.disabled = true;
-    stopButton.disabled = false;
-  } else {
-    startButton.disabled = false;
-    stopButton.disabled = true;
-  }
-}
-
 function isWebSpeechRecognitionRunning() {
   return isRecognitionActive && activeRecognitionEngine === 'webspeech';
+}
+
+function resetRecognitionState({ clearText = false } = {}) {
+  setRecognitionControlsState(false);
+  isRecognitionActive = false;
+  activeRecognitionEngine = null;
+  if (clearText) clearAllTextElements();
 }
 
 // #endregion
@@ -289,16 +284,6 @@ function wrapWithNoteByAlignment(baseText, symbolType) {
 }
 
 /** 重置所有字幕顯示欄位 */
-function clearAllTextElements() {
-  const els = document.querySelectorAll('#source-text, #target-text-1, #target-text-2, #target-text-3');
-  for (const el of els) {
-    try { if (el.getAnimations) el.getAnimations().forEach(a => a.cancel()); } catch (e) { }
-    el.textContent = '';
-  }
-  publishSourceTextToObs('');
-  publishTranslationsToObs([]);
-}
-
 // #endregion
 
 // #region [語音辨識控制流程]
@@ -457,6 +442,11 @@ function setupSpeechRecognitionHandlers() {
       try {
         const deepgramStarted = await startDeepgram(sourceLang, (text, isFinal, shouldTranslate) => {
           handleDeepgramTranscript(text, isFinal, shouldTranslate, sourceLang);
+        }, {
+          onStatusChange: updateStatusDisplay,
+          onStop: () => {
+            resetRecognitionState({ clearText: true });
+          }
         });
         if (deepgramStarted) {
           setRecognitionControlsState(true);
@@ -483,11 +473,9 @@ function setupSpeechRecognitionHandlers() {
   });
 
   stopButton.addEventListener('click', () => {
-    setRecognitionControlsState(false);
-    isRecognitionActive = false;
-    activeRecognitionEngine = null;
-    if (isDeepgramActive()) stopDeepgram();
-    if (recognition) { recognition.abort(); clearAllTextElements(); }
+    resetRecognitionState({ clearText: true });
+    if (isDeepgramActive()) stopDeepgram({ reason: 'manual-stop' });
+    if (recognition) recognition.abort();
   });
 }
 
@@ -509,4 +497,4 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // #endregion
 
-export { setRecognitionControlsState, clearAllTextElements, isWebSpeechRecognitionRunning };
+export { isWebSpeechRecognitionRunning };

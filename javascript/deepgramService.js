@@ -4,10 +4,13 @@
  * 
  */
 
-import { setRecognitionControlsState, clearAllTextElements, } from "./speechCapture.js";
-import { updateStatusDisplay, } from "./translationController.js";
 import { getLang } from "./config.js";
 import { isDebugEnabled } from "./logger.js";
+
+const DEFAULT_LIFECYCLE_HANDLERS = {
+  onStatusChange: () => {},
+  onStop: () => {}
+};
 
 // #region [全域狀態變數]
 let socket = null;
@@ -30,6 +33,7 @@ let deepgramKeywordConfig = null;
 
 let isIntentionalStop = false; // 標記是否為使用者主動停止
 let retryCount = 0;
+let lifecycleHandlers = { ...DEFAULT_LIFECYCLE_HANDLERS };
 const MAX_RETRIES = 10;
 
 let speechFlushTimer = null;
@@ -203,6 +207,18 @@ function resetFlushTimer(onTranscriptUpdate, currentTranscript = "") {
     }, FLUSH_TIMEOUT_MS);
   }
 }
+
+function setLifecycleHandlers(handlers = {}) {
+  lifecycleHandlers = { ...DEFAULT_LIFECYCLE_HANDLERS, ...handlers };
+}
+
+function notifyStatusChange(text, details = null) {
+  lifecycleHandlers.onStatusChange(text, details);
+}
+
+function notifyStopped(reason, intentional) {
+  lifecycleHandlers.onStop({ reason, intentional });
+}
 // #endregion
 
 // #region [核心服務控制]
@@ -258,10 +274,11 @@ function cleanupAudioResources() {
 /**
  * 啟動 Deepgram 語音辨識服務 (AudioWorklet 版)
  */
-export async function startDeepgram(langId, onTranscriptUpdate) {
+export async function startDeepgram(langId, onTranscriptUpdate, handlers = {}) {
+  setLifecycleHandlers(handlers);
   if (isRunning) return true;
 
-  updateStatusDisplay('接続中。しばらくお待ちください...');
+  notifyStatusChange('接続中。しばらくお待ちください...');
   const langObj = getLang(langId);
   if (!langObj) {
     if (isDebugEnabled()) console.error("[ERROR] [Deepgram] 找不到語系定義:", langId);
@@ -272,7 +289,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
 
   const authInfo = await fetchDeepgramTemporaryToken();
   if (!authInfo?.value) {
-    updateStatusDisplay("Deepgram 臨時 Token 取得失敗、Web Speech API へ切り替えます..."); 
+    notifyStatusChange("Deepgram 臨時 Token 取得失敗、Web Speech API へ切り替えます..."); 
     return false; 
   }
 
@@ -388,7 +405,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
 
     socket.onopen = () => {
       isRunning = true;
-      updateStatusDisplay("Deepgram 接続成功 (Raw Audio Mode)");
+      notifyStatusChange("Deepgram 接続成功 (Raw Audio Mode)");
 
       // 送出連線前暫存的音訊資料
       if (pendingAudioChunks.length > 0) {
@@ -405,8 +422,8 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
 
       watchdogInterval = setInterval(() => {
         if (Date.now() - lastSpeechTime > AUTO_STOP_TIMEOUT) {
-          stopDeepgram();
-          updateStatusDisplay("⚠️ 長時間無音のため、自動的に切斷しました (成本節約)。");
+          notifyStatusChange("⚠️ 長時間無音のため、自動的に切斷しました (成本節約)。");
+          stopDeepgram({ intentional: false, reason: 'auto-timeout' });
         }
       }, 10000);
     };
@@ -457,41 +474,50 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
 
     socket.onclose = (event) => {
       if (isIntentionalStop) {
-          stopDeepgram();
-          updateStatusDisplay('');
+          notifyStatusChange('');
       } else {
           if (isDebugEnabled()) console.warn("[WARN] Deepgram 意外斷線，準備重連...");
 
           if (retryCount < MAX_RETRIES) {
               const delay = 2000; 
               retryCount++;
-              updateStatusDisplay(`接続が切断されました。${delay/1000}秒後に再接続します...`);
+              notifyStatusChange(`接続が切断されました。${delay/1000}秒後に再接続します...`);
               cleanupAudioResources(); 
               isRunning = false;
               setTimeout(() => {
-                startDeepgram(langId, onTranscriptUpdate);
+                startDeepgram(langId, onTranscriptUpdate, lifecycleHandlers);
               }, delay);
           } else {
-              updateStatusDisplay("再接続に失敗しました。手動で再開してください。");
-              stopDeepgram();
+              notifyStatusChange("再接続に失敗しました。手動で再開してください。");
+              stopDeepgram({ intentional: false, reason: 'retry-exhausted' });
           }
       }
     }
     socket.onerror = (e) => {
       if (isDebugEnabled()) console.error("[ERROR]", "[DeepgramService]", "Socket 錯誤", e);
-      updateStatusDisplay("Deepgram 接続エラー。バックエンドまたはネットワークを確認してください。");
+      notifyStatusChange("Deepgram 接続エラー。バックエンドまたはネットワークを確認してください。");
     };
   } catch (error) {
     if (isDebugEnabled()) console.error("[ERROR]", "[DeepgramService]", "啟動失敗", error);
-    stopDeepgram();
+    stopDeepgram({ intentional: false, reason: 'startup-error' });
     return false;
   }
   return true;
 }
 
-export function stopDeepgram() {
+export function stopDeepgram(options = {}) {
+  const intentional = options.intentional !== false;
+  const reason = options.reason || (intentional ? 'manual-stop' : 'service-stop');
+  const hadSession =
+    isRunning ||
+    !!socket ||
+    !!globalStream ||
+    !!audioContext ||
+    !!mediaStreamSource ||
+    !!audioWorkletNode;
+
   isRunning = false;
-  isIntentionalStop = true;
+  isIntentionalStop = intentional;
   retryCount = 0;
   sentenceBuffer = '';
   bufferText = '';
@@ -509,7 +535,12 @@ export function stopDeepgram() {
 
   if (isDebugEnabled()) console.info("[INFO]", "[DeepgramService]", "Deepgram 服務已停止");
 
-  setRecognitionControlsState(false);
-  clearAllTextElements();
+  if (intentional) {
+    notifyStatusChange('');
+  }
+
+  if (hadSession) {
+    notifyStopped(reason, intentional);
+  }
 }
 // #endregion
