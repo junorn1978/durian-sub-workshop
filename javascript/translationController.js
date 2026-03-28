@@ -12,7 +12,7 @@ import { sendPromptTranslation } from './promptTranslationService.js';
 import { processTranslationUrl } from './remoteTranslationService.js';
 import { isDebugEnabled } from './logger.js';
 import { publishTranslationsToObs } from './obsBridge.js';
-import { updateStatusDisplay as updateStatusDisplayShared } from './uiState.js';
+import { updateStatusDisplay } from './uiState.js';
 
 // #region [狀態與快取]
 let sequenceCounter = 0;
@@ -54,13 +54,6 @@ function pump() {
     const next = queue.shift();
     processTask(next);
   }
-}
-// #endregion
-
-// #region [文字處理與過濾]
-
-function updateStatusDisplay(text, details = null) {
-  updateStatusDisplayShared(text, details);
 }
 // #endregion
 
