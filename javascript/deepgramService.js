@@ -93,29 +93,56 @@ registerProcessor('pcm-processor', PCMProcessor);
 
 // #region [內部工具與輔助函式]
 
-async function fetchDeepgramKey() {
+async function fetchDeepgramTemporaryToken() {
   try {
     const linkInput = document.getElementById("translation-link");
     if (!linkInput) throw new Error("找不到 translation-link 元素");
 
-    let rawInput = linkInput.value.trim();
+    const rawInput = linkInput.value.trim();
     if (!rawInput) return null;
 
-    let serviceHost = rawInput;
-    const protocolMatch = rawInput.match(/^(\w+):\/\/(.+)$/);
-    if (protocolMatch) { serviceHost = protocolMatch[2]; }
+    let serviceUrl = rawInput;
+    let serviceApiKey = "";
 
-    let protocol = serviceHost.startsWith("localhost:8083") ? "http" : "https";
-    const urlObj = new URL(`${protocol}://${serviceHost.replace(/\/+$/, '')}`);
-    const tokenUrl = `${urlObj.origin}/deepgram/token`;
+    const protocolMatch = rawInput.match(/^([a-zA-Z0-9-]+):\/\/(.+)$/);
+    if (protocolMatch) {
+      const scheme = protocolMatch[1].toLowerCase();
+      if (scheme !== "http" && scheme !== "https") {
+        serviceApiKey = protocolMatch[1].trim();
+        serviceUrl = protocolMatch[2].trim();
+      }
+    }
 
-    const response = await fetch(tokenUrl);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!/^https?:\/\//i.test(serviceUrl)) {
+      const isLocal = /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(serviceUrl);
+      serviceUrl = `${isLocal ? "http" : "https"}://${serviceUrl.replace(/^\/+/, "")}`;
+    }
+
+    const serviceBaseUrl = new URL(serviceUrl.replace(/\/+$/, ""));
+    const tokenUrl = new URL("/deepgram/token", serviceBaseUrl).toString();
+    const response = await fetch(tokenUrl, {
+      headers: serviceApiKey ? { "x-api-key": serviceApiKey } : {}
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status} - ${await response.text()}`);
 
     const data = await response.json();
-    return data.key ? data.key.trim() : null;
+    const temporaryToken = [data.key, data.token, data.access_token].find(
+      (value) => typeof value === "string" && value.trim()
+    );
+    if (!temporaryToken) return null;
+
+    const normalizedType = String(data.tokenType || data.token_type || "").toLowerCase();
+    const protocol = normalizedType === "jwt" || normalizedType === "bearer" || temporaryToken.includes(".")
+      ? "bearer"
+      : "token";
+
+    return {
+      value: temporaryToken.trim(),
+      protocol
+    };
   } catch (error) {
-    if (isDebugEnabled()) console.error("[ERROR]", "[DeepgramService]", "取得 Key 失敗", error);
+    if (isDebugEnabled()) console.error("[ERROR]", "[DeepgramService]", "取得臨時 Token 失敗", error);
     return null;
   }
 }
@@ -243,9 +270,9 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
 
   lastSpeechTime = Date.now();
 
-  const apiKey = await fetchDeepgramKey();
-  if (!apiKey) {
-    updateStatusDisplay("Deepgram Key 取得失敗、Web Speech API へ切り替えます..."); 
+  const authInfo = await fetchDeepgramTemporaryToken();
+  if (!authInfo?.value) {
+    updateStatusDisplay("Deepgram 臨時 Token 取得失敗、Web Speech API へ切り替えます..."); 
     return false; 
   }
 
@@ -357,7 +384,7 @@ export async function startDeepgram(langId, onTranscriptUpdate) {
     if (keywordConfig.global) keywordConfig.global.forEach(addKeyword);
     if (keywordConfig[deepgramCode]) keywordConfig[deepgramCode].forEach(addKeyword);
 
-    socket = new WebSocket(`wss://api.deepgram.com/v1/listen?${params.toString()}`, [ "token", apiKey ]);
+    socket = new WebSocket(`wss://api.deepgram.com/v1/listen?${params.toString()}`, [ authInfo.protocol, authInfo.value ]);
 
     socket.onopen = () => {
       isRunning = true;
