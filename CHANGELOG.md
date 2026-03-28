@@ -1,4 +1,10 @@
 # 更新紀錄 (Changelog)
+## [v2.15.2]
+### Fixed
+ - Decoupled `deepgramService.js` from `speechCapture.js` and `translationController.js` to remove circular imports.
+ - Extracted shared UI helpers into `uiState.js` so speech and translation flows use a single DOM-only utility module.
+ - Removed the circular dependency between `translationController.js` and `translatorApiService.js`.
+
 ## [v2.15.1]
 ### 修改
  - 調整deepgram的處理方式看是否能夠降低語句起始文字讀取常判斷錯誤的問題。
