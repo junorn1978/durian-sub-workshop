@@ -1,4 +1,9 @@
 # 更新紀錄 (Changelog)
+## [v2.15.3]
+### 修改
+ - 改善 Deepgram UtteranceEnd 斷句邏輯：flush 時只送出已 finalize 的文字，不再搶走下一句的 interim 開頭。
+ - 修正 UtteranceEnd flush 後畫面閃爍問題：flush 完立即重新顯示殘留的 interim 文字，避免 DOM 短暫空白。
+
 ## [v2.15.2]
 ### Fixed
  - Decoupled `deepgramService.js` from `speechCapture.js` and `translationController.js` to remove circular imports.

@@ -443,14 +443,22 @@ export async function startDeepgram(langId, onTranscriptUpdate, handlers = {}) {
         const received = JSON.parse(message.data);
 
         if (received.type === "UtteranceEnd") {
-          // 將尚未 finalize 的 interim 也納入，避免尾巴遺失
-          const textToFlush = (sentenceBuffer + currentInterimTranscript).trim();
+          // 只 flush 已 finalize 的 sentenceBuffer，不動 currentInterimTranscript
+          // 避免搶走下一句開頭的 interim 文字，減少視覺跳動
+          const textToFlush = sentenceBuffer.trim();
           if (textToFlush.length > 0) {
-            if (isDebugEnabled()) console.info("[INFO]", "[DeepgramService]", "⚡ UtteranceEnd 觸發斷句 (含 Interim)");
+            if (isDebugEnabled()) console.info("[INFO]", "[DeepgramService]", "⚡ UtteranceEnd 觸發斷句 (僅 Final)");
             if (onTranscriptUpdate && textToFlush !== '？' && textToFlush !== '。' && textToFlush !== '、') {
               onTranscriptUpdate(textToFlush, true, true);
             }
-            resetSentenceBuffer();
+          }
+          // 清空 sentenceBuffer 但保留 currentInterimTranscript
+          sentenceBuffer = "";
+          finalResultCount = 0;
+
+          // flush 後立即重新顯示殘留的 interim，避免 DOM 被清空後閃爍
+          if (currentInterimTranscript.trim().length > 0 && onTranscriptUpdate) {
+            onTranscriptUpdate(currentInterimTranscript, false, false);
           }
           return;
         }
