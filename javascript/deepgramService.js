@@ -19,10 +19,10 @@ let keepAliveInterval = null;
 let watchdogInterval = null;
 let lastSpeechTime = 0;
 let sentenceBuffer = "";
-let bufferText = "";
 let currentInterimTranscript = "";
 let finalResultCount = 0;
 let globalStream = null;
+let globalOnTranscriptUpdate = null;
 
 // Audio Context 相關變數
 let audioContext = null;
@@ -225,7 +225,6 @@ function notifyStopped(reason, intentional) {
 
 function resetSentenceBuffer() {
   sentenceBuffer = "";
-  bufferText = "";
   currentInterimTranscript = "";
   finalResultCount = 0;
 
@@ -235,7 +234,9 @@ function resetSentenceBuffer() {
   }
 }
 
-function cleanupAudioResources() {
+function cleanupAudioResources(options = {}) {
+  const keepStream = options.keepStream === true;
+
   if (keepAliveInterval) { clearInterval(keepAliveInterval); keepAliveInterval = null; }
   if (watchdogInterval)  { clearInterval(watchdogInterval); watchdogInterval = null; }
   if (speechFlushTimer)  { clearTimeout(speechFlushTimer);   speechFlushTimer  = null; }
@@ -244,7 +245,7 @@ function cleanupAudioResources() {
     mediaStreamSource.disconnect();
     mediaStreamSource = null;
   }
-  
+
   if (audioWorkletNode) {
     audioWorkletNode.port.onmessage = null;
     audioWorkletNode.disconnect();
@@ -256,7 +257,7 @@ function cleanupAudioResources() {
     audioContext = null;
   }
 
-  if (globalStream) {
+  if (!keepStream && globalStream) {
     globalStream.getTracks().forEach(track => {
       track.stop();
     });
@@ -264,7 +265,7 @@ function cleanupAudioResources() {
   }
 
   if (socket) {
-    socket.onclose = null; 
+    socket.onclose = null;
     socket.onerror = null;
     socket.close();
     socket = null;
@@ -276,6 +277,7 @@ function cleanupAudioResources() {
  */
 export async function startDeepgram(langId, onTranscriptUpdate, handlers = {}) {
   setLifecycleHandlers(handlers);
+  globalOnTranscriptUpdate = onTranscriptUpdate;
   if (isRunning) return true;
 
   notifyStatusChange('接続中。しばらくお待ちください...');
@@ -295,19 +297,27 @@ export async function startDeepgram(langId, onTranscriptUpdate, handlers = {}) {
 
   const keywordConfig = await loadDeepgramKeywords();
 
-  isIntentionalStop = false; 
-  retryCount = 0;
+  isIntentionalStop = false;
+  if (!retryCount) retryCount = 0;
 
   try {
-    globalStream = await navigator.mediaDevices.getUserMedia({
-      audio: { 
-        autoGainControl:  false,
-        echoCancellation: true,
-        noiseSuppression: true,
-        channelCount: 1,
-      }, 
-      video: false 
-    });
+    // 重連時可重用已存在的麥克風 stream，減少音訊缺口
+    const isStreamAlive = globalStream && globalStream.getAudioTracks().some(t => t.readyState === 'live');
+    if (!isStreamAlive) {
+      if (globalStream) {
+        globalStream.getTracks().forEach(t => t.stop());
+        globalStream = null;
+      }
+      globalStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          autoGainControl:  false,
+          echoCancellation: true,
+          noiseSuppression: true,
+          channelCount: 1,
+        },
+        video: false
+      });
+    }
 
     const track = globalStream.getAudioTracks()[0];
     const settings = track.getSettings();
@@ -432,19 +442,17 @@ export async function startDeepgram(langId, onTranscriptUpdate, handlers = {}) {
       try {
         const received = JSON.parse(message.data);
 
-        if (bufferText.trim().length < sentenceBuffer.trim().length) {
-          bufferText = sentenceBuffer.trim();
-        }
-
         if (received.type === "UtteranceEnd") {
-          if (bufferText.length > 0) {
-            if (isDebugEnabled()) console.info("[INFO]", "[DeepgramService]", "⚡ UtteranceEnd 觸發斷句 (AI)");
-            if (onTranscriptUpdate && bufferText !== '？' && bufferText !== '。' && bufferText !== '、') {
-              onTranscriptUpdate(bufferText, true, true);
+          // 將尚未 finalize 的 interim 也納入，避免尾巴遺失
+          const textToFlush = (sentenceBuffer + currentInterimTranscript).trim();
+          if (textToFlush.length > 0) {
+            if (isDebugEnabled()) console.info("[INFO]", "[DeepgramService]", "⚡ UtteranceEnd 觸發斷句 (含 Interim)");
+            if (onTranscriptUpdate && textToFlush !== '？' && textToFlush !== '。' && textToFlush !== '、') {
+              onTranscriptUpdate(textToFlush, true, true);
             }
             resetSentenceBuffer();
           }
-          return; 
+          return;
         }
 
         if (!received.channel) return;
@@ -479,10 +487,10 @@ export async function startDeepgram(langId, onTranscriptUpdate, handlers = {}) {
           if (isDebugEnabled()) console.warn("[WARN] Deepgram 意外斷線，準備重連...");
 
           if (retryCount < MAX_RETRIES) {
-              const delay = 2000; 
+              const delay = 800;
               retryCount++;
-              notifyStatusChange(`接続が切断されました。${delay/1000}秒後に再接続します...`);
-              cleanupAudioResources(); 
+              notifyStatusChange(`接続が切断されました。再接続中...`);
+              cleanupAudioResources({ keepStream: true });
               isRunning = false;
               setTimeout(() => {
                 startDeepgram(langId, onTranscriptUpdate, lifecycleHandlers);
@@ -516,14 +524,20 @@ export function stopDeepgram(options = {}) {
     !!mediaStreamSource ||
     !!audioWorkletNode;
 
+  // 停止前 flush 殘留文字，避免最後一段語音丟失
+  const remainingText = (sentenceBuffer + currentInterimTranscript).trim();
+  if (remainingText.length > 0 && globalOnTranscriptUpdate) {
+    globalOnTranscriptUpdate(remainingText, true, true);
+  }
+
   isRunning = false;
   isIntentionalStop = intentional;
   retryCount = 0;
   sentenceBuffer = '';
-  bufferText = '';
   currentInterimTranscript = '';
   finalResultCount = 0;
   lastSpeechTime = 0;
+  globalOnTranscriptUpdate = null;
 
   // 嘗試發送關閉訊號給 Server (如果連線還在)
   if (socket && socket.readyState === 1) {
