@@ -1,4 +1,8 @@
 # 更新紀錄 (Changelog)
+## [v2.15.5]
+### 修改
+ - 將 Deepgram `endpointing` 調整為 `200ms`，用於重新驗證 `speech_final` 在實際上線環境中的觸發表現。
+
 ## [v2.15.4]
 ### 修改
  - 調整 Deepgram 麥克風前處理設定，將 `autoGainControl` 改為啟用狀態。

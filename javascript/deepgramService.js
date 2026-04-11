@@ -39,7 +39,7 @@ const MAX_RETRIES = 10;
 // #endregion
 
 // #region [設定與配置]
-const NOVA3_SUPPORTED_LANGS = [ "en", "ja", "ko", "es", "fr", "de", "it", "pt", "nl", "id", "vi", "ru", "uk", "pl", "hi", "tr" ];
+const NOVA3_SUPPORTED_LANGS = [ "en", "ja", "ko", "es", "fr", "de", "it", "pt", "nl", "id", "vi", "ru", "uk", "pl", "hi", "tr", "zh-TW", "zh-HK", "zh-CN" ];
 const MULTI_SUPPORTED_LANGS = [ 'en', 'es', 'ko' ];
 const AUTO_STOP_TIMEOUT = 8 * 60 * 1000; 
 
@@ -368,7 +368,7 @@ export async function startDeepgram(langId, onTranscriptUpdate, handlers = {}) {
       smart_format:     "true",
       interim_results:  "true",
       utterance_end_ms: "1000",
-      endpointing:      "500",
+      endpointing:      "200",
       vad_events:       "true",
       encoding:         "linear16",
       sample_rate:      finalSampleRate.toString()
