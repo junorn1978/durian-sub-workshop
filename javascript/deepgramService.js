@@ -36,9 +36,6 @@ let retryCount = 0;
 let lifecycleHandlers = { ...DEFAULT_LIFECYCLE_HANDLERS };
 const MAX_RETRIES = 10;
 
-let speechFlushTimer = null;
-const FLUSH_TIMEOUT_MS = 1200; // 沒有說話多久時間強制翻譯和清空逐字稿
-
 // #endregion
 
 // #region [設定與配置]
@@ -177,37 +174,6 @@ function removeJapaneseSpaces(text) {
   return current;
 }
 
-function triggerForcedFlush(onTranscriptUpdate) {
-  if (speechFlushTimer) {
-    clearTimeout(speechFlushTimer);
-    speechFlushTimer = null;
-  }
-
-  const fullTextToFlush = (sentenceBuffer + currentInterimTranscript).trim();
-
-  if (fullTextToFlush.length > 0) {
-    if (isDebugEnabled()) console.info("[INFO]", "[DeepgramService]", "⏳ 計時器強制斷句 (含 Interim)", fullTextToFlush);
-    
-    if (onTranscriptUpdate) { onTranscriptUpdate(fullTextToFlush, true, true); }
-    resetSentenceBuffer();
-  }
-}
-
-function resetFlushTimer(onTranscriptUpdate, currentTranscript = "") {
-  if (speechFlushTimer) {
-    clearTimeout(speechFlushTimer);
-    speechFlushTimer = null;
-  }
-
-  const hasPendingText = (sentenceBuffer + currentTranscript).trim().length > 0;
-
-  if (hasPendingText) {
-    speechFlushTimer = setTimeout(() => {
-      triggerForcedFlush(onTranscriptUpdate);
-    }, FLUSH_TIMEOUT_MS);
-  }
-}
-
 function setLifecycleHandlers(handlers = {}) {
   lifecycleHandlers = { ...DEFAULT_LIFECYCLE_HANDLERS, ...handlers };
 }
@@ -227,11 +193,19 @@ function resetSentenceBuffer() {
   sentenceBuffer = "";
   currentInterimTranscript = "";
   finalResultCount = 0;
+}
 
-  if (speechFlushTimer) { 
-    clearTimeout(speechFlushTimer);
-    speechFlushTimer = null;
+function flushSentenceBuffer(onTranscriptUpdate, reason) {
+  const textToFlush = sentenceBuffer.trim();
+  if (textToFlush.length === 0) return false;
+
+  if (isDebugEnabled()) console.info("[INFO]", "[DeepgramService]", `${reason} 觸發斷句 (僅 Final)`);
+  if (onTranscriptUpdate && textToFlush !== '？' && textToFlush !== '。' && textToFlush !== '、') {
+    onTranscriptUpdate(textToFlush, true, true);
   }
+
+  resetSentenceBuffer();
+  return true;
 }
 
 function cleanupAudioResources(options = {}) {
@@ -239,7 +213,6 @@ function cleanupAudioResources(options = {}) {
 
   if (keepAliveInterval) { clearInterval(keepAliveInterval); keepAliveInterval = null; }
   if (watchdogInterval)  { clearInterval(watchdogInterval); watchdogInterval = null; }
-  if (speechFlushTimer)  { clearTimeout(speechFlushTimer);   speechFlushTimer  = null; }
 
   if (mediaStreamSource) {
     mediaStreamSource.disconnect();
@@ -310,7 +283,7 @@ export async function startDeepgram(langId, onTranscriptUpdate, handlers = {}) {
       }
       globalStream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          autoGainControl:  false,
+          autoGainControl:  true,
           echoCancellation: true,
           noiseSuppression: true,
           channelCount: 1,
@@ -395,7 +368,7 @@ export async function startDeepgram(langId, onTranscriptUpdate, handlers = {}) {
       smart_format:     "true",
       interim_results:  "true",
       utterance_end_ms: "1000",
-      endpointing:      "200",
+      endpointing:      "500",
       vad_events:       "true",
       encoding:         "linear16",
       sample_rate:      finalSampleRate.toString()
@@ -445,16 +418,7 @@ export async function startDeepgram(langId, onTranscriptUpdate, handlers = {}) {
         if (received.type === "UtteranceEnd") {
           // 只 flush 已 finalize 的 sentenceBuffer，不動 currentInterimTranscript
           // 避免搶走下一句開頭的 interim 文字，減少視覺跳動
-          const textToFlush = sentenceBuffer.trim();
-          if (textToFlush.length > 0) {
-            if (isDebugEnabled()) console.info("[INFO]", "[DeepgramService]", "⚡ UtteranceEnd 觸發斷句 (僅 Final)");
-            if (onTranscriptUpdate && textToFlush !== '？' && textToFlush !== '。' && textToFlush !== '、') {
-              onTranscriptUpdate(textToFlush, true, true);
-            }
-          }
-          // 清空 sentenceBuffer 但保留 currentInterimTranscript
-          sentenceBuffer = "";
-          finalResultCount = 0;
+          flushSentenceBuffer(onTranscriptUpdate, "⚡ UtteranceEnd");
 
           // flush 後立即重新顯示殘留的 interim，避免 DOM 被清空後閃爍
           if (currentInterimTranscript.trim().length > 0 && onTranscriptUpdate) {
@@ -474,13 +438,16 @@ export async function startDeepgram(langId, onTranscriptUpdate, handlers = {}) {
           currentInterimTranscript = transcript;
           
           if (onTranscriptUpdate) { onTranscriptUpdate(sentenceBuffer + transcript, false, false); }
-          resetFlushTimer(onTranscriptUpdate, transcript);
 
           if (received.is_final) {
             const isCJK = ["ja", "zh-TW", "zh-HK", "ko", "th"].includes(deepgramCode);
             sentenceBuffer += (isCJK || !sentenceBuffer) ? transcript : ` ${transcript}`;
             finalResultCount++;
             currentInterimTranscript = "";
+
+            if (received.speech_final) {
+              flushSentenceBuffer(onTranscriptUpdate, "⚡ speech_final");
+            }
           }
         }
       } catch (e) {

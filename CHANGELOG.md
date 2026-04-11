@@ -1,4 +1,11 @@
 # 更新紀錄 (Changelog)
+## [v2.15.4]
+### 修改
+ - 調整 Deepgram 麥克風前處理設定，將 `autoGainControl` 改為啟用狀態。
+ - 將 Deepgram `endpointing` 提高至 `500ms`，降低口語短停頓時過快斷句的機率。
+ - 移除本地 `FLUSH_TIMEOUT_MS` 強制斷句邏輯，避免未講完的內容被提前切出造成跨句污染。
+ - 將 Deepgram 斷句策略調整為以 `speech_final` 為優先提交點，`UtteranceEnd` 作為保底。
+
 ## [v2.15.3]
 ### 修改
  - 改善 Deepgram UtteranceEnd 斷句邏輯：flush 時只送出已 finalize 的文字，不再搶走下一句的 interim 開頭。
