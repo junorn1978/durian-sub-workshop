@@ -368,7 +368,7 @@ export async function startDeepgram(langId, onTranscriptUpdate, handlers = {}) {
       smart_format:     "true",
       interim_results:  "true",
       utterance_end_ms: "1000",
-      endpointing:      "200",
+      endpointing:      "350",
       vad_events:       "true",
       encoding:         "linear16",
       sample_rate:      finalSampleRate.toString()

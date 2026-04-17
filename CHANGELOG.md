@@ -1,4 +1,8 @@
 # 更新紀錄 (Changelog)
+## [v2.15.6]
+### 修改
+ - 將 Deepgram `endpointing` 從 `200ms` 調整為 `350ms`，減少日語及一般對話中因短停頓導致的語句過度截斷。
+
 ## [v2.15.5]
 ### 修改
  - 將 Deepgram `endpointing` 調整為 `200ms`，用於重新驗證 `speech_final` 在實際上線環境中的觸發表現。
