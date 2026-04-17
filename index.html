@@ -40,9 +40,8 @@
             <option value="gtx" selected>Google 翻訳 (無料)</option>
             <option value="link">翻訳クラウド接続</option>
             <option value="gas">Google Script Apps接続</option>
-            <option value="gemma">translateGemma（実験機能）</option>
             <option value="fast">高速翻訳 (翻訳精度低め)</option>
-            <option value="ai" disabled>ブラウザAI (実験機能)</option>
+            <option value="promptapi" disabled>ブラウザAI (実験機能)</option>
           </select>
         </div>
 
@@ -271,7 +270,7 @@
                 <option value="webspeech" selected>Web Speech API (無料)</option>
               </select>
 
-              <button id="download-language-pack" class="menu3-button" style="display: none; width: 100%; margin-top: 8px; font-size: 12px; justify-content: center;">オフライン言語パックDL</button>
+              <button id="download-language-pack" class="menu3-button" style="width: 100%; margin-top: 8px; font-size: 12px; justify-content: center;">オフライン音声認識用パックをダウンロード</button>
             </div>
           </div>
         </div>
@@ -307,14 +306,51 @@
             </div>
 
             <div class="card-row">
-              <span class="card-label">ログレベル (Debug)</span>
+              <span class="card-label">ログ表示 (Debug)</span>
               <select id="log-level-opt" class="card-select" title="コンソールの出力詳細度">
-                <option value="0">DEBUG (全て)</option>
-                <option value="1" selected>INFO (情報)</option>
-                <option value="2">WARN (警告)</option>
-                <option value="3">ERROR (エラー)</option>
-                <option value="99">NONE (なし)</option>
+                <option value="true">有効 (Enable)</option>
+                <option value="false" selected>無効 (Disable)</option>
               </select>
+            </div>
+          </div>
+          <div class="option-card">
+            <div class="card-title" style="display: flex; align-items: center; justify-content: space-between;">
+              <span>OBS Bridge</span>
+              <a href="guide_obs.html" target="_blank" class="link-help-btn" title="OBS連携ガイドを見る" style="position: static; transform: none; display: inline-flex; align-items: center; color: #888; margin: 0; padding: 0; background: none; border: none; height: auto; width: auto;">
+                <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              </a>
+            </div>
+            <div class="card-row">
+              <span class="card-label">Enable OBS WS</span>
+              <select id="obs-ws-enabled" class="card-select" title="Enable or disable OBS WebSocket bridge">
+                <option value="false" selected>Disable</option>
+                <option value="true">Enable</option>
+              </select>
+            </div>
+            <div class="card-row obs-input-group">
+              <span class="card-label">OBS WS URL</span>
+              <input type="text" id="obs-ws-url" class="card-select" placeholder="ws://127.0.0.1:4455" autocomplete="off" spellcheck="false" autocorrect="off">
+            </div>
+            <div class="card-row obs-input-group">
+              <span class="card-label">OBS Password</span>
+              <div style="position: relative; width: 100%;">
+                <input type="text" id="obs-ws-password" class="card-select input-masked" placeholder="OBS WebSocket password" autocomplete="off" spellcheck="false" autocorrect="off" style="width: 100%; padding-right: 30px; box-sizing: border-box;">
+                <button type="button" id="toggle-obs-pwd-visibility" class="visibility-btn" title="表示/非表示">
+                  <svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                </button>
+              </div>
+            </div>
+            <div class="card-row" style="margin-top: 10px; display: none;">
+              <a id="obs-drag-link" href="#" draggable="true" class="menu3-button" style="text-decoration: none; width: 100%; justify-content: center; font-size: 14px; background-color: #2B65D9; color: white; cursor: grab;" title="このボタンをOBSのソース一覧にドラッグ＆ドロップしてください">全体(Full)ドラッグ＆ドロップ</a>
+            </div>
+            <div class="card-row" style="margin-top: 5px; display: none; gap: 5px; flex-wrap: wrap;">
+              <a id="obs-drag-link-source" href="#" draggable="true" class="menu3-button" style="text-decoration: none; flex: 1; justify-content: center; font-size: 12px; background-color: #2B65D9; color: white; cursor: grab; padding: 5px; min-width: 45%;" title="音声(Source)">音声(Src)</a>
+              <a id="obs-drag-link-target1" href="#" draggable="true" class="menu3-button" style="text-decoration: none; flex: 1; justify-content: center; font-size: 12px; background-color: #2B65D9; color: white; cursor: grab; padding: 5px; min-width: 45%;" title="翻訳1(Target1)">翻訳1</a>
+              <a id="obs-drag-link-target2" href="#" draggable="true" class="menu3-button" style="text-decoration: none; flex: 1; justify-content: center; font-size: 12px; background-color: #2B65D9; color: white; cursor: grab; padding: 5px; min-width: 45%;" title="翻訳2(Target2)">翻訳2</a>
+              <a id="obs-drag-link-target3" href="#" draggable="true" class="menu3-button" style="text-decoration: none; flex: 1; justify-content: center; font-size: 12px; background-color: #2B65D9; color: white; cursor: grab; padding: 5px; min-width: 45%;" title="翻訳3(Target3)">翻訳3</a>
+            </div>
+            <div class="card-row" style="margin-top: 10px;">
+              <button id="obs-auto-setup-btn" class="menu3-button" style="width: 100%; justify-content: center; font-size: 14px; background-color: #4CAF50; color: white; border: none; cursor: pointer;" title="OBS上に自動的に字幕ソースを構築します（要WebSocket接続）">OBS自動構築 (Auto Setup)</button>
             </div>
           </div>
         </div>
@@ -355,7 +391,7 @@
   </div>
 
   <div id="status-panel">
-    <div class="status-info" id="status-display">声音認識反応ないの場合は、一度止めて数秒待ってから、もう一回録音ボタンを押し直すことをお勧めします。</div>
+    <div class="status-info" id="status-display">声音認識反応ないの場合は、一度止めて數秒待ってから、もう一回録音ボタンを押し直すことをお勧めします。</div>
   </div>
 
   <datalist id="color-list">
@@ -375,6 +411,8 @@
     <option value="#FFFFFF"></option>
     <option value="#00FF00"></option>
   </datalist>
+
+  <div id="version-display" style="position: fixed; right: 8px; bottom: 4px; font-size: 10px; color: rgba(109, 19, 19, 0.5); pointer-events: none; z-index: 9999; font-family: sans-serif; letter-spacing: 0.5px;">v2.15.5</div>
 
   <script type="module" src="javascript/uiController.js"></script>
   <script type="module" src="javascript/speechCapture.js"></script>

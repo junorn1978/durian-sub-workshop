@@ -4,7 +4,7 @@
  * 使用非官方的 Google Translate API 端點，支援自動重試與長句拼接。
  */
 
-import { Logger } from './logger.js';
+import { isDebugEnabled } from './logger.js';
 import { getLang } from './config.js';
 
 /**
@@ -24,7 +24,7 @@ async function fetchWithRetry(url, options = {}, retries = 3, delay = 1000) {
     clearTimeout(timeoutId);
 
     if (response.status === 429 && retries > 0) {
-      Logger.warn('[GTX] 偵測到 429 Too Many Requests，將在延遲後重試...', { retries, delay });
+      if (isDebugEnabled()) console.warn('[GTX] 偵測到 429 Too Many Requests，將在延遲後重試...', { retries, delay });
       await new Promise(resolve => setTimeout(resolve, delay));
       return fetchWithRetry(url, options, retries - 1, delay * 2);
     }
@@ -37,7 +37,7 @@ async function fetchWithRetry(url, options = {}, retries = 3, delay = 1000) {
   } catch (error) {
     clearTimeout(timeoutId);
     if (retries > 0 && error.name !== 'AbortError') {
-      Logger.warn('[GTX] 請求失敗，準備重試...', { error: error.message, retries });
+      if (isDebugEnabled()) console.warn('[GTX] 請求失敗，準備重試...', { error: error.message, retries });
       await new Promise(resolve => setTimeout(resolve, delay));
       return fetchWithRetry(url, options, retries - 1, delay * 2);
     }
@@ -78,7 +78,7 @@ export async function translateWithGTX(text, targetLangs, sourceLangId) {
       }
       return '';
     } catch (error) {
-      Logger.error('[GTX] 翻譯失敗:', { target: tlId, error: error.message });
+      if (isDebugEnabled()) console.error('[GTX] 翻譯失敗:', { target: tlId, error: error.message });
       return '';
     }
   }));

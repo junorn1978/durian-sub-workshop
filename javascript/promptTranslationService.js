@@ -5,7 +5,7 @@
  */
 
 import { getLang } from './config.js'; // [修改] 引入 getLang
-import { Logger } from './logger.js';
+import { isDebugEnabled } from './logger.js';
 
 // #region [配置與工作階段管理]
 
@@ -51,7 +51,7 @@ async function getSession(promptCode, options) {
     idleTimer: setTimeout(() => safeDestroy(key), SESSION_IDLE_MS)
   });
 
-  Logger.debug('[DEBUG] [promptTranslationService]', '建立新 LanguageModel 工作階段:', { key });
+  if (isDebugEnabled()) console.debug('[DEBUG] [promptTranslationService]', '建立新 LanguageModel 工作階段:', { key });
   return session;
 }
 
@@ -69,9 +69,9 @@ function safeDestroy(key) {
   if (item) {
     try {
       item.session.destroy();
-      Logger.debug('[DEBUG] [promptTranslationService]', '銷毀 LanguageModel 工作階段:', { key });
+      if (isDebugEnabled()) console.debug('[DEBUG] [promptTranslationService]', '銷毀 LanguageModel 工作階段:', { key });
     } catch (error) {
-      Logger.debug('[DEBUG] [promptTranslationService]', '銷毀錯誤:', { key, error: error.message });
+      if (isDebugEnabled()) console.debug('[DEBUG] [promptTranslationService]', '銷毀錯誤:', { key, error: error.message });
     }
     sessionPool.delete(key);
   }
@@ -81,7 +81,7 @@ async function ensureTokenBudget(session) {
   try {
     const remaining = session.inputQuota - session.inputUsage;
     if (remaining <= TOKEN_REMAIN_THRESHOLD) {
-      Logger.warn('[WARN] [promptTranslationService]', 'Token 剩餘不足:', { remaining });
+      if (isDebugEnabled()) console.warn('[WARN] [promptTranslationService]', 'Token 剩餘不足:', { remaining });
       return false;
     }
     return true;
@@ -103,7 +103,7 @@ async function ensureModelLoaded() {
     if (availability === 'downloadable') return 'downloadable';
     return 'unavailable';
   } catch (error) {
-    Logger.error('[ERROR] [promptTranslationService]', '模型載入失敗:', { error: error.message });
+    if (isDebugEnabled()) console.error('[ERROR] [promptTranslationService]', '模型載入失敗:', { error: error.message });
     return 'error';
   }
 }
@@ -135,7 +135,7 @@ export async function sendPromptTranslation(text, targetLangIds, sourceLangId) {
     const translationPromises = targetLangIds.map(async (langId, index) => {
       // [修改] 獲取目標語系物件
       const targetLangObj = getLang(langId);
-      if (!targetLangObj) { Logger.error("找不到目標語系物件"); return; }
+      if (!targetLangObj) { if (isDebugEnabled()) console.error("找不到目標語系物件"); return; }
 
       const targetPromptCode = targetLangObj.promptApiCode;
       let session;
@@ -188,7 +188,7 @@ export async function sendPromptTranslation(text, targetLangIds, sourceLangId) {
     await Promise.all(translationPromises);
     return { translations };
   } catch (error) {
-    Logger.error('[ERROR] [promptTranslationService]', '翻譯失敗:', { error: error.message });
+    if (isDebugEnabled()) console.error('[ERROR] [promptTranslationService]', '翻譯失敗:', { error: error.message });
     return null;
   }
 }
@@ -215,7 +215,7 @@ export async function setupPromptModelDownload() {
       });
       await Promise.all(initPromises.filter(p => p !== null));
     } catch (error) {
-      Logger.debug('[DEBUG] [promptTranslationService]', '預初始化失敗');
+      if (isDebugEnabled()) console.debug('[DEBUG] [promptTranslationService]', '預初始化失敗');
     }
   }
 }

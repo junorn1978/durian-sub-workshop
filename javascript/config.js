@@ -3,7 +3,7 @@
  * @description 語系管理中心。採用 Map 儲存池模式，將分散的 JSON 配置物件化。
  */
 
-import { Logger } from './logger.js';
+import { isDebugEnabled } from './logger.js';
 
 // #region [狀態變數]
 /** @type {Map<string, Object>} 語系物件儲存池 (Key 統一為語言 ID) */
@@ -62,7 +62,7 @@ export async function loadLanguageConfig(url = './data/language_config.json') {
     _languages.set(item.id, langObj);
   });
 
-  Logger.debug(`[DEBUG] [config] 初始化完成，共 ${_languages.size} 個語系物件`);
+  if (isDebugEnabled()) console.debug(`[DEBUG] [config] 初始化完成，共 ${_languages.size} 個語系物件`);
   return json;
 }
 

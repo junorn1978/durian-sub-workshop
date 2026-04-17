@@ -6,9 +6,12 @@
  */
 
 import { isRayModeActive, isDeepgramActive, browserInfo, getSourceLanguage, getLang, getAlignment } from './config.js';
-import { sendTranslationRequest, updateStatusDisplay } from './translationController.js';
+import { sendTranslationRequest } from './translationController.js';
 import { startDeepgram, stopDeepgram } from './deepgramService.js';
-import { Logger } from './logger.js';
+import { isDebugEnabled } from './logger.js';
+import { publishSourceTextToObs } from './obsBridge.js';
+import { loadKeywordRules, filterRayModeText, processRayModeTranscript } from './rayModeFilter.js';
+import { updateStatusDisplay, setRecognitionControlsState, clearAllTextElements } from './uiState.js';
 
 // #region [狀態變數與快取]
 
@@ -20,12 +23,7 @@ let recognition = null;
 
 /** @type {boolean} 全域辨識啟用狀態 */
 let isRecognitionActive = false;
-
-/** @type {Array<Object>} Ray Mode 關鍵字規則集 */
-let keywordRules = [];
-
-/** @type {Map<string, Array<Object>>} 以語言為 Key 的正規表達式規則快取 */
-const cachedRules = new Map();
+let activeRecognitionEngine = null;
 
 /** @type {Object} 短語庫配置物件 */
 let phrasesConfig = {};
@@ -50,7 +48,7 @@ async function showMicInfoOnce() {
   hasShownMicInfo = true;
 
   if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-    Logger.warn('[WARN] [SpeechRecognition] 此瀏覽器不支援 mediaDevices.enumerateDevices()');
+    if (isDebugEnabled()) console.warn('[WARN] [SpeechRecognition] 此瀏覽器不支援 mediaDevices.enumerateDevices()');
     return;
   }
 
@@ -59,7 +57,7 @@ async function showMicInfoOnce() {
     try {
       tempStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     } catch (err) {
-      Logger.warn('[WARN] [SpeechRecognition] 取得麥克風權限失敗（名稱可能會顯示為空）:', err);
+      if (isDebugEnabled()) console.warn('[WARN] [SpeechRecognition] 取得麥克風權限失敗（名稱可能會顯示為空）:', err);
     }
 
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -69,7 +67,7 @@ async function showMicInfoOnce() {
     const otherMicEl = document.getElementById('other-mic');
     if (!audioInputs.length) {
       const msg = '利用可能な音声入力デバイスが見つかりません。マイクが正しく接続されているか、システムの設定をご確認ください。';
-      Logger.info('[INFO] [SpeechRecognition]', msg);
+      if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition]', msg);
       if (micInfoEl) micInfoEl.textContent = msg;
       return;
     }
@@ -86,11 +84,11 @@ async function showMicInfoOnce() {
         });
     }
 
-    Logger.info('[INFO] [SpeechRecognition] 偵測到的裝置列表:', audioInputs);
+    if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition] 偵測到的裝置列表:', audioInputs);
     if (micInfoEl) micInfoEl.textContent = infoText;
     if (otherMicEl) otherMicEl.textContent = otherMic;
   } catch (err) {
-    Logger.error('[ERROR] [SpeechRecognition] 取得麥克風資訊失敗:', err);
+    if (isDebugEnabled()) console.error('[ERROR] [SpeechRecognition] 取得麥克風資訊失敗:', err);
   } finally {
     if (tempStream) {
       tempStream.getTracks().forEach(t => t.stop());
@@ -102,17 +100,15 @@ async function showMicInfoOnce() {
  * 切換錄音控制按鈕的 DOM 狀態
  * @param {boolean} isStarting - 是否進入啟動流程
  */
-function setRecognitionControlsState(isStarting) {
-  const startButton = document.getElementById('start-recording');
-  const stopButton = document.getElementById('stop-recording');
+function isWebSpeechRecognitionRunning() {
+  return isRecognitionActive && activeRecognitionEngine === 'webspeech';
+}
 
-  if (isStarting) {
-    startButton.disabled = true;
-    stopButton.disabled = false;
-  } else {
-    startButton.disabled = false;
-    stopButton.disabled = true;
-  }
+function resetRecognitionState({ clearText = false } = {}) {
+  setRecognitionControlsState(false);
+  isRecognitionActive = false;
+  activeRecognitionEngine = null;
+  if (clearText) clearAllTextElements();
 }
 
 // #endregion
@@ -147,7 +143,6 @@ async function configureRecognition(recognition, sourceLanguage) {
    *   - Cloud 模式: 若設為 true，建議將 SILENCE_THRESHOLD 調低 (如 1000ms)，否則可能無法運作超過 10 分鐘。
    * Edge: 建議 true，無上述問題。
    */
-  //recognition.continuous = true;
   recognition.continuous = processLocallyStatus;
   recognition.maxAlternatives = 1;
 
@@ -158,7 +153,7 @@ async function configureRecognition(recognition, sourceLanguage) {
     recognition.phrases = [];
   }
 
-  Logger.debug('[DEBUG] [SpeechRecognition] 辨識參數已就緒:', {
+  if (isDebugEnabled()) console.debug('[DEBUG] [SpeechRecognition] 辨識參數已就緒:', {
     lang: recognition.lang,
     processLocally: recognition.processLocally,
     phrasesCount: recognition.phrases.length,
@@ -183,7 +178,7 @@ async function handleDeepgramTranscript(text, isFinal, shouldTranslate, currentL
 
   if (shouldTranslate && processedText.trim() !== '') {
     if (textToTranslate) {
-      Logger.info('[INFO] [Deepgram] 收到 Service 指令 (Speaker 0)，執行翻譯:', textToTranslate);
+      if (isDebugEnabled()) console.info('[INFO] [Deepgram] 收到 Service 指令 (Speaker 0)，執行翻譯:', textToTranslate);
 
       sendTranslationRequest(textToTranslate, previousText, currentLang);
       previousText = textToTranslate;
@@ -197,39 +192,7 @@ async function handleDeepgramTranscript(text, isFinal, shouldTranslate, currentL
 
 // #region [規則載入與文字過濾]
 
-/** 異步載入 Ray Mode 字詞轉換規則 */
-async function loadKeywordRules() {
-  const response = await fetch('data/ray_mode_keywords.json');
-  if (!response.ok) throw new Error('無法載入關鍵字規則');
-
-  keywordRules = await response.json();
-  const uniqueLangs = [...new Set(keywordRules.map(r => r.lang))];
-
-  uniqueLangs.forEach(lang => {
-    const rulesForLang = keywordRules
-      .filter(r => r.lang === lang)
-      .map(r => ({
-        sourcePattern: r.source,   // 仍然是「regex pattern 字串」
-        target: r.target
-      }))
-      // 最長優先：避免短詞先吃掉長詞
-      .sort((a, b) => b.sourcePattern.length - a.sourcePattern.length);
-
-    // 預編譯：精準判斷是哪一條規則命中（避免每次都new RegExp）
-    const compiledRules = rulesForLang.map(r => ({
-      target: r.target,
-      exact: new RegExp(`^(?:${r.sourcePattern})$`, 'i') // 不要 g，避免 lastIndex 問題
-    }));
-
-    // 預編譯：一次掃描用的 master regex
-    const pattern = rulesForLang.map(r => `(?:${r.sourcePattern})`).join('|');
-    const master = pattern ? new RegExp(pattern, 'ig') : null;
-
-    cachedRules.set(lang, { rules: compiledRules, master });
-  });
-}
-
-/** 
+/**
  * 載入辨識語句權重 (Phrases) 配置
  * [注意] 此功能需 Chrome 141+ 且透過 install 方式安裝的 Web App 才支援。
  * 目前若未滿足條件會導致錯誤，故程式碼中暫未全面啟用，保留供未來使用。
@@ -253,7 +216,7 @@ async function loadPhrasesConfig() {
       cachedPhrases.set('default', phrasesConfig.defaults.map(p => new SpeechRecognitionPhrase(p.phrase, p.boost)));
     }
   } catch (error) {
-    Logger.error('[ERROR] [SpeechRecognition] 載入短語配置失敗:', error);
+    if (isDebugEnabled()) console.error('[ERROR] [SpeechRecognition] 載入短語配置失敗:', error);
     phrasesConfig = { languages: {} };
   }
 }
@@ -261,44 +224,6 @@ async function loadPhrasesConfig() {
 /** 獲取快取的語言短語 */
 function getPhrasesForLang(sourceLang) {
   return cachedPhrases.get(sourceLang) || cachedPhrases.get('default') || [];
-}
-
-/** 獲取快取的 Ray Mode 轉換規則 */
-function generateRayModeRules(sourceLang) {
-  return cachedRules.get(sourceLang) || [];
-}
-
-/** 
- * 在 Ray mode 時進行的逐字稿文字替換處理
- * @param {string} text 
- * @param {string} sourceLang 
- * @returns {string} 清理後的文字
- */
-function filterRayModeText(text, sourceLang) {
-  if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') {
-    return '';
-  }
-
-  let result = text.replace(/[、。？,.]/g, ' ');
-  
-  const pack = generateRayModeRules(sourceLang);
-  
-  if (!pack || !pack.master) {
-    return result;
-  }
-
-  const { rules, master } = pack;
-
-  try {
-    result = result.replace(master, (match) => {
-      const hit = rules.find(r => r.exact.test(match));
-      return hit ? hit.target : match;
-    });
-  } catch (e) {
-    Logger.error('[ERROR] filterRayModeText 替換失敗:', e);
-  }
-
-  return result;
 }
 
 /** 偵測瀏覽器是否支援本地辨識模式 */
@@ -334,6 +259,7 @@ const updateSourceText = (() => {
     if (text === lastRenderedText) { return; }
     el.textContent = text;
     lastRenderedText = text;
+    publishSourceTextToObs(text);
   };
 })();
 
@@ -345,8 +271,8 @@ const updateSourceText = (() => {
 function wrapWithNoteByAlignment(baseText, symbolType) {
   const alignment = getAlignment();
   // deepgram api            → 🐹 
-  // web speech api → Chrome → 🎵
-  // web speech api → Edge   → 🎼️
+  // web speech api → Chrome → 🐿️
+  // web speech api → Edge   → 🐭
   const symbolTextA = symbolType === 'deepgram' ? '​​🐹'
                          : browserInfo.isChrome ? '​​🐿️'
                                                 : '​🐭';
@@ -358,14 +284,6 @@ function wrapWithNoteByAlignment(baseText, symbolType) {
 }
 
 /** 重置所有字幕顯示欄位 */
-function clearAllTextElements() {
-  const els = document.querySelectorAll('#source-text, #target-text-1, #target-text-2, #target-text-3');
-  for (const el of els) {
-    try { if (el.getAnimations) el.getAnimations().forEach(a => a.cancel()); } catch (e) { }
-    el.textContent = '';
-  }
-}
-
 // #endregion
 
 // #region [語音辨識控制流程]
@@ -398,7 +316,7 @@ function setupSpeechRecognition() {
 
     // 設定新的計時器
     silenceTimer = setTimeout(() => {
-      Logger.debug(`[DEBUG] [SpeechRecognition] 偵測到靜音超過 ${SILENCE_THRESHOLD}ms，強制重啟`);
+      if (isDebugEnabled()) console.debug(`[DEBUG] [SpeechRecognition] 偵測到靜音超過 ${SILENCE_THRESHOLD}ms，強制重啟`);
 
       if (interimTranscript.trim().length > 0) {
         let forcedFinalText = interimTranscript.replace(/[、。？\s]+/g, ' ').trim();
@@ -408,7 +326,7 @@ function setupSpeechRecognition() {
         }
 
         if (forcedFinalText) {
-          Logger.info('[INFO] [SpeechRecognition] (強制斷句) 發送翻譯請求文字:', forcedFinalText);
+          if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition] (強制斷句) 發送翻譯請求文字:', forcedFinalText);
           sendTranslationRequest(forcedFinalText, previousText, newRecognition.lang);
           previousText = forcedFinalText;
           updateSourceText(forcedFinalText);
@@ -420,7 +338,7 @@ function setupSpeechRecognition() {
   };
 
   newRecognition.onsoundstart = () => {
-    Logger.debug('[DEBUG] [SpeechRecognition] soundstart事件觸發');
+    if (isDebugEnabled()) console.debug('[DEBUG] [SpeechRecognition] soundstart事件觸發');
     if (newRecognition.continuous) { 
       SILENCE_THRESHOLD = 2000;
       resetSilenceTimer();
@@ -448,7 +366,7 @@ function setupSpeechRecognition() {
       let sendTranslationRequestText = finalTranscript.replace(/[、。？\s]+/g, ' ').trim();
       if (isRayModeActive()) { sendTranslationRequestText = filterRayModeText(sendTranslationRequestText, newRecognition.lang); }
 
-      Logger.info('[INFO] [SpeechRecognition] 發送翻譯請求文字:', sendTranslationRequestText);
+      if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition] 發送翻譯請求文字:', sendTranslationRequestText);
       sendTranslationRequest(sendTranslationRequestText, previousText, newRecognition.lang);
       previousText = sendTranslationRequestText;
     }
@@ -460,10 +378,10 @@ function setupSpeechRecognition() {
     if (processedText.trim() !== '') { updateSourceText(processedText); }
   };
 
-  newRecognition.onnomatch = () => Logger.warn('[WARN] [SpeechRecognition] 無匹配辨識結果');
+  newRecognition.onnomatch = () => { if (isDebugEnabled()) console.warn('[WARN] [SpeechRecognition] 無匹配辨識結果'); };
   newRecognition.onend = () => {
     if (silenceTimer) clearTimeout(silenceTimer);
-    Logger.debug('[DEBUG] [SpeechRecognition] onend事件觸發');
+    if (isDebugEnabled()) console.debug('[DEBUG] [SpeechRecognition] onend事件觸發');
     
     finalTranscript = '';
     interimTranscript = '';
@@ -471,7 +389,7 @@ function setupSpeechRecognition() {
   }
   newRecognition.onerror = (event) => {
     if (silenceTimer) clearTimeout(silenceTimer);
-    if (event.error !== 'aborted') Logger.error('[ERROR] [SpeechRecognition] 辨識錯誤:', event.error);
+    if (event.error !== 'aborted') if (isDebugEnabled()) console.error('[ERROR] [SpeechRecognition] 辨識錯誤:', event.error);
   };
 
   return newRecognition;
@@ -494,25 +412,6 @@ async function autoRestartRecognition(options = { delay: 0 }) {
       setTimeout(() => autoRestartRecognition(options), options.delay);
     }
   }, options.delay);
-}
-
-/** 在 Ray Mode 時發送翻譯會經過這邊先替換語句 */
-function processRayModeTranscript(text, sourceLang) {
-  if (!text || !text.trim() || ['っ', 'っ。', '。', '？'].includes(text.trim())) return '';
-  const pack = cachedRules.get(sourceLang);
-  if (!pack || !pack.master) return text;
-
-  const { rules, master } = pack;
-
-  try {
-    return text.replace(master, (match) => {
-      const hit = rules.find(r => r.exact.test(match));
-      return hit ? hit.target : match;
-    });
-  } catch (e) {
-    let result = text;
-    return result;
-  }
 }
 
 // #endregion
@@ -543,14 +442,20 @@ function setupSpeechRecognitionHandlers() {
       try {
         const deepgramStarted = await startDeepgram(sourceLang, (text, isFinal, shouldTranslate) => {
           handleDeepgramTranscript(text, isFinal, shouldTranslate, sourceLang);
+        }, {
+          onStatusChange: updateStatusDisplay,
+          onStop: () => {
+            resetRecognitionState({ clearText: true });
+          }
         });
         if (deepgramStarted) {
           setRecognitionControlsState(true);
           isRecognitionActive = true;
+          activeRecognitionEngine = 'deepgram';
           return;
         }
       } catch (err) {
-        Logger.error('[ERROR] [SpeechRecognition] Deepgram 啟動失敗:', err);
+        if (isDebugEnabled()) console.error('[ERROR] [SpeechRecognition] Deepgram 啟動失敗:', err);
       }
     }
 
@@ -559,17 +464,18 @@ function setupSpeechRecognitionHandlers() {
     await configureRecognition(recognition, sourceLang);
     try {
       recognition.start();
+      activeRecognitionEngine = 'webspeech';
     } catch (error) {
       setRecognitionControlsState(false);
       isRecognitionActive = false;
+      activeRecognitionEngine = null;
     }
   });
 
   stopButton.addEventListener('click', () => {
-    setRecognitionControlsState(false);
-    isRecognitionActive = false;
-    if (isDeepgramActive()) stopDeepgram();
-    if (recognition) { recognition.abort(); clearAllTextElements(); }
+    resetRecognitionState({ clearText: true });
+    if (isDeepgramActive()) stopDeepgram({ reason: 'manual-stop' });
+    if (recognition) recognition.abort();
   });
 }
 
@@ -580,6 +486,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupSpeechRecognitionHandlers();
   setRecognitionControlsState(false);
   isRecognitionActive = false;
+  activeRecognitionEngine = null;
 
   showMicInfoOnce().catch(() => { });
 
@@ -590,4 +497,4 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // #endregion
 
-export { keywordRules, setRecognitionControlsState, clearAllTextElements };
+export { isWebSpeechRecognitionRunning };

@@ -3,13 +3,13 @@
  * @description UI 介面控制核心，管理所有樣式設定、語言選單、翻譯模式切換及 localStorage 持久化。
  */
 
-// uiController.js 頂部
-import { updateStatusDisplay } from './translationController.js';
+import { updateStatusDisplay } from './uiState.js';
 import { setupPromptModelDownload } from './promptTranslationService.js';
 import { setupLanguagePackButton } from './languagePackManager.js';
 import { checkTranslationAvailability, monitorLocalTranslationAPI } from './translatorApiService.js';
 import { browserInfo, loadLanguageConfig, setAlignment, setRayModeStatus, setForceSingleLineStatus, setDeepgramStatus } from './config.js';
-import { Logger, LogLevel, setLogLevel } from './logger.js';
+import { isDebugEnabled, setLogLevel } from './logger.js';
+import { handleObsBridgeSettingsChanged, triggerAutoSetup } from './obsBridge.js';
 
 const setupToggleVisibility = (btnId, inputId) => {
   const btn = document.getElementById(btnId);
@@ -31,12 +31,43 @@ const setupToggleVisibility = (btnId, inputId) => {
   }
 };
 
+const updateObsDragLink = () => {
+  const linkEl = document.getElementById('obs-drag-link');
+  const linkSourceEl = document.getElementById('obs-drag-link-source');
+  const linkTarget1El = document.getElementById('obs-drag-link-target1');
+  const linkTarget2El = document.getElementById('obs-drag-link-target2');
+  const linkTarget3El = document.getElementById('obs-drag-link-target3');
+
+  const url = document.getElementById('obs-ws-url')?.value || 'ws://127.0.0.1:4455';
+  const pwd = document.getElementById('obs-ws-password')?.value || '';
+
+  const baseUrl = window.location.href.split('?')[0].replace(/index\.html$/, '').replace(/\/$/, '');
+
+  const setupLink = (el, fileName, mode) => {
+    if (!el) return;
+    const overlayUrl = `${baseUrl}/${fileName}`;
+    const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : '';
+    el.href = `${overlayUrl}#url=${encodeURIComponent(url)}&pwd=${encodeURIComponent(pwd)}${modeParam}`;
+  };
+
+  setupLink(linkEl, 'obs_overlay.html');
+  setupLink(linkSourceEl, 'obs_overlay.html', 'source');
+  setupLink(linkTarget1El, 'obs_overlay.html', 'target1');
+  setupLink(linkTarget2El, 'obs_overlay.html', 'target2');
+  setupLink(linkTarget3El, 'obs_overlay.html', 'target3');
+};
 document.addEventListener('DOMContentLoaded', async function () {
   const urlParams = new URLSearchParams(window.location.search);
   const isDebugMode = urlParams.get('debug') === 'true';
 
-  setLogLevel(isDebugMode ? LogLevel.DEBUG : LogLevel.INFO);
-  Logger.info('UI', '應用程式初始化開始...');
+  const savedDebug = localStorage.getItem('log-system-debug-enabled');
+  // 如果 localStorage 已經有設定，則維持現狀；否則看 isDebugMode。
+  // 這樣即便網址帶有 ?debug=true，第二次以後若在 UI 關閉，它也會遵循 localStorage 的設定。
+  if (savedDebug === null) {
+    setLogLevel(isDebugMode);
+  }
+  
+  if (isDebugEnabled()) console.info('UI', '應用程式初始化開始...');
 
   setTimeout(() => {
     const statusDisplay = document.getElementById('status-display');
@@ -47,49 +78,40 @@ document.addEventListener('DOMContentLoaded', async function () {
   /** @type {Object} 系統統一設定配置表 */
   const CONFIG = {
     styles: [
-      { id: 'source-font-color', target: 'source-text', css: '--text-color', type: 'color', desc: 'Source text' },
-      { id: 'target1-font-color', target: 'target-text-1', css: '--text-color', type: 'color', desc: 'Target text 1' },
-      { id: 'target2-font-color', target: 'target-text-2', css: '--text-color', type: 'color', desc: 'Target text 2' },
-      { id: 'target3-font-color', target: 'target-text-3', css: '--text-color', type: 'color', desc: 'Target text 3' },
-      { id: 'source-font-stroke-color', target: 'source-text', css: '--stroke-color', type: 'color', desc: 'Source stroke' },
-      { id: 'target1-font-stroke-color', target: 'target-text-1', css: '--stroke-color', type: 'color', desc: 'Target stroke 1' },
-      { id: 'target2-font-stroke-color', target: 'target-text-2', css: '--stroke-color', type: 'color', desc: 'Target stroke 2' },
-      { id: 'target3-font-stroke-color', target: 'target-text-3', css: '--stroke-color', type: 'color', desc: 'Target stroke 3' },
-      { id: 'source-font-size', target: 'source-text', css: '--text-font-size', type: 'range', desc: 'Source font size' },
-      { id: 'target1-font-size', target: 'target-text-1', css: '--text-font-size', type: 'range', desc: 'Target font size 1' },
-      { id: 'target2-font-size', target: 'target-text-2', css: '--text-font-size', type: 'range', desc: 'Target font size 2' },
-      { id: 'target3-font-size', target: 'target-text-3', css: '--text-font-size', type: 'range', desc: 'Target font size 3' },
-      { id: 'source-font-stroke-size', target: 'source-text', css: '--stroke-width', type: 'range', desc: 'Source stroke size' },
-      { id: 'target1-font-stroke-size', target: 'target-text-1', css: '--stroke-width', type: 'range', desc: 'Target stroke size 1' },
-      { id: 'target2-font-stroke-size', target: 'target-text-2', css: '--stroke-width', type: 'range', desc: 'Target stroke size 2' },
-      { id: 'target3-font-stroke-size', target: 'target-text-3', css: '--stroke-width', type: 'range', desc: 'Target stroke size 3' }
+      { id: 'source-font-color', target: 'source-text', css: '--text-color', type: 'color' },
+      { id: 'target1-font-color', target: 'target-text-1', css: '--text-color', type: 'color' },
+      { id: 'target2-font-color', target: 'target-text-2', css: '--text-color', type: 'color' },
+      { id: 'target3-font-color', target: 'target-text-3', css: '--text-color', type: 'color' },
+      { id: 'source-font-stroke-color', target: 'source-text', css: '--stroke-color', type: 'color' },
+      { id: 'target1-font-stroke-color', target: 'target-text-1', css: '--stroke-color', type: 'color' },
+      { id: 'target2-font-stroke-color', target: 'target-text-2', css: '--stroke-color', type: 'color' },
+      { id: 'target3-font-stroke-color', target: 'target-text-3', css: '--stroke-color', type: 'color' },
+      { id: 'source-font-size', target: 'source-text', css: '--text-font-size', type: 'range' },
+      { id: 'target1-font-size', target: 'target-text-1', css: '--text-font-size', type: 'range' },
+      { id: 'target2-font-size', target: 'target-text-2', css: '--text-font-size', type: 'range' },
+      { id: 'target3-font-size', target: 'target-text-3', css: '--text-font-size', type: 'range' },
+      { id: 'source-font-stroke-size', target: 'source-text', css: '--stroke-width', type: 'range' },
+      { id: 'target1-font-stroke-size', target: 'target-text-1', css: '--stroke-width', type: 'range' },
+      { id: 'target2-font-stroke-size', target: 'target-text-2', css: '--stroke-width', type: 'range' },
+      { id: 'target3-font-stroke-size', target: 'target-text-3', css: '--stroke-width', type: 'range' }
     ],
     languages: [
-      { id: 'source-language', type: 'select', desc: 'Source language' },
-      { id: 'target1-language', type: 'select', desc: 'Target language 1', clearTarget: 'target-text-1' },
-      { id: 'target2-language', type: 'select', desc: 'Target language 2', clearTarget: 'target-text-2' },
-      { id: 'target3-language', type: 'select', desc: 'Target language 3', clearTarget: 'target-text-3' }
+      { id: 'source-language', type: 'select' },
+      { id: 'target1-language', type: 'select', clearTarget: 'target-text-1' },
+      { id: 'target2-language', type: 'select', clearTarget: 'target-text-2' },
+      { id: 'target3-language', type: 'select', clearTarget: 'target-text-3' }
     ],
     radioGroups: [
       {
         name: 'alignment', key: 'text-alignment', default: 'center',
         targets: ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'],
-        css: '--text-align', desc: 'Text alignment',
-        onChange: (val) => setAlignment(val), onLoad: (val) => setAlignment(val)
+        css: '--text-align',
+        onApply: (val) => setAlignment(val)
       },
       {
         name: 'overflow', key: 'overflow-mode', default: 'normal',
-        targets: ['target-text-1', 'target-text-2', 'target-text-3'], desc: 'Overflow mode',
-        onChange: (val, targets) => {
-          targets.forEach(tId => {
-            const el = document.getElementById(tId);
-            if (el) {
-              el.classList.remove('overflow-normal', 'overflow-truncate', 'overflow-shrink');
-              el.classList.add(`overflow-${val}`);
-            }
-          });
-        },
-        onLoad: (val, targets) => {
+        targets: ['target-text-1', 'target-text-2', 'target-text-3'],
+        onApply: (val, targets) => {
           targets.forEach(tId => {
             const el = document.getElementById(tId);
             if (el) {
@@ -101,71 +123,49 @@ document.addEventListener('DOMContentLoaded', async function () {
       }
     ],
     special: [
-      { id: 'display-panel-color', type: 'body-color', css: '--body-background', desc: 'Body background color' },
-      { id: 'translation-link', type: 'text', desc: 'Translation link' },
-      { id: 'gas-script-id', type: 'text', desc: 'GAS Script ID' },
+      { id: 'display-panel-color', type: 'body-color', css: '--body-background' },
+      { id: 'translation-link', type: 'text' },
+      { id: 'gas-script-id', type: 'text' },
       {
-        id: 'raymode', type: 'checkbox', key: 'raymode-active', desc: 'Raymode active state',
-        onChange: (checked) => setRayModeStatus(checked),
-        onLoad: (checked) => setRayModeStatus(checked)
+        id: 'obs-ws-enabled', type: 'select', key: 'obs-ws-enabled',
+        default: 'false',
+        onApply: () => handleObsBridgeSettingsChanged()
       },
       {
-        id: 'click-minimize-opt', type: 'select', key: 'click-minimize-enabled', desc: 'Display panel click minimize', default: 'true'
+        id: 'obs-ws-url', type: 'text',
+        onApply: () => { handleObsBridgeSettingsChanged(); updateObsDragLink(); }
+      },
+      {
+        id: 'obs-ws-password', type: 'text',
+        onApply: () => { handleObsBridgeSettingsChanged(); updateObsDragLink(); }
+      },
+      {
+        id: 'raymode', type: 'checkbox', key: 'raymode-active',
+        onApply: (checked) => setRayModeStatus(checked)
+      },
+      {
+        id: 'click-minimize-opt', type: 'select', key: 'click-minimize-enabled', default: 'true'
       },
       {
         id: 'force-single-line-opt', type: 'select', key: 'force-single-line-enabled',
-        desc: 'Force single line display', default: 'false',
-        onChange: (val) => {
-          const isEnabled = val === 'true';
-          setForceSingleLineStatus(isEnabled);
-          document.getElementById('source-text')?.classList.toggle('visual-single-line', isEnabled);
-        },
-        onLoad: (val) => {
+        default: 'false',
+        onApply: (val) => {
           const isEnabled = val === 'true';
           setForceSingleLineStatus(isEnabled);
           document.getElementById('source-text')?.classList.toggle('visual-single-line', isEnabled);
         }
       },
       {
-        id: 'speech-engine-opt', type: 'select', key: 'speech-recognition-engine', desc: 'Speech Recognition Engine', default: 'webspeech',
-        onChange: (val) => {
+        id: 'speech-engine-opt', type: 'select', key: 'speech-recognition-engine', default: 'webspeech',
+        onApply: (val) => {
           const isDeepgram = val === 'deepgram';
           setDeepgramStatus(isDeepgram ? 'true' : 'false');
-          
-          // 控制下載按鈕顯示 (僅 Chrome 且選擇 Web Speech API 時顯示)
+
           const dlBtn = document.getElementById('download-language-pack');
           if (dlBtn && browserInfo.isChrome) {
             // 等on device成為穩定版本時才開放使用
-            // dlBtn.style.display = isDeepgram ? 'none' : 'flex';
-            dlBtn.style.display = isDeepgram ? 'none' : 'none';
-          }
-
-          // 控制說明連結顯示 (僅 Deepgram 顯示)
-          const helpLink = document.getElementById('engine-help-link');
-          if (helpLink) {
-            helpLink.style.display = isDeepgram ? 'inline-flex' : 'none';
-          }
-        },
-        onLoad: (val) => {
-          // [資料遷移] 檢查舊的 deepgram-enabled 設定
-          const oldKey = 'deepgram-enabled';
-          const oldVal = localStorage.getItem(oldKey);
-          
-          if (oldVal !== null) {
-            val = oldVal === 'true' ? 'deepgram' : 'webspeech';
-            localStorage.setItem('speech-recognition-engine', val);
-            localStorage.removeItem(oldKey); // 移除舊設定
-            const el = document.getElementById('speech-engine-opt');
-            if (el) el.value = val;
-          }
-
-          const isDeepgram = val === 'deepgram';
-          setDeepgramStatus(isDeepgram ? 'true' : 'false');
-
-          const dlBtn = document.getElementById('download-language-pack');
-          if (dlBtn && browserInfo.isChrome) {
-            // dlBtn.style.display = isDeepgram ? 'none' : 'flex';
-            dlBtn.style.display = isDeepgram ? 'none' : 'none';
+            dlBtn.style.display = isDeepgram ? 'none' : 'flex';
+            //dlBtn.style.display = isDeepgram ? 'none' : 'none';
           }
 
           const helpLink = document.getElementById('engine-help-link');
@@ -175,8 +175,8 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
       },
       {
-        id: 'log-level-opt', type: 'select', key: 'log-level-preference', desc: 'Console Log Level', default: '1',
-        onChange: (val) => setLogLevel(parseInt(val, 10)), onLoad: (val) => setLogLevel(parseInt(val, 10))
+        id: 'log-level-opt', type: 'select', key: 'log-level-preference', default: 'false',
+        onApply: (val) => setLogLevel(val)
       },
     ],
     panels: { 'Subtitle': 'source-styles-panel', 'options': 'options-panel' }
@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
   // #region [瀏覽器功能限制檢查]
   if (!browserInfo.isChrome) {
-    Logger.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
+    if (isDebugEnabled()) console.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
 
     ['prompt-api-download', 'download-language-pack'].forEach(id => {
       const el = document.getElementById(id);
@@ -196,15 +196,12 @@ document.addEventListener('DOMContentLoaded', async function () {
 
   // #region [數據持久化處理器 (Storage)]
   const Storage = {
-    /** 儲存數值至 localStorage */
-    save: (key, value, desc) => {
+    save: (key, value) => {
       localStorage.setItem(key, value);
     },
-    /** 從 localStorage 讀取數值 */
     load: (key, defaultValue = null) => {
       return localStorage.getItem(key) || defaultValue;
     },
-    /** 取得 CSS :root 中的預設變數值 */
     getDefaultFromCSS: (cssProperty) => {
       return getComputedStyle(document.documentElement).getPropertyValue(cssProperty).trim();
     }
@@ -231,28 +228,13 @@ document.addEventListener('DOMContentLoaded', async function () {
       if (!target || !config.css) return;
 
       target.style.setProperty(config.css, value);
-      if (config.css === '--text-font-size') {
-        this.syncFontSizeProps(target, config.id, parseFloat(value));
-      }
     },
     save(value) {
-      Storage.save(config.id, value, config.desc);
+      Storage.save(config.id, value);
       const target = config.target ? document.getElementById(config.target) : null;
       if (!target || !config.css) return;
 
       target.style.setProperty(config.css, value);
-      if (config.css === '--text-font-size') {
-        this.syncFontSizeProps(target, config.id, parseFloat(value));
-      }
-    },
-    syncFontSizeProps(target, id, fontSize) {
-      const overflowHeight = `${fontSize * 1.2}px`;
-      const fontSizeHalf = `${fontSize * 0.75}px`;
-      target.style.setProperty('--overflow-height', overflowHeight);
-      target.style.setProperty('--font-size-half', fontSizeHalf);
-
-      Storage.save(`${id}-overflow-height`, overflowHeight, `${config.desc} overflow height`);
-      Storage.save(`${id}-font-size-half`, fontSizeHalf, `${config.desc} font size half`);
     },
     setupListener() {
       const element = document.getElementById(config.id);
@@ -292,13 +274,12 @@ document.addEventListener('DOMContentLoaded', async function () {
     load() {
       const saved = Storage.load(config.key, config.default);
 
-      // 執行注入的 onLoad 邏輯
-      if (config.onLoad) config.onLoad(saved, config.targets);
+      if (config.onApply) config.onApply(saved, config.targets);
 
       const radio = document.querySelector(`input[name="${config.name}"][value="${saved}"]`);
       if (radio) {
         radio.checked = true;
-        this.save(saved, false); // false = 載入時不再次觸發 onChange，避免重複執行
+        this.save(saved, false); // false = 載入時不再次觸發 onApply，避免重複執行
       }
     },
     setupListener() {
@@ -309,12 +290,10 @@ document.addEventListener('DOMContentLoaded', async function () {
       });
     },
     save(value, triggerCallback = true) {
-      Storage.save(config.key, value, config.desc);
+      Storage.save(config.key, value);
 
-      // 執行注入的 onChange 邏輯
-      if (triggerCallback && config.onChange) config.onChange(value, config.targets);
+      if (triggerCallback && config.onApply) config.onApply(value, config.targets);
 
-      // 通用的 CSS 變數處理
       if (config.css && config.targets) {
         config.targets.forEach(targetId => {
           const target = document.getElementById(targetId);
@@ -323,8 +302,7 @@ document.addEventListener('DOMContentLoaded', async function () {
       }
     },
     reset() {
-      // 重置時也觸發 onLoad/onChange 來還原狀態
-      if (config.onLoad) config.onLoad(config.default, config.targets);
+      if (config.onApply) config.onApply(config.default, config.targets);
 
       const defaultRadio = document.querySelector(`input[name="${config.name}"][value="${config.default}"]`);
       if (defaultRadio) {
@@ -349,23 +327,27 @@ document.addEventListener('DOMContentLoaded', async function () {
         setupListener(el) {
           el.addEventListener('input', (e) => {
             document.body.style.setProperty(config.css, e.target.value);
-            Storage.save(config.id, e.target.value, config.desc);
+            Storage.save(config.id, e.target.value);
           });
         },
         reset(el) {
           const def = Storage.getDefaultFromCSS(config.css) || '#00FF00';
           el.value = def;
           document.body.style.setProperty(config.css, def);
-          Storage.save(config.id, def, config.desc);
+          Storage.save(config.id, def);
         }
       },
       'text': {
         load(el) {
           const saved = Storage.load(config.id);
           if (saved) el.value = saved;
+          if (config.onApply) config.onApply(el.value || '');
         },
         setupListener(el) {
-          el.addEventListener('input', (e) => Storage.save(config.id, e.target.value, config.desc));
+          el.addEventListener('input', (e) => {
+            Storage.save(config.id, e.target.value);
+            if (config.onApply) config.onApply(e.target.value);
+          });
         },
         reset() { }
       },
@@ -373,19 +355,19 @@ document.addEventListener('DOMContentLoaded', async function () {
         load(el) {
           const saved = Storage.load(config.key) === 'true';
           el.checked = saved;
-          if (config.onLoad) config.onLoad(saved);
+          if (config.onApply) config.onApply(saved);
         },
         setupListener(el) {
           el.addEventListener('change', (e) => {
             const checked = e.target.checked;
-            Storage.save(config.key, checked.toString(), config.desc);
-            if (config.onChange) config.onChange(checked);
+            Storage.save(config.key, checked.toString());
+            if (config.onApply) config.onApply(checked);
           });
         },
         reset(el) {
           el.checked = false;
-          Storage.save(config.key, 'false', config.desc);
-          if (config.onChange) config.onChange(false);
+          Storage.save(config.key, 'false');
+          if (config.onApply) config.onApply(false);
         }
       },
       'select': {
@@ -394,20 +376,20 @@ document.addEventListener('DOMContentLoaded', async function () {
           const val = saved || config.default || 'false';
           el.value = val;
 
-          if (config.onLoad) config.onLoad(val);
+          if (config.onApply) config.onApply(val);
         },
         setupListener(el) {
           el.addEventListener('change', (e) => {
             const val = e.target.value;
-            Storage.save(config.key, val, config.desc);
-            if (config.onChange) config.onChange(val);
+            Storage.save(config.key, val);
+            if (config.onApply) config.onApply(val);
           });
         },
         reset(el) {
           const def = config.default || 'false';
           el.value = def;
-          Storage.save(config.key, def, config.desc);
-          if (config.onLoad) config.onLoad(def);
+          Storage.save(config.key, def);
+          if (config.onApply) config.onApply(def);
         }
       },
     };
@@ -473,10 +455,10 @@ document.addEventListener('DOMContentLoaded', async function () {
       if (defaultMicEl) defaultMicEl.style.visibility = contentVisibility;
       if (otherMicEl) otherMicEl.style.visibility = contentVisibility;
 
-      localStorage.setItem('mic-privacy-enabled', isProtected);
+      Storage.save('mic-privacy-enabled', isProtected);
     };
 
-    updatePrivacyState(localStorage.getItem('mic-privacy-enabled') === 'true');
+    updatePrivacyState(Storage.load('mic-privacy-enabled') === 'true');
     toggle.addEventListener('change', (e) => updatePrivacyState(e.target.checked));
   };
 
@@ -495,13 +477,11 @@ document.addEventListener('DOMContentLoaded', async function () {
     if (!modeSelect) return;
 
     const applyMode = (mode) => {
-      // 先全部隱藏
       [linkWrapper, gasWrapper, promptDownloadBtn, fastModeControls].forEach(w => { if (w) w.style.display = 'none'; });
       if (fastModeProgress) fastModeProgress.textContent = '';
 
-      // 重置狀態標記
-      localStorage.setItem('local-translation-api-active', 'false');
-      localStorage.setItem('local-prompt-api-active', 'false');
+      Storage.save('local-translation-api-active', 'false');
+      Storage.save('local-prompt-api-active', 'false');
       //updateStatusDisplay('');
 
       switch (mode) {
@@ -511,31 +491,24 @@ document.addEventListener('DOMContentLoaded', async function () {
         case 'link':
           if (linkWrapper) { linkWrapper.style.display = 'block'; document.getElementById('translation-link')?.focus(); }
           break;
-        case 'gemma':
-          // [新增] Gemma 模式
-          // 不需要顯示任何額外輸入框，因為連接的是 localhost:8080
-          // 可以顯示一個簡單的狀態文字提醒用戶開啟後端
-          //updateStatusDisplay('Local Gemma Mode: Ready (Ensure server is running on port 8080)');
-          break;
         case 'fast':
           if (!browserInfo.isChrome) { alert('高速翻訳はEdgeに対応しておりません。'); applyMode('link'); return; }
-          localStorage.setItem('local-translation-api-active', 'true');
+          Storage.save('local-translation-api-active', 'true');
           if (fastModeControls) fastModeControls.style.display = 'flex';
           checkTranslationAvailability();
           break;
-        case 'ai':
+        case 'promptapi':
           if (!browserInfo.isChrome) { alert('ブラウザAI翻訳はEdgeに対応しておりません。'); applyMode('link'); return; }
-          localStorage.setItem('local-prompt-api-active', 'true');
+          Storage.save('local-prompt-api-active', 'true');
           setupPromptModelDownload();
           break;
       }
-      Storage.save('translation-mode-selection', mode, 'Translation Mode');
+      Storage.save('translation-mode-selection', mode);
     };
 
     const savedMode = Storage.load('translation-mode-selection') || 'gtx';
-    modeSelect.value = savedMode;
-    // 確保如果存的是 gemma 但 select 裡還沒加入選項時的 fallback (雖然 HTML 會同步更新)
-    applyMode(savedMode);
+    modeSelect.value = savedMode === 'gemma' ? 'gtx' : savedMode === 'ai' ? 'promptapi' : savedMode;
+    applyMode(modeSelect.value);
     
     modeSelect.addEventListener('change', (e) => applyMode(e.target.value));
   };
@@ -571,17 +544,14 @@ document.addEventListener('DOMContentLoaded', async function () {
    * 目前功能：Alt + B 切換字幕背景風格
    */
   const setupKeyboardShortcuts = () => {
-    // 定義 Mode B 的詳細配置 (包含文字與 UI 鎖定狀態)
     const MODE_B_CONFIG = {
       active: {
-        // 介面文字提示
         messages: {
           'source-text': '現在はモードBを使用しており、モードBでは言語3は使用できません。',
           'target-text-1': 'モードBでは字幕は3行固定で表示され、行数を超えた場合はスクロール表示となります。字幕サイズは固定されています。',
           'target-text-2': 'モードBは、素材と組み合わせた状態での使用を想定しています。',
           'target-text-3': ''
         },
-        // 需要鎖定(Disable)的輸入框 ID 列表
         disabledInputs: [
           'source-font-size',
           'target1-font-size',
@@ -596,47 +566,40 @@ document.addEventListener('DOMContentLoaded', async function () {
           'target-text-2': '',
           'target-text-3': ''
         },
-        disabledInputs: [] // 恢復時沒有需要鎖定的東西
+        disabledInputs: []
       }
     };
 
     document.addEventListener('keydown', (e) => {
-      // 偵測組合鍵: Alt + B
       if (e.altKey && (e.code === 'KeyB' || e.key === 'b')) {
         e.preventDefault();
 
         const subtitleContainer = document.getElementById('Subtitle-style');
         if (subtitleContainer) {
-          // 1. 切換狀態
           const isActive = subtitleContainer.classList.toggle('active-style');
           const config = isActive ? MODE_B_CONFIG.active : MODE_B_CONFIG.inactive;
 
-          // 2. 更新文字 (Data-Driven)
           Object.entries(config.messages).forEach(([id, text]) => {
             const el = document.getElementById(id);
             if (el) el.textContent = text;
           });
 
-          // 3. 控制滑桿鎖定狀態 (這是新增的部分)
-          // 先取得所有可能被鎖定的 ID (從 active 列表拿)，然後根據目前的 isActive 決定是 true 還是 false
           MODE_B_CONFIG.active.disabledInputs.forEach(id => {
             const input = document.getElementById(id);
             if (input) {
-              input.disabled = isActive; // Mode B 啟用時 -> disabled = true
+              input.disabled = isActive;
             }
           });
 
-          Logger.info('UI', `字幕背景風格已${isActive ? '啟用' : '停用'}`);
-          localStorage.setItem('subtitle-style-active', isActive);
+          if (isDebugEnabled()) console.info('UI', `字幕背景風格已${isActive ? '啟用' : '停用'}`);
+          Storage.save('subtitle-style-active', isActive);
         }
       }
     });
 
-    // (選用) 載入時恢復狀態的邏輯也需要同步更新
-    const savedState = localStorage.getItem('subtitle-style-active') === 'true';
+    const savedState = Storage.load('subtitle-style-active') === 'true';
     if (savedState) {
       document.getElementById('Subtitle-style')?.classList.add('active-style');
-      // 這裡建議呼叫一次上面的邏輯來鎖定滑桿，或者手動鎖定：
       MODE_B_CONFIG.active.disabledInputs.forEach(id => {
         const input = document.getElementById(id);
         if(input) input.disabled = true;
@@ -654,6 +617,13 @@ document.addEventListener('DOMContentLoaded', async function () {
     specialHandlers: CONFIG.special.map(c => { const h = createSpecialHandler(c); h.load(); h.setupListener(); return h; })
   };
 
+  // [暫存] 強制覆蓋翻訳クラウド接続用リンク（含 localStorage，完成後請手動刪除此段）
+  const _tmpLinkEl = document.getElementById('translation-link');
+  if (_tmpLinkEl) {
+    _tmpLinkEl.value = 'otsukaray0520://translate-service-617546797649.asia-northeast1.run.app';
+    Storage.save('translation-link', 'otsukaray0520://translate-service-617546797649.asia-northeast1.run.app');
+  }
+
   setupPanelSwitching();
   setupResetButton(handlers);
   setupKeyboardShortcuts();
@@ -662,6 +632,7 @@ document.addEventListener('DOMContentLoaded', async function () {
   setupDisplayPanelInteraction();
   setupTranslationModeHandler();
   setupMicPrivacyHandler();
+  setupToggleVisibility('toggle-obs-pwd-visibility', 'obs-ws-password');
 
   const defaultTab = document.getElementById('Subtitle');
   if (defaultTab) defaultTab.click();
@@ -673,11 +644,19 @@ document.addEventListener('DOMContentLoaded', async function () {
     // 並且問題可能很多，非必要不建議使用。
     setupPromptModelDownload();
   };
+  
+  updateObsDragLink();
+  
+  const autoSetupBtn = document.getElementById('obs-auto-setup-btn');
+  if (autoSetupBtn) {
+    autoSetupBtn.addEventListener('click', () => {
+      triggerAutoSetup();
+    });
+  }
   // #endregion
 
 // #region [模式B字幕處理方式(CSS限制寬度和高度、超過使用滾動方式移動)]
 
-  // 保持原有的緩動函數不變
   const smoothScrollToSlowly = (element, to, duration) => {
     const start = element.scrollTop;
     const change = to - start;
@@ -706,9 +685,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     if (!el) return;
 
     const observer = new MutationObserver(() => {
-      // 當內容高度大於可視高度時
       if (el.scrollHeight > el.clientHeight) {
-        // Source 區塊：直接滾動到底部，讓用戶確認目前收音狀況
         el.scrollTo({
           top: el.scrollHeight,
           behavior: 'smooth'
@@ -731,7 +708,6 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     let activeScrollSession = null;
 
-    // [定義] 核心滾動邏輯
     const startSmartScrolling = () => {
       const overflowMode = document.querySelector('input[name="overflow"]:checked')?.value;
       
@@ -757,7 +733,6 @@ document.addEventListener('DOMContentLoaded', async function () {
 
       } else {
         // === 模式 B: Normal (一次到底) ===
-        // 切換到 Normal 模式時，直接執行一次滑到底部
         smoothScrollToSlowly(el, el.scrollHeight, 6000);
       }
     };
@@ -791,13 +766,12 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
   };
 
-  // 初始化 Source 滾動邏輯
   setupSourceScrollBehavior('source-text');
 
-  // 初始化 Targets 滾動邏輯
   ['target-text-1', 'target-text-2', 'target-text-3'].forEach(id => {
     setupTargetScrollBehavior(id);
   });
 
   // #endregion
 });
+

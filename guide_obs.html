@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OBS連携ガイド | ハムハム字幕アトリエ</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-color: #F8E6F0;
+      --card-bg: #FFFFFF;
+      --primary-color: #8B4513;
+      --obs-color: #30353D;
+      --obs-blue: #2B65D9;
+      --obs-light: #4A515D;
+      --highlight-bg: #FFF2DE;
+      --code-bg: #282c34;
+      --code-text: #abb2bf;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 40px 20px;
+      font-family: "Huninn", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--primary-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 30px;
+      animation: fadeInDown 0.6s ease;
+    }
+
+    h1 { font-size: 28px; margin: 0 0 10px 0; color: #6d1313; }
+    p.subtitle { font-size: 14px; color: #666; line-height: 1.6; }
+
+    .guide-card {
+      background-color: var(--card-bg);
+      width: 100%;
+      max-width: 800px;
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 10px 30px rgba(139, 69, 19, 0.08);
+      border: 2px solid white;
+      animation: fadeInUp 0.5s ease;
+    }
+
+    h2 {
+      font-size: 20px;
+      border-bottom: 2px dashed #b5ead7;
+      padding-bottom: 15px;
+      margin-top: 0;
+      color: var(--obs-blue);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .step-list { margin-top: 20px; }
+    .step-item { display: flex; gap: 20px; margin-bottom: 30px; }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 36px; height: 36px;
+      background-color: #E8F0FE;
+      color: var(--obs-blue);
+      border: 2px solid var(--obs-blue);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: bold; font-size: 16px;
+    }
+
+    .step-content { flex: 1; }
+    .step-title { font-weight: bold; font-size: 17px; margin-bottom: 8px; display: block; color: #444; }
+    .step-desc { font-size: 14px; color: #666; line-height: 1.7; }
+
+    .code-container {
+      background-color: var(--code-bg); border-radius: 10px; margin-top: 10px;
+      padding: 15px; color: var(--code-text); font-family: 'Consolas', monospace; font-size: 13px;
+      border-left: 4px solid var(--obs-blue);
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .url-box {
+      display: flex; align-items: center; gap: 10px;
+      background-color: #f5f5f5; border: 1px solid #ddd;
+      border-radius: 8px; padding: 10px 15px; margin-top: 10px;
+    }
+    .url-text {
+      flex: 1; font-family: 'Consolas', monospace; font-size: 13px; color: #555;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .note-box {
+      background-color: #ffebee; border-left: 4px solid #f44336;
+      padding: 15px; border-radius: 0 8px 8px 0; margin-top: 15px; font-size: 13px; color: #b71c1c;
+    }
+    
+    .info-box {
+      background-color: #e3f2fd; border-left: 4px solid #2196f3;
+      padding: 15px; border-radius: 4px; margin-bottom: 30px;
+      font-size: 14px; color: #0d47a1;
+    }
+
+    .link-back {
+      display: inline-block; margin-top: 20px; text-decoration: none;
+      color: #888; font-size: 14px; border-bottom: 1px dotted #ccc;
+    }
+
+    @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🎥 OBS 連携ガイド</h1>
+    <p class="subtitle">字幕をOBS Studioに直接送信し、背景透過の美しい字幕を表示するための設定手順です。</p>
+  </header>
+
+  <div class="guide-card">
+    
+    <div class="info-box">
+      <strong>💡 OBS Bridge とは？</strong><br>
+      ハムハム字幕アトリエで認識・翻訳した字幕を、OBS WebSocketを経由して直接OBS上のブラウザソース（<code>obs_overlay.html</code>）に送信する機能です。<br>
+      これにより、クロマキー（カラーキー）を使わずに、綺麗な縁取り文字をOBS上で直接レンダリングできます。
+    </div>
+
+    <h2>🛠️ 設定手順</h2>
+
+    <div class="step-list">
+      
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <span class="step-title">OBS WebSocket の有効化</span>
+          <div class="step-desc">
+            1. OBS Studio を起動し、上部メニューの<strong>「ツール」</strong>から<strong>「WebSocket サーバー設定」</strong>を開きます。<br>
+            2. <strong>「WebSocket サーバーを有効にする」</strong>にチェックを入れます。<br>
+            3. 「サーバーポート」が <code>4455</code> であることを確認します。<br>
+            4. <strong>「認証を有効にする」</strong>にチェックを入れ、「パスワードを生成」ボタンを押すか、任意のパスワードを入力します。<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;⚠️ <strong>重要：</strong>必ず<strong>「接続情報を表示」</strong>ボタンを押して、パスワードが見える状態にしてからコピーしてください。（伏せ字のままだと正しくコピーされません）<br>
+            5. 「OK」を押して閉じます。
+          </div>
+        </div>
+      </div>
+
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <span class="step-title">字幕アトリエ側の設定</span>
+          <div class="step-desc">
+            1. ハムハム字幕アトリエの「その他」設定パネルを開きます。<br>
+            2. <strong>「OBS Bridge」</strong>の項目を見つけます。<br>
+            3. 「Enable OBS WS」を <strong>Enable</strong> に変更します。<br>
+            4. 「OBS WS URL」に <code>ws://127.0.0.1:4455</code> を入力します。<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 0.9em; color: #666;">※ OBSとブラウザが同じPCなら、この数字（ローカルホスト）のままでOKです。</span><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 0.9em; color: #666;">※ 別のPCのOBSに繋ぐ場合のみ、そのPCのIPアドレス（例: <code>ws://192.168.1.15:4455</code>）に変更してください。</span><br>
+            5. 「OBS Password」に、Step 1で設定（コピー）したパスワードを貼り付けます。
+          </div>
+        </div>
+      </div>
+
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <span class="step-title">OBS に字幕ソースを追加する（ドラッグ＆ドロップ）</span>
+          <div class="step-desc">
+            OBS上で綺麗に字幕を表示するために、専用のオーバーレイファイルを使用します。<br><br>
+            1. OBS Studioを開き、「ソース」一覧が見える状態にします。<br>
+            2. 字幕アトリエの「OBS Bridge」設定パネルの最下部にある<strong>「OBSへドラッグ＆ドロップ」</strong>ボタンをマウスでクリックしたまま（ドラッグ）、OBSの「ソース」一覧の領域に持っていき、マウスを離します（ドロップ）。<br>
+            3. 自動的に「ブラウザ」ソースが追加されます。<br>
+            4. 追加されたブラウザソースをダブルクリックしてプロパティを開き、「幅」と「高さ」を配信画面に合わせて設定します（例: 幅 800、高さ 600）。<br>
+            5. 「OK」を押して完了です。字幕アトリエでマイクをオンにして話すと、OBS上に字幕が表示されます。
+          </div>
+          <div class="note-box" style="margin-top: 10px;">
+            ※ ドラッグ＆ドロップが上手くいかない場合は、ボタンを右クリックして「リンクのアドレスをコピー」を選択し、OBSのソースの「＋」から「ブラウザ」を追加し、「URL」欄に手動で貼り付けてください。
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <a href="javascript:window.close();" class="link-back">× 閉じる</a>
+
+</body>
+</html>

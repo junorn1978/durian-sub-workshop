@@ -4,17 +4,17 @@
  * 2025 優化版：全面採用統一語系物件 (getLang) 模式。
  */
 
-import { keywordRules } from './speechCapture.js';
-import { browserInfo, getLang, isRayModeActive, isDeepgramActive } from './config.js';
-import { sendLocalTranslation } from './translatorApiService.js';
-import { translateWithGemma } from './gemmaService.js';
+import { browserInfo, getLang, isDeepgramActive } from './config.js';
+import { filterTextWithKeywords } from './rayModeFilter.js';
+import { destroyLocalTranslators, sendLocalTranslation } from './translatorApiService.js';
 import { translateWithGTX } from './gtxTranslationService.js';
 import { sendPromptTranslation } from './promptTranslationService.js';
 import { processTranslationUrl } from './remoteTranslationService.js';
-import { Logger } from './logger.js';
+import { isDebugEnabled } from './logger.js';
+import { publishTranslationsToObs } from './obsBridge.js';
+import { updateStatusDisplay } from './uiState.js';
 
 // #region [狀態與快取]
-const translatorCache = new Map();
 let sequenceCounter = 0;
 let bufferCheckInterval = null;
 let _cachedTargetSpans  = null;
@@ -41,7 +41,7 @@ async function processTask(next) {
     const result = await next.task();
     next.resolve(result);
   } catch (error) {
-    Logger.error('[ERROR] [TranslationController] 任務失敗:', { error: error.message });
+    if (isDebugEnabled()) console.error('[ERROR] [TranslationController] 任務失敗:', { error: error.message });
     next.reject(error);
   } finally {
     inFlight--;
@@ -53,43 +53,6 @@ function pump() {
   while (inFlight < MAX && queue.length > 0) {
     const next = queue.shift();
     processTask(next);
-  }
-}
-// #endregion
-
-// #region [文字處理與過濾]
-
-/**
- * 針對翻譯後的結果進行 Ray Mode 關鍵字過濾
- * @param {string} text 
- * @param {string} targetLangId - 傳入目標語言 ID 
- */
-function filterTextWithKeywords(text, targetLangId) {
-  if (!isRayModeActive()) return text;
-
-  let result = text.replace(/"/g, ''); 
-
-  const cachedRules = new Map();
-  if (!cachedRules.has(targetLangId)) {
-    cachedRules.set(targetLangId, keywordRules
-      .filter(rule => rule.lang === targetLangId)
-      .map(rule => ({ source: new RegExp(rule.source, 'ig'), target: rule.target })));
-  }
-  cachedRules.get(targetLangId)?.forEach(rule => {
-    result = result.replace(rule.source, rule.target);
-  });
-  return result;
-}
-
-function updateStatusDisplay(text, details = null) {
-  const statusDisplay = document.getElementById('status-display');
-  let displayText = text;
-  if (details) {
-    const detailStrings = Object.entries(details).map(([k, v]) => `${k}=${v}`).join(', ');
-    displayText = `${text} ${detailStrings}`;
-  }
-  if (statusDisplay && statusDisplay.textContent !== displayText) {
-    statusDisplay.textContent = displayText;
   }
 }
 // #endregion
@@ -147,6 +110,8 @@ async function updateTranslationUI(data, targetLangIds, minDisplayTime, sequence
 function processDisplayBuffers() {
   const now = Date.now();
   const spans = getTargetSpans();
+  let hasVisualUpdate = false;
+  let latestSequenceId = null;
 
   ['target1', 'target2', 'target3'].forEach(key => {
     const span = spans[key];
@@ -185,17 +150,27 @@ function processDisplayBuffers() {
         
         // 更新 DOM
         span.textContent = next.text;
+        hasVisualUpdate = true;
+        latestSequenceId = next.sequenceId;
 
         const level = next.text !== '' ? 'info' : 'debug';
-        Logger[level](`[${level.toUpperCase()}] [TranslationController] 更新翻譯文字:`, { 
+        if (isDebugEnabled()) console[level](`[${level.toUpperCase()}] [TranslationController] 更新翻譯文字:`, { 
           text: next.text,
           sequenceId: next.sequenceId
         });
       }
     } catch (error) {
-      Logger.error('[ERROR] [TranslationController] processDisplayBuffers 錯誤:', error.message);
+      if (isDebugEnabled()) console.error('[ERROR] [TranslationController] processDisplayBuffers 錯誤:', error.message);
     }
   });
+
+  if (hasVisualUpdate) {
+    publishTranslationsToObs([
+      spans.target1?.textContent || '',
+      spans.target2?.textContent || '',
+      spans.target3?.textContent || ''
+    ], latestSequenceId);
+  }
 }
 // #endregion
 
@@ -215,7 +190,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
     try {
       const modeSelect = document.getElementById('translation-mode');
       const currentMode = modeSelect ? modeSelect.value : 'none';
-      if (currentMode === 'none') { Logger.error('[ERROR] [TranslationController], 無效的翻譯模式'); return; }
+      if (currentMode === 'none') { if (isDebugEnabled()) console.error('[ERROR] [TranslationController], 無效的翻譯模式'); return; }
 
       let serviceUrl = '';
 
@@ -223,7 +198,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       if (currentMode === 'gas') {
         const gasId = document.getElementById('gas-script-id')?.value.trim() || '';
         if (!gasId.match(/^[a-zA-Z0-9_-]+$/)) {
-          Logger.error('[ERROR] [TranslationController], 無效的 GAS ID');
+          if (isDebugEnabled()) console.error('[ERROR] [TranslationController], 無效的 GAS ID');
           updateStatusDisplay('無效的 Google Apps Script ID');
           setTimeout(() => updateStatusDisplay(''), 5000);
           return;
@@ -233,8 +208,6 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       } else if (currentMode === 'link') {
         serviceUrl = document.getElementById('translation-link')?.value.trim() || '';
       }
-      // Gemma モードは localhost 固定のため URL チェック不要
-
       // 獲取目標語言 ID 列表 (包含 'none' 以保持索引位置，稍後過濾)
       const rawTargetLangIds = [
         document.getElementById('target1-language')?.value,
@@ -249,8 +222,8 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       const sourceLangObj = getLang(sourceLangId);
       const rules = sourceLangObj?.displayTimeRules || [];
 
-      // サーバーサイド処理 (Link/Gemma) は表示時間を計算、ローカル処理 (Fast/Prompt) は即時更新のため 0
-      const minDisplayTime = currentMode !== 'link' && currentMode !== 'gemma'
+      // サーバーサイド処理 (Link) は表示時間を計算、ローカル処理 (Fast/Prompt) は即時更新のため 0
+      const minDisplayTime = currentMode !== 'link'
                            ? 0
                            : (rules.find(rule => text.length <= rule.maxLength)?.time ?? 3);
       let data;
@@ -260,17 +233,14 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       if (currentMode === 'gtx') {
         data = await translateWithGTX(text, rawTargetLangIds, sourceLangId);
 
-      } else if (currentMode === 'gemma') {
-        data = await translateWithGemma(text, rawTargetLangIds, sourceLangId, previousText);
-
-      } else if (currentMode === 'prompt' && 'LanguageModel' in self) {
+      } else if (currentMode === 'promptapi' && 'LanguageModel' in self) {
         data = await sendPromptTranslation(text, activeLangIds, sourceLangId);
 
       } else if (currentMode === 'fast' && browserInfo.supportsTranslatorAPI) {
         data = await sendLocalTranslation(text, activeLangIds, sourceLangId);
 
       } else {
-        if (!serviceUrl && currentMode !== 'gemma') return;
+        if (!serviceUrl) return;
         const targetCodes = activeLangIds.map(id => getLang(id)?.id || id);
         data = await processTranslationUrl(text, targetCodes, sourceLangId, serviceUrl, currentMode, sequenceId, previousText);
       }
@@ -280,7 +250,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
         await updateTranslationUI(data, rawTargetLangIds, minDisplayTime, sequenceId);
       }
     } catch (error) {
-      Logger.error('[ERROR] [translationController] 異常:', error.message);
+      if (isDebugEnabled()) console.error('[ERROR] [translationController] 異常:', error.message);
       updateStatusDisplay('翻訳エラー:', { error: error.message });
       setTimeout(() => updateStatusDisplay(''), 5000);
       throw error;
@@ -290,11 +260,10 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
 // #endregion
 
 window.addEventListener('beforeunload', () => {
-  translatorCache.forEach((t) => { try { t.destroy(); } catch (e) {} });
-  translatorCache.clear();
+  destroyLocalTranslators();
   if (bufferCheckInterval) clearInterval(bufferCheckInterval);
   queue.forEach(task => task.reject(new Error('頁面即將關閉')));
   queue.length = 0;
 });
 
-export { sendTranslationRequest, sequenceCounter, translatorCache, updateStatusDisplay, updateTranslationUI };
+export { sendTranslationRequest };

@@ -4,7 +4,7 @@
  * 此檔用途為發送雲端請求，需搭配後端程式碼使用。
  */
 
-import { Logger } from './logger.js';
+import { isDebugEnabled } from './logger.js';
 
 // #region [工具函式]
 
@@ -43,7 +43,7 @@ async function fetchWithTimeout(input, init = {}, ms = 10000) {
  */
 async function sendTranslation(text, targetLangs, sourceLang, serviceUrl, sequenceId, previousText = null) {
   if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') {
-    Logger.debug('[DEBUG]', '[remoteTranslationService.js]', '無效文字，跳過翻譯:', text);
+    if (isDebugEnabled()) console.debug('[DEBUG]', '[remoteTranslationService.js]', '無效文字，跳過翻譯:', text);
     return null;
   }
 
@@ -116,13 +116,13 @@ async function sendTranslation(text, targetLangs, sourceLang, serviceUrl, sequen
  */
 async function sendTranslationToGas(text, targetLangs, sourceLang, serviceUrl, sequenceId) {
   if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') {
-    Logger.debug('[DEBUG] [remoteTranslationService] 無效文字，跳過翻譯:', text);
+    if (isDebugEnabled()) console.debug('[DEBUG] [remoteTranslationService] 無效文字，跳過翻譯:', text);
     return null;
   }
 
   /* 嚴格檢查是否為有效的 Google Script 佈署網址 */
   if (!serviceUrl.match(/^https:\/\/script\.google\.com\/macros\/s\/[^\/]+\/exec$/)) {
-    Logger.error('[ERROR] [remoteTranslationService] 無效的 GAS URL:', serviceUrl);
+    if (isDebugEnabled()) console.error('[ERROR] [remoteTranslationService] 無效的 GAS URL:', serviceUrl);
     throw new Error('無效的 Google Apps Script URL');
   }
 
@@ -131,7 +131,7 @@ async function sendTranslationToGas(text, targetLangs, sourceLang, serviceUrl, s
 
   /* GAS GET 請求限制：URL 總長度不得超過 20,000 字元 */
   if (url.length > 20000) {
-    Logger.error('[ERROR] [remoteTranslationService] URL 過長:', url.length);
+    if (isDebugEnabled()) console.error('[ERROR] [remoteTranslationService] URL 過長:', url.length);
     throw new Error('請求資料過長，請縮短文字內容');
   }
 
@@ -161,7 +161,7 @@ async function sendTranslationToGas(text, targetLangs, sourceLang, serviceUrl, s
  */
 async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, serviceType, sequenceId, previousText = null) {
   if (!serviceUrl) {
-    Logger.error('[ERROR]', '[remoteTranslationService.js]', 'URL 為空');
+    if (isDebugEnabled()) console.error('[ERROR]', '[remoteTranslationService.js]', 'URL 為空');
     throw new Error('有効な翻訳サービスの URL を入力してください。');
   }
 
@@ -170,7 +170,7 @@ async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, 
   } else if (serviceType === 'link') {
     return await sendTranslation(text, targetLangs, sourceLang, serviceUrl, sequenceId, previousText);
   } else {
-    Logger.error('[ERROR]', '[remoteTranslationService.js]', '無效的服務類型:', serviceType);
+    if (isDebugEnabled()) console.error('[ERROR]', '[remoteTranslationService.js]', '無效的服務類型:', serviceType);
     throw new Error('無效的服務類型');
   }
 }

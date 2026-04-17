@@ -1,4 +1,75 @@
 # 更新紀錄 (Changelog)
+## [v2.15.5]
+### 修改
+ - 將 Deepgram `endpointing` 調整為 `200ms`，用於重新驗證 `speech_final` 在實際上線環境中的觸發表現。
+
+## [v2.15.4]
+### 修改
+ - 調整 Deepgram 麥克風前處理設定，將 `autoGainControl` 改為啟用狀態。
+ - 將 Deepgram `endpointing` 提高至 `500ms`，降低口語短停頓時過快斷句的機率。
+ - 移除本地 `FLUSH_TIMEOUT_MS` 強制斷句邏輯，避免未講完的內容被提前切出造成跨句污染。
+ - 將 Deepgram 斷句策略調整為以 `speech_final` 為優先提交點，`UtteranceEnd` 作為保底。
+
+## [v2.15.3]
+### 修改
+ - 改善 Deepgram UtteranceEnd 斷句邏輯：flush 時只送出已 finalize 的文字，不再搶走下一句的 interim 開頭。
+ - 修正 UtteranceEnd flush 後畫面閃爍問題：flush 完立即重新顯示殘留的 interim 文字，避免 DOM 短暫空白。
+
+## [v2.15.2]
+### Fixed
+ - Decoupled `deepgramService.js` from `speechCapture.js` and `translationController.js` to remove circular imports.
+ - Extracted shared UI helpers into `uiState.js` so speech and translation flows use a single DOM-only utility module.
+ - Removed the circular dependency between `translationController.js` and `translatorApiService.js`.
+
+## [v2.15.1]
+### 修改
+ - 調整deepgram的處理方式看是否能夠降低語句起始文字讀取常判斷錯誤的問題。
+
+## [v2.15.0]
+### 修改
+ - 將 5 個 OBS Overlay HTML 合併為單一檔案，透過 URL 參數 `mode` 切換顯示模式，消除約 1300 行重複碼。
+ - 將 Ray Mode 關鍵字過濾邏輯從 speechCapture.js / translationController.js 抽取至獨立模組 rayModeFilter.js，統一管理來源端與目標端的規則快取與過濾。
+ - 移除 deepgramService.js / speechCapture.js 中的無用註解與死碼。
+ - 修正 deepgramService.js 重連延遲顯示計算錯誤（delay/500 → delay/1000）。
+
+## [v2.14.6]
+### 修改
+ - 修正deepgram重啟秒數不正確的問題
+
+## [v2.14.5]
+### 修改
+ - 修正更新紀錄中部分歷史條目的中文亂碼問題（Big5/UTF-8 誤碼修復）。
+
+## [v2.14.4]
+### 修改
+ - 調整 Web Speech 語言包下載前的提示。
+
+## [v2.14.3]
+### 修改
+ - OBS 整合介面先收斂為以自動構築為主，舊的手動拖拉來源入口先隱藏保留。
+ - Web Speech API 語言包下載前，新增必須先啟動 Web Speech API 辨識的前置檢查；未啟動時改為在 status-display 提示並中止。
+
+## [v2.11.2]
+### 修改
+ - 修正日誌設定 (Log Level) 邏輯：
+   - 更改 localStorage Key 為 `log-system-debug-enabled` 以避免與舊版數值衝突。
+   - 調整 `isDebugEnabled()` 優先權，確保 UI 的 Disable 設定能正確覆蓋 URL 參數。
+   - 優化 `uiController.js` 初始化邏輯，避免在已存有設定的情況下被網址參數強制覆寫。
+ - 代碼清理：
+   - 移除 `uiController.js` 中過時的 `deepgram-enabled` 資料遷移與刪除邏輯。
+   - 更新 `speechCapture.js` 檔案頂部描述註解。
+
+## [v2.11.1]
+### 修改
+ - 移除 translateGemma (實驗功能) 的相關程式碼與 UI 選項，該功能已被 Custom URL 取代，藉此精簡專案體積與邏輯複雜度。
+
+## [v2.11.0]
+### 修改
+ - 重構日誌系統 (Logger)，從包裝器模式改為動態判斷模式，解決瀏覽器除錯時行號顯示不正確的問題。
+ - 簡化日誌設定，將原本的四個等級簡化為單純的「開啟/關閉」開關。
+ - 將 `isDebugEnabled` 改為動態讀取函式，提升設定變更時的響應穩定性。
+ - 在介面右下角加入版本號碼顯示，方便版本識別與維護。
+
 ## [v2.10.0]
 ### 新增
  - 實作 Google Translate Extension (GTX) 翻譯邏輯，提供更快速且免 API Key 的翻譯選項。
