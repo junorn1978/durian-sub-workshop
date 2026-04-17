@@ -617,13 +617,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     specialHandlers: CONFIG.special.map(c => { const h = createSpecialHandler(c); h.load(); h.setupListener(); return h; })
   };
 
-  // [暫存] 強制覆蓋翻訳クラウド接続用リンク（含 localStorage，完成後請手動刪除此段）
-  const _tmpLinkEl = document.getElementById('translation-link');
-  if (_tmpLinkEl) {
-    _tmpLinkEl.value = 'otsukaray0520://translate-service-617546797649.asia-northeast1.run.app';
-    Storage.save('translation-link', 'otsukaray0520://translate-service-617546797649.asia-northeast1.run.app');
-  }
-
   setupPanelSwitching();
   setupResetButton(handlers);
   setupKeyboardShortcuts();
