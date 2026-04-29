@@ -12,7 +12,7 @@ const _languages = new Map();
 let _config = null;
 let _isRayModeActive   = false;
 let _isForceSingleLine = false;
-let _isDeepgramActive  = false;
+let _currentSpeechEngine = 'webspeech'; // 'webspeech' | 'deepgram' | 'soniox'
 
 let _currentAlignment  = 'left';
 // #endregion
@@ -88,8 +88,11 @@ export function setRayModeStatus(status) { _isRayModeActive = !!status; }
 export function isForceSingleLine() { return _isForceSingleLine; }
 export function setForceSingleLineStatus(status) { _isForceSingleLine = !!status; }
 
-export function isDeepgramActive() { return _isDeepgramActive; }
-export function setDeepgramStatus(status) { _isDeepgramActive = String(status) === 'true'; }
+export function getSpeechEngine() { return _currentSpeechEngine; }
+export function setSpeechEngine(engine) {
+  const valid = engine === 'deepgram' || engine === 'soniox' || engine === 'webspeech';
+  _currentSpeechEngine = valid ? engine : 'webspeech';
+}
 
 export function getAlignment() { return _currentAlignment; }
 export function setAlignment(align) { _currentAlignment = align; }

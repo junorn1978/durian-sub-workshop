@@ -1,13 +1,13 @@
 /**
  * @file speechCapture.js
  * @description 主要處理語音擷取前參數設定到產生逐字稿的相關邏輯。
- * 支援瀏覽器內建 Web Speech API (免費) 與 Deepgram (付費) 兩種方式。
- * 依據 index.html 的元素 ID [deepgram-enabled] 決定使用哪一種方式。
+ * 支援 Web Speech API (免費)、Deepgram、Soniox 三種辨識引擎。
  */
 
-import { isRayModeActive, isDeepgramActive, browserInfo, getSourceLanguage, getLang, getAlignment } from './config.js';
+import { isRayModeActive, getSpeechEngine, browserInfo, getSourceLanguage, getLang, getAlignment } from './config.js';
 import { sendTranslationRequest } from './translationController.js';
 import { startDeepgram, stopDeepgram } from './deepgramService.js';
+import { startSoniox, stopSoniox } from './sonioxService.js';
 import { isDebugEnabled } from './logger.js';
 import { publishSourceTextToObs } from './obsBridge.js';
 import { loadKeywordRules, filterRayModeText, processRayModeTranscript } from './rayModeFilter.js';
@@ -162,23 +162,24 @@ async function configureRecognition(recognition, sourceLanguage) {
 }
 
 /**
- * 處理來自 Deepgram 服務的串流回傳值
+ * 處理來自雲端 STT 服務 (Deepgram / Soniox) 的串流回傳值
  * @param {string} text - 目前完整的顯示文字
  * @param {boolean} isFinal - 是否為確認文字
  * @param {boolean} shouldTranslate - 是否觸發翻譯請求
  * @param {string} currentLang - 當前語言代碼
+ * @param {string} symbolType - 'deepgram' | 'soniox' (用於裝飾符號)
  */
-async function handleDeepgramTranscript(text, isFinal, shouldTranslate, currentLang) {
+async function handleCloudTranscript(text, isFinal, shouldTranslate, currentLang, symbolType) {
 
   let processedText = isRayModeActive() ? processRayModeTranscript(text, currentLang) : text;
   const textToTranslate = processedText.trim();
 
-  if (!isFinal) { processedText = wrapWithNoteByAlignment(processedText, 'deepgram'); }
+  if (!isFinal) { processedText = wrapWithNoteByAlignment(processedText, symbolType); }
   if (processedText.trim() !== '') { updateSourceText(processedText.replace(/[、。？\s]+/g, ' ').trim()); }
 
   if (shouldTranslate && processedText.trim() !== '') {
     if (textToTranslate) {
-      if (isDebugEnabled()) console.info('[INFO] [Deepgram] 收到 Service 指令 (Speaker 0)，執行翻譯:', textToTranslate);
+      if (isDebugEnabled()) console.info(`[INFO] [${symbolType}] 收到 Service 指令，執行翻譯:`, textToTranslate);
 
       sendTranslationRequest(textToTranslate, previousText, currentLang);
       previousText = textToTranslate;
@@ -270,10 +271,12 @@ const updateSourceText = (() => {
  */
 function wrapWithNoteByAlignment(baseText, symbolType) {
   const alignment = getAlignment();
-  // deepgram api            → 🐹 
+  // deepgram api            → 🐹
+  // soniox api              → 🐰
   // web speech api → Chrome → 🐿️
   // web speech api → Edge   → 🐭
   const symbolTextA = symbolType === 'deepgram' ? '​​🐹'
+                    : symbolType === 'soniox'   ? '​​🐰'
                          : browserInfo.isChrome ? '​​🐿️'
                                                 : '​🐭';
   const symbolTextB = '🐹';
@@ -437,11 +440,12 @@ function setupSpeechRecognitionHandlers() {
 
     clearAllTextElements();
 
-    /* Deepgram 優先權邏輯：若啟用 Deepgram 則嘗試啟動，失敗後 Fallback 至 Web Speech API */
-    if (isDeepgramActive()) {
+    /* 雲端 STT 優先權邏輯：若選擇雲端引擎則嘗試啟動，失敗後 Fallback 至 Web Speech API */
+    const engine = getSpeechEngine();
+    if (engine === 'deepgram') {
       try {
         const deepgramStarted = await startDeepgram(sourceLang, (text, isFinal, shouldTranslate) => {
-          handleDeepgramTranscript(text, isFinal, shouldTranslate, sourceLang);
+          handleCloudTranscript(text, isFinal, shouldTranslate, sourceLang, 'deepgram');
         }, {
           onStatusChange: updateStatusDisplay,
           onStop: () => {
@@ -456,6 +460,25 @@ function setupSpeechRecognitionHandlers() {
         }
       } catch (err) {
         if (isDebugEnabled()) console.error('[ERROR] [SpeechRecognition] Deepgram 啟動失敗:', err);
+      }
+    } else if (engine === 'soniox') {
+      try {
+        const sonioxStarted = await startSoniox(sourceLang, (text, isFinal, shouldTranslate) => {
+          handleCloudTranscript(text, isFinal, shouldTranslate, sourceLang, 'soniox');
+        }, {
+          onStatusChange: updateStatusDisplay,
+          onStop: () => {
+            resetRecognitionState({ clearText: true });
+          }
+        });
+        if (sonioxStarted) {
+          setRecognitionControlsState(true);
+          isRecognitionActive = true;
+          activeRecognitionEngine = 'soniox';
+          return;
+        }
+      } catch (err) {
+        if (isDebugEnabled()) console.error('[ERROR] [SpeechRecognition] Soniox 啟動失敗:', err);
       }
     }
 
@@ -473,8 +496,12 @@ function setupSpeechRecognitionHandlers() {
   });
 
   stopButton.addEventListener('click', () => {
+    // resetRecognitionState 會把 activeRecognitionEngine 清成 null，
+    // 所以要先抓住目前的引擎再 reset。
+    const engine = activeRecognitionEngine;
     resetRecognitionState({ clearText: true });
-    if (isDeepgramActive()) stopDeepgram({ reason: 'manual-stop' });
+    if (engine === 'deepgram') stopDeepgram({ reason: 'manual-stop' });
+    else if (engine === 'soniox') stopSoniox({ reason: 'manual-stop' });
     if (recognition) recognition.abort();
   });
 }
@@ -491,7 +518,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   showMicInfoOnce().catch(() => { });
 
   window.addEventListener('beforeunload', () => {
-    if (isDeepgramActive()) stopDeepgram();
+    if (activeRecognitionEngine === 'deepgram') stopDeepgram();
+    else if (activeRecognitionEngine === 'soniox') stopSoniox();
   });
 });
 

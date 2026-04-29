@@ -4,7 +4,7 @@
  * 2025 優化版：全面採用統一語系物件 (getLang) 模式。
  */
 
-import { browserInfo, getLang, isDeepgramActive } from './config.js';
+import { browserInfo, getLang } from './config.js';
 import { filterTextWithKeywords } from './rayModeFilter.js';
 import { destroyLocalTranslators, sendLocalTranslation } from './translatorApiService.js';
 import { translateWithGTX } from './gtxTranslationService.js';

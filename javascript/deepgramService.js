@@ -283,9 +283,9 @@ export async function startDeepgram(langId, onTranscriptUpdate, handlers = {}) {
       }
       globalStream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          autoGainControl:  false,
-          echoCancellation: false,
-          noiseSuppression: false,
+          autoGainControl:  true,
+          echoCancellation: true,
+          noiseSuppression: true,
           channelCount: 1,
         },
         video: false

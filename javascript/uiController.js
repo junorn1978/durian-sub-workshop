@@ -7,7 +7,7 @@ import { updateStatusDisplay } from './uiState.js';
 import { setupPromptModelDownload } from './promptTranslationService.js';
 import { setupLanguagePackButton } from './languagePackManager.js';
 import { checkTranslationAvailability, monitorLocalTranslationAPI } from './translatorApiService.js';
-import { browserInfo, loadLanguageConfig, setAlignment, setRayModeStatus, setForceSingleLineStatus, setDeepgramStatus } from './config.js';
+import { browserInfo, loadLanguageConfig, setAlignment, setRayModeStatus, setForceSingleLineStatus, setSpeechEngine } from './config.js';
 import { isDebugEnabled, setLogLevel } from './logger.js';
 import { handleObsBridgeSettingsChanged, triggerAutoSetup } from './obsBridge.js';
 
@@ -66,7 +66,18 @@ document.addEventListener('DOMContentLoaded', async function () {
   if (savedDebug === null) {
     setLogLevel(isDebugMode);
   }
-  
+
+  // #region [一次性 migration：強制覆蓋 STT 引擎為 Soniox]
+  // 不論使用者之前選了什麼，第一次載入新版頁面時統一切到 Soniox。
+  // 設定 flag 後不再覆蓋，使用者之後可以自由改回 deepgram / webspeech。
+  // 全部使用者都被遷移後即可刪除整段 (殘留的 flag 不會造成問題)。
+  const MIGRATION_FLAG_KEY = 'migration-soniox-default-v1';
+  if (localStorage.getItem(MIGRATION_FLAG_KEY) !== 'done') {
+    localStorage.setItem('speech-recognition-engine', 'soniox');
+    localStorage.setItem(MIGRATION_FLAG_KEY, 'done');
+  }
+  // #endregion
+
   if (isDebugEnabled()) console.info('UI', '應用程式初始化開始...');
 
   setTimeout(() => {
@@ -156,21 +167,21 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
       },
       {
-        id: 'speech-engine-opt', type: 'select', key: 'speech-recognition-engine', default: 'webspeech',
+        id: 'speech-engine-opt', type: 'select', key: 'speech-recognition-engine', default: 'soniox',
         onApply: (val) => {
-          const isDeepgram = val === 'deepgram';
-          setDeepgramStatus(isDeepgram ? 'true' : 'false');
+          setSpeechEngine(val);
+          const isCloud = val === 'deepgram' || val === 'soniox';
 
           const dlBtn = document.getElementById('download-language-pack');
           if (dlBtn && browserInfo.isChrome) {
             // 等on device成為穩定版本時才開放使用
-            dlBtn.style.display = isDeepgram ? 'none' : 'flex';
-            //dlBtn.style.display = isDeepgram ? 'none' : 'none';
+            dlBtn.style.display = isCloud ? 'none' : 'flex';
+            //dlBtn.style.display = isCloud ? 'none' : 'none';
           }
 
           const helpLink = document.getElementById('engine-help-link');
           if (helpLink) {
-            helpLink.style.display = isDeepgram ? 'inline-flex' : 'none';
+            helpLink.style.display = isCloud ? 'inline-flex' : 'none';
           }
         }
       },
