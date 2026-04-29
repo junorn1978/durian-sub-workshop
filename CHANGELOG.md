@@ -1,5 +1,15 @@
 # 更新履歴
 
+## [v2.16.0]
+### 追加
+ - Soniox WebSocket STT サービス (`sonioxService.js`) を新規追加し、音声認識エンジンとして選択可能にしました。
+ - Soniox 用のトレース機能を追加しました。DevTools コンソールで `__sonioxDownloadTrace()` を実行すると、最近 100 件の token / flush / endpoint イベントを JSON ファイルとしてダウンロードできます (切句問題のデバッグ用)。
+### 変更
+ - Soniox の自動停止タイムアウトを 8 分から 5 分に短縮し、無音放置時のコストを抑えました。
+ - Soniox の最大バッファ長を 200 文字から 250 文字に拡張し、長文発話で早く強制切断されすぎないようにしました。
+### 修正
+ - Soniox 側の endpoint 検出とクライアント側の換気タイマー (1秒) が競合し、同じ文が 2〜3 回翻訳に送られる問題を修正しました。クライアント側の換気タイマーを完全に廃止し、切句は Soniox の endpoint detection に一本化しました。
+
 ## [v2.15.7]
 ### 変更
  - Deepgram のマイク前処理で `autoGainControl`、`echoCancellation`、`noiseSuppression` を有効に戻し、配信環境での入力音声を安定させました。
