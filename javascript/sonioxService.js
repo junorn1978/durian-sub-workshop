@@ -415,7 +415,8 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         sample_rate: finalSampleRate,
         num_channels: 1,
         language_hints: [langObj.deepgramCode],
-        enable_endpoint_detection: true
+        enable_endpoint_detection: true,
+        max_endpoint_delay_ms: 1000
       };
 
       try {
