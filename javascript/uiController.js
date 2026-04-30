@@ -67,15 +67,10 @@ document.addEventListener('DOMContentLoaded', async function () {
     setLogLevel(isDebugMode);
   }
 
-  // #region [一次性 migration：強制覆蓋 STT 引擎為 Soniox]
-  // 不論使用者之前選了什麼，第一次載入新版頁面時統一切到 Soniox。
-  // 設定 flag 後不再覆蓋，使用者之後可以自由改回 deepgram / webspeech。
-  // 全部使用者都被遷移後即可刪除整段 (殘留的 flag 不會造成問題)。
-  const MIGRATION_FLAG_KEY = 'migration-soniox-default-v1';
-  if (localStorage.getItem(MIGRATION_FLAG_KEY) !== 'done') {
-    localStorage.setItem('speech-recognition-engine', 'soniox');
-    localStorage.setItem(MIGRATION_FLAG_KEY, 'done');
-  }
+  // #region [強制覆蓋 STT 引擎為 Soniox]
+  // 操作不慣れの利用者の選択を補助するため、リロード/再起動のたびに Soniox に強制切替。
+  // 利用者が Soniox に切り替えたことを確認できたらこのブロック全体を削除する。
+  localStorage.setItem('speech-recognition-engine', 'soniox');
   // #endregion
 
   if (isDebugEnabled()) console.info('UI', '應用程式初始化開始...');
@@ -182,6 +177,8 @@ document.addEventListener('DOMContentLoaded', async function () {
           const helpLink = document.getElementById('engine-help-link');
           if (helpLink) {
             helpLink.style.display = isCloud ? 'inline-flex' : 'none';
+            if (val === 'soniox') helpLink.href = 'guide_soniox.html';
+            else if (val === 'deepgram') helpLink.href = 'guide_deepgram.html';
           }
         }
       },
