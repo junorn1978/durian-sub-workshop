@@ -329,7 +329,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         language_hints: langObj.deepgramCode === "en" ? ["en", "ja"] : [langObj.deepgramCode, "en"],
         language_hints_strict: true,
         enable_endpoint_detection: true,
-        max_endpoint_delay_ms: 1000
+        max_endpoint_delay_ms: 1200
       };
 
       try {
