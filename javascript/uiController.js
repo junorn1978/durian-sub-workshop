@@ -10,6 +10,7 @@ import { checkTranslationAvailability, monitorLocalTranslationAPI } from './tran
 import { browserInfo, loadLanguageConfig, setAlignment, setRayModeStatus, setForceSingleLineStatus, setSpeechEngine } from './config.js';
 import { isDebugEnabled, setLogLevel } from './logger.js';
 import { handleObsBridgeSettingsChanged, triggerAutoSetup } from './obsBridge.js';
+import { translateTestText } from './translationController.js';
 
 const setupToggleVisibility = (btnId, inputId) => {
   const btn = document.getElementById(btnId);
@@ -521,6 +522,86 @@ document.addEventListener('DOMContentLoaded', async function () {
     modeSelect.addEventListener('change', (e) => applyMode(e.target.value));
   };
 
+  const setupTranslationTestTool = () => {
+    const input = document.getElementById('translation-test-input');
+    const runBtn = document.getElementById('translation-test-run');
+    const clearBtn = document.getElementById('translation-test-clear');
+    const status = document.getElementById('translation-test-status');
+    const result = document.getElementById('translation-test-result');
+
+    if (!input || !runBtn || !clearBtn || !status || !result) return;
+
+    const setStatus = (text) => { status.textContent = text || ''; };
+
+    const renderResults = (payload) => {
+      result.replaceChildren();
+
+      const activeResults = payload?.results?.filter(item => item.langId && item.langId !== 'none') || [];
+      if (activeResults.length === 0) {
+        setStatus('翻訳先言語が選択されていません');
+        return;
+      }
+
+      activeResults.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'translation-test-result-row';
+
+        const label = document.createElement('span');
+        label.className = 'translation-test-result-label';
+        label.textContent = `翻訳 ${item.slot}: ${item.label}`;
+
+        const text = document.createElement('div');
+        text.className = 'translation-test-result-text';
+        text.textContent = item.text || '';
+
+        row.append(label, text);
+        result.append(row);
+      });
+    };
+
+    const run = async () => {
+      const text = input.value.trim();
+      if (!text) {
+        setStatus('テキストを入力してください');
+        result.replaceChildren();
+        return;
+      }
+
+      runBtn.disabled = true;
+      setStatus('翻訳中...');
+
+      try {
+        const payload = await translateTestText(text);
+        if (!payload) {
+          setStatus('翻訳結果がありません');
+          result.replaceChildren();
+          return;
+        }
+        renderResults(payload);
+        setStatus('');
+      } catch (error) {
+        if (isDebugEnabled()) console.error('[ERROR] [TranslationTest]', error);
+        setStatus(`翻訳エラー: ${error.message}`);
+      } finally {
+        runBtn.disabled = false;
+      }
+    };
+
+    runBtn.addEventListener('click', run);
+    clearBtn.addEventListener('click', () => {
+      input.value = '';
+      setStatus('');
+      result.replaceChildren();
+      input.focus();
+    });
+    input.addEventListener('keydown', (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        event.preventDefault();
+        run();
+      }
+    });
+  };
+
   /** 字幕面板點擊切換最小化 (擴大字幕區) */
   const setupDisplayPanelInteraction = () => {
     const dPanel = document.getElementById('display-panel');
@@ -632,6 +713,7 @@ document.addEventListener('DOMContentLoaded', async function () {
   monitorLocalTranslationAPI();
   setupDisplayPanelInteraction();
   setupTranslationModeHandler();
+  setupTranslationTestTool();
   setupMicPrivacyHandler();
   setupToggleVisibility('toggle-obs-pwd-visibility', 'obs-ws-password');
 

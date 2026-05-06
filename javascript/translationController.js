@@ -4,8 +4,8 @@
  * 2025 優化版：全面採用統一語系物件 (getLang) 模式。
  */
 
-import { browserInfo, getLang } from './config.js';
-import { filterTextWithKeywords } from './rayModeFilter.js';
+import { browserInfo, getLang, isRayModeActive } from './config.js';
+import { filterTextWithKeywords, processRayModeTranscript } from './rayModeFilter.js';
 import { destroyLocalTranslators, sendLocalTranslation } from './translatorApiService.js';
 import { translateWithGTX } from './gtxTranslationService.js';
 import { sendPromptTranslation } from './promptTranslationService.js';
@@ -57,6 +57,99 @@ function pump() {
 }
 // #endregion
 
+// #region [翻譯請求共用核心]
+
+function getConfiguredTargetLangIds() {
+  return [
+    document.getElementById('target1-language')?.value,
+    document.getElementById('target2-language')?.value,
+    document.getElementById('target3-language')?.value
+  ];
+}
+
+function getActiveTargetLangIds(rawTargetLangIds) {
+  return rawTargetLangIds.filter(id => id && id !== 'none');
+}
+
+function normalizeTranslationData(data, rawTargetLangIds, translatedLangIds) {
+  if (!data?.translations) return null;
+
+  const translations = Array.isArray(data.translations) ? data.translations : [];
+  const normalized = new Array(rawTargetLangIds.length).fill('');
+
+  if (translatedLangIds.length === rawTargetLangIds.length) {
+    rawTargetLangIds.forEach((langId, index) => {
+      normalized[index] = langId && langId !== 'none' ? (translations[index] || '') : '';
+    });
+    return { ...data, translations: normalized };
+  }
+
+  let activeIndex = 0;
+  rawTargetLangIds.forEach((langId, index) => {
+    if (!langId || langId === 'none') return;
+    normalized[index] = translations[activeIndex] || '';
+    activeIndex++;
+  });
+
+  return { ...data, translations: normalized };
+}
+
+function filterTranslationsForTargets(translations, targetLangIds) {
+  return targetLangIds.map((langId, index) => {
+    if (!langId || langId === 'none' || !translations[index]) return '';
+    return filterTextWithKeywords(translations[index], langId);
+  });
+}
+
+function resolveTranslationConfig(rawTargetLangIds) {
+  const modeSelect = document.getElementById('translation-mode');
+  const currentMode = modeSelect ? modeSelect.value : 'none';
+  if (currentMode === 'none') throw new Error('無效的翻譯模式');
+
+  let serviceUrl = '';
+  if (currentMode === 'gas') {
+    const gasId = document.getElementById('gas-script-id')?.value.trim() || '';
+    if (!gasId.match(/^[a-zA-Z0-9_-]+$/)) throw new Error('無效的 Google Apps Script ID');
+    serviceUrl = `https://script.google.com/macros/s/${gasId}/exec`;
+  } else if (currentMode === 'link') {
+    serviceUrl = document.getElementById('translation-link')?.value.trim() || '';
+  }
+
+  const activeLangIds = getActiveTargetLangIds(rawTargetLangIds);
+  if (activeLangIds.length === 0) return null;
+
+  return { currentMode, serviceUrl, activeLangIds };
+}
+
+async function requestTranslationData(text, previousText, sourceLangId, rawTargetLangIds, sequenceId) {
+  const config = resolveTranslationConfig(rawTargetLangIds);
+  if (!config) return null;
+
+  const { currentMode, serviceUrl, activeLangIds } = config;
+  let data;
+  let translatedLangIds = activeLangIds;
+
+  if (currentMode === 'gtx') {
+    data = await translateWithGTX(text, rawTargetLangIds, sourceLangId);
+    translatedLangIds = rawTargetLangIds;
+
+  } else if (currentMode === 'promptapi' && 'LanguageModel' in self) {
+    data = await sendPromptTranslation(text, activeLangIds, sourceLangId);
+
+  } else if (currentMode === 'fast' && browserInfo.supportsTranslatorAPI) {
+    data = await sendLocalTranslation(text, activeLangIds, sourceLangId);
+
+  } else {
+    if (!serviceUrl) return null;
+    const targetCodes = activeLangIds.map(id => getLang(id)?.id || id);
+    data = await processTranslationUrl(text, targetCodes, sourceLangId, serviceUrl, currentMode, sequenceId, previousText);
+  }
+
+  return normalizeTranslationData(data, rawTargetLangIds, translatedLangIds);
+}
+
+// #endregion
+
 // #region [緩衝顯示控制 (Subtitle Timing)]
 /**
  * 取得字幕顯示元素 (含快取機制)
@@ -89,7 +182,7 @@ async function updateTranslationUI(data, targetLangIds, minDisplayTime, sequence
     if (span) {
       let filteredText = '';
       if (langId && langId !== 'none' && data?.translations && data.translations[index]) {
-        filteredText = filterTextWithKeywords(data.translations[index], langId);
+        filteredText = data.translations[index];
       }
       
       displayBuffers[targetKey].push({
@@ -188,36 +281,15 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
     const sequenceId = sequenceCounter++;
 
     try {
-      const modeSelect = document.getElementById('translation-mode');
-      const currentMode = modeSelect ? modeSelect.value : 'none';
-      if (currentMode === 'none') { if (isDebugEnabled()) console.error('[ERROR] [TranslationController], 無效的翻譯模式'); return; }
-
-      let serviceUrl = '';
-
-      // --- 模式參數檢查 ---
-      if (currentMode === 'gas') {
-        const gasId = document.getElementById('gas-script-id')?.value.trim() || '';
-        if (!gasId.match(/^[a-zA-Z0-9_-]+$/)) {
-          if (isDebugEnabled()) console.error('[ERROR] [TranslationController], 無效的 GAS ID');
-          updateStatusDisplay('無效的 Google Apps Script ID');
-          setTimeout(() => updateStatusDisplay(''), 5000);
-          return;
-        }
-        serviceUrl = `https://script.google.com/macros/s/${gasId}/exec`;
-
-      } else if (currentMode === 'link') {
-        serviceUrl = document.getElementById('translation-link')?.value.trim() || '';
-      }
       // 獲取目標語言 ID 列表 (包含 'none' 以保持索引位置，稍後過濾)
-      const rawTargetLangIds = [
-        document.getElementById('target1-language')?.value,
-        document.getElementById('target2-language')?.value,
-        document.getElementById('target3-language')?.value
-      ];
+      const rawTargetLangIds = getConfiguredTargetLangIds();
       
-      const activeLangIds = rawTargetLangIds.filter(id => id && id !== 'none');
+      const activeLangIds = getActiveTargetLangIds(rawTargetLangIds);
 
       if (activeLangIds.length === 0) return;
+
+      const modeSelect = document.getElementById('translation-mode');
+      const currentMode = modeSelect ? modeSelect.value : 'none';
 
       const sourceLangObj = getLang(sourceLangId);
       const rules = sourceLangObj?.displayTimeRules || [];
@@ -226,27 +298,11 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       const minDisplayTime = currentMode !== 'link'
                            ? 0
                            : (rules.find(rule => text.length <= rule.maxLength)?.time ?? 3);
-      let data;
-
-      // --- 路由分流 (Routing) ---
-
-      if (currentMode === 'gtx') {
-        data = await translateWithGTX(text, rawTargetLangIds, sourceLangId);
-
-      } else if (currentMode === 'promptapi' && 'LanguageModel' in self) {
-        data = await sendPromptTranslation(text, activeLangIds, sourceLangId);
-
-      } else if (currentMode === 'fast' && browserInfo.supportsTranslatorAPI) {
-        data = await sendLocalTranslation(text, activeLangIds, sourceLangId);
-
-      } else {
-        if (!serviceUrl) return;
-        const targetCodes = activeLangIds.map(id => getLang(id)?.id || id);
-        data = await processTranslationUrl(text, targetCodes, sourceLangId, serviceUrl, currentMode, sequenceId, previousText);
-      }
+      let data = await requestTranslationData(text, previousText, sourceLangId, rawTargetLangIds, sequenceId);
 
       if (data) {
         data.sequenceId = sequenceId;
+        data.translations = filterTranslationsForTargets(data.translations, rawTargetLangIds);
         await updateTranslationUI(data, rawTargetLangIds, minDisplayTime, sequenceId);
       }
     } catch (error) {
@@ -255,6 +311,41 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       setTimeout(() => updateStatusDisplay(''), 5000);
       throw error;
     }
+  });
+}
+
+async function translateTestText(text) {
+  if (text === null || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') return null;
+
+  return enqueue(async () => {
+    const sequenceId = sequenceCounter++;
+    const sourceLangId = document.getElementById('source-language')?.value || null;
+    const rawTargetLangIds = getConfiguredTargetLangIds();
+    const activeLangIds = getActiveTargetLangIds(rawTargetLangIds);
+
+    if (!sourceLangId) throw new Error('來源語言が選択されていません');
+    if (activeLangIds.length === 0) throw new Error('翻訳先言語が選択されていません');
+
+    const sourceText = isRayModeActive() ? processRayModeTranscript(text, sourceLangId) : text;
+    if (!sourceText || sourceText.trim() === '') return null;
+
+    const data = await requestTranslationData(sourceText.trim(), null, sourceLangId, rawTargetLangIds, sequenceId);
+    if (!data) return null;
+
+    const translations = filterTranslationsForTargets(data.translations, rawTargetLangIds);
+    const results = rawTargetLangIds.map((langId, index) => ({
+      slot: index + 1,
+      langId,
+      label: langId && langId !== 'none' ? (getLang(langId)?.label || langId) : '翻訳しない',
+      text: translations[index] || ''
+    }));
+
+    return {
+      sequenceId,
+      sourceText: sourceText.trim(),
+      targetLangIds: rawTargetLangIds,
+      results
+    };
   });
 }
 // #endregion
@@ -266,4 +357,4 @@ window.addEventListener('beforeunload', () => {
   queue.length = 0;
 });
 
-export { sendTranslationRequest };
+export { sendTranslationRequest, translateTestText };

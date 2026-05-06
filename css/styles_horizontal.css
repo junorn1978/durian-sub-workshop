@@ -518,6 +518,73 @@ body {
 }
 .card-select:hover { border-color: #8B4513; }
 
+.translation-test-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.translation-test-input {
+  width: 100%;
+  min-height: 82px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-sizing: border-box;
+  resize: vertical;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #333;
+  background-color: #FFF;
+}
+.translation-test-input:focus {
+  outline: none;
+  border-color: #8B4513;
+  box-shadow: 0 0 0 2px rgba(139, 69, 19, 0.12);
+}
+.translation-test-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.translation-test-actions .menu3-button {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+.translation-test-status {
+  min-height: 16px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #8B4513;
+}
+.translation-test-result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.translation-test-result-row {
+  padding: 8px;
+  border: 1px solid #EEE;
+  border-radius: 6px;
+  background-color: #F8F9FA;
+}
+.translation-test-result-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #8B4513;
+}
+.translation-test-result-text {
+  min-height: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #333;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .overflow-options-container { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; width: 100%; }
 .radio-box {
   display: flex; align-items: center; gap: 8px; padding: 8px 12px;
