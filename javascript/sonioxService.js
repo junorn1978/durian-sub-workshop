@@ -39,15 +39,11 @@ let retryCount = 0;
 let lifecycleHandlers = { ...DEFAULT_LIFECYCLE_HANDLERS };
 const MAX_RETRIES = 10;
 
-// Trace buffer (切句問題追蹤用)
-let traceBuffer = [];
-let traceStartTime = 0;
-
 // #endregion
 
 // #region [設定與配置]
 const SONIOX_WS_URL = "wss://stt-rt.soniox.com/transcribe-websocket";
-const SONIOX_MODEL = "stt-rt-preview";
+const SONIOX_MODEL = "stt-rt-v4";
 const AUTO_STOP_TIMEOUT = 5 * 60 * 1000;
 const ENDPOINT_TOKEN = "<end>";
 const FINISHED_TOKEN = "<fin>";
@@ -55,7 +51,6 @@ const FINISHED_TOKEN = "<fin>";
 // 客戶端斷句參數
 //   MAX_BUFFER_LENGTH：累積文字超過此長度強制斷句 (極端情境防呆，正常切句完全交給 Soniox endpoint)
 const MAX_BUFFER_LENGTH = 250;
-const TRACE_BUFFER_LIMIT = 100;
 
 // AudioWorklet 處理器代碼 (Deepgram 版と同じ)
 const PCM_PROCESSOR_CODE = `
@@ -173,51 +168,6 @@ function notifyStopped(reason, intentional) {
   lifecycleHandlers.onStop({ reason, intentional });
 }
 
-function recordTrace(type, payload = {}) {
-  if (traceStartTime === 0) traceStartTime = Date.now();
-  traceBuffer.push({
-    t: Date.now() - traceStartTime,
-    type,
-    ...payload
-  });
-  if (traceBuffer.length > TRACE_BUFFER_LIMIT) {
-    traceBuffer.shift();
-  }
-}
-
-function exposeTraceTools() {
-  if (typeof window === "undefined") return;
-  if (window.__sonioxDownloadTrace) return;
-
-  window.__sonioxTrace = () => {
-    console.table(traceBuffer);
-    return traceBuffer;
-  };
-
-  window.__sonioxDownloadTrace = () => {
-    if (traceBuffer.length === 0) {
-      console.warn("[SonioxTrace] 沒有資料可下載");
-      return;
-    }
-    const blob = new Blob([JSON.stringify(traceBuffer, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    a.href = url;
-    a.download = `soniox-trace-${ts}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    console.info(`[SonioxTrace] 已下載 ${traceBuffer.length} 筆事件`);
-  };
-
-  window.__sonioxClearTrace = () => {
-    traceBuffer = [];
-    traceStartTime = 0;
-    console.info("[SonioxTrace] 已清空");
-  };
-}
 // #endregion
 
 // #region [核心服務控制]
@@ -228,30 +178,11 @@ function resetTranscriptBuffers() {
 }
 
 function flushSentenceBuffer(onTranscriptUpdate, reason) {
-  const finalSnapshot = finalizedText;
-  const nonFinalSnapshot = nonFinalizedText;
   const merged = removeJapaneseSpaces((finalizedText + nonFinalizedText).trim());
 
-  if (merged.length === 0) {
-    recordTrace('flush-skip', {
-      reason,
-      finalText: finalSnapshot,
-      nonFinalText: nonFinalSnapshot
-    });
-    return false;
-  }
+  if (merged.length === 0) return false;
 
   const punctuationOnly = merged === '？' || merged === '。' || merged === '、';
-
-  if (isDebugEnabled()) console.info("[INFO]", "[SonioxService]", `${reason} 觸發斷句`);
-  recordTrace('flush', {
-    reason,
-    merged,
-    sent: punctuationOnly ? null : merged,
-    finalText: finalSnapshot,
-    nonFinalText: nonFinalSnapshot,
-    punctuationOnly
-  });
 
   if (onTranscriptUpdate && !punctuationOnly) {
     onTranscriptUpdate(merged, true, true);
@@ -303,9 +234,6 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
   globalOnTranscriptUpdate = onTranscriptUpdate;
   if (isRunning) return true;
 
-  exposeTraceTools();
-  recordTrace('start', { langId });
-
   notifyStatusChange('接続中。しばらくお待ちください...');
   const langObj = getLang(langId);
   if (!langObj) {
@@ -342,20 +270,6 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
       });
     }
 
-    const track = globalStream.getAudioTracks()[0];
-    const settings = track.getSettings();
-
-    if (isDebugEnabled()) console.info("[INFO] [Microphone] 麥克風實際生效參數:", {
-      echoCancellation: settings.echoCancellation,
-      noiseSuppression: settings.noiseSuppression,
-      autoGainControl: settings.autoGainControl,
-      sampleRate: settings.sampleRate,
-      channelCount: settings.channelCount,
-      voiceIsolation: settings.voiceIsolation,
-      latency: settings.latency,
-      deviceId: settings.deviceId,
-    });
-
     try {
       audioContext = new AudioContext({ sampleRate: 16000 });
     } catch (e) {
@@ -363,12 +277,10 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
       audioContext = new AudioContext();
     }
     const finalSampleRate = audioContext.sampleRate;
-    if (isDebugEnabled()) console.info("[INFO]", "[AudioContext] 最終運作 SampleRate:", finalSampleRate);
 
     const TARGET_CHUNK_SEC = 0.1;
     let targetBufferSize = Math.round(finalSampleRate * TARGET_CHUNK_SEC);
     targetBufferSize = Math.max(256, Math.round(targetBufferSize / 256) * 256);
-    if (isDebugEnabled()) console.info("[INFO]", "[AudioWorklet] 計算出的 Buffer Size:", targetBufferSize, `(約 ${(targetBufferSize/finalSampleRate*1000).toFixed(1)}ms)`);
 
     const blob = new Blob([PCM_PROCESSOR_CODE], { type: "application/javascript" });
     const workletUrl = URL.createObjectURL(blob);
@@ -414,9 +326,10 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         audio_format: "pcm_s16le",
         sample_rate: finalSampleRate,
         num_channels: 1,
-        language_hints: [langObj.deepgramCode],
+        language_hints: langObj.deepgramCode === "en" ? ["en", "ja"] : [langObj.deepgramCode, "en"],
+        language_hints_strict: true,
         enable_endpoint_detection: true,
-        max_endpoint_delay_ms: 1000
+        max_endpoint_delay_ms: 1200
       };
 
       try {
@@ -426,7 +339,6 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         notifyStatusChange("Soniox 接続成功 (Raw Audio Mode)");
 
         if (pendingAudioChunks.length > 0) {
-          if (isDebugEnabled()) console.info("[INFO]", "[SonioxService]", `送出 ${pendingAudioChunks.length} 個暫存音訊片段`);
           for (const chunk of pendingAudioChunks) {
             socket.send(chunk);
           }
@@ -459,9 +371,6 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         const tokens = Array.isArray(received.tokens) ? received.tokens : [];
         if (tokens.length === 0) return;
 
-        const finalBefore = finalizedText;
-        const nonFinalBefore = nonFinalizedText;
-
         let endpointDetected = false;
         let newNonFinalText = "";
         let addedFinalThisRound = "";
@@ -490,16 +399,6 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
 
         // non-final 部分は毎メッセージ置き換え (Soniox の仕様)
         nonFinalizedText = newNonFinalText;
-
-        recordTrace('message', {
-          tokens: tokens.map(tok => ({ text: tok.text, final: !!tok.is_final })),
-          finalBefore,
-          nonFinalBefore,
-          finalAfter: finalizedText,
-          nonFinalAfter: nonFinalizedText,
-          addedFinal: addedFinalThisRound,
-          endpoint: endpointDetected
-        });
 
         const hasActivity = addedFinalThisRound.length > 0 || newNonFinalText.length > 0;
         if (hasActivity) lastSpeechTime = Date.now();
@@ -563,8 +462,6 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
 export function stopSoniox(options = {}) {
   const intentional = options.intentional !== false;
   const reason = options.reason || (intentional ? 'manual-stop' : 'service-stop');
-
-  recordTrace('stop', { reason, intentional });
 
   const hadSession =
     isRunning ||

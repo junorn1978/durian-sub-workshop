@@ -3,21 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Deepgram設定ガイド | ハムハム字幕アトリエ</title>
-  
+  <title>Soniox設定ガイド | ハムハム字幕アトリエ</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
 
   <style>
-    /* 保持原有的樣式設定 */
     :root {
       --bg-color: #F8E6F0;
       --card-bg: #FFFFFF;
       --primary-color: #8B4513;
       --accent-color: #D28BC4;
-      --deepgram-color: #13ef93;
-      --deepgram-dark: #0fb36f;
+      --soniox-color: #3B82F6;
+      --soniox-dark: #2563EB;
       --highlight-bg: #FFF2DE;
       --code-bg: #282c34;
       --code-text: #abb2bf;
@@ -59,10 +58,10 @@
 
     h2 {
       font-size: 20px;
-      border-bottom: 2px dashed #b5ead7;
+      border-bottom: 2px dashed #b5d7ea;
       padding-bottom: 15px;
       margin-top: 0;
-      color: var(--deepgram-dark);
+      color: var(--soniox-dark);
       display: flex;
       align-items: center;
       gap: 10px;
@@ -74,9 +73,9 @@
     .step-num {
       flex-shrink: 0;
       width: 36px; height: 36px;
-      background-color: #e0fdf4;
-      color: var(--deepgram-dark);
-      border: 2px solid var(--deepgram-color);
+      background-color: #e0ecfd;
+      color: var(--soniox-dark);
+      border: 2px solid var(--soniox-color);
       border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
       font-weight: bold; font-size: 16px;
@@ -89,7 +88,7 @@
     .code-container {
       background-color: var(--code-bg); border-radius: 10px; margin-top: 10px;
       padding: 15px; color: var(--code-text); font-family: 'Consolas', monospace; font-size: 13px;
-      border-left: 4px solid var(--deepgram-color);
+      border-left: 4px solid var(--soniox-color);
       overflow-x: auto;
     }
 
@@ -113,8 +112,7 @@
       background-color: #ffebee; border-left: 4px solid #f44336;
       padding: 15px; border-radius: 0 8px 8px 0; margin-top: 15px; font-size: 13px; color: #b71c1c;
     }
-    
-    /* 連結到 guide.html 的提示樣式 */
+
     .prerequisite-box {
       background-color: #e3f2fd; border-left: 4px solid #2196f3;
       padding: 15px; border-radius: 4px; margin-bottom: 30px;
@@ -136,17 +134,17 @@
 <body>
 
   <header>
-    <h1>⚡ Deepgram 設定ガイド</h1>
-    <p class="subtitle">有料な音声認識AI「Deepgram」の導入手順です。</p>
+    <h1>🎙️ Soniox 設定ガイド</h1>
+    <p class="subtitle">音声認識AI「Soniox」の導入手順です。</p>
   </header>
 
   <div class="guide-card">
-    
+
     <div class="prerequisite-box">
       <strong>💡 事前準備：</strong><br>
       この機能を利用するには、ローカルサーバー（Backend）の導入が必要です。<br>
-      まだダウンロードしていない場合は、先に 
-      <a href="guide.html" target="_blank">接続設定ガイド (guide.html)</a> 
+      まだダウンロードしていない場合は、先に
+      <a href="guide.html" target="_blank">接続設定ガイド (guide.html)</a>
       の「方法B：ローカルAI」からダウンロードしてください。
     </div>
 
@@ -156,23 +154,23 @@
     </div>
 
     <div class="step-list">
-      
+
       <div class="step-item">
         <div class="step-num">1</div>
         <div class="step-content">
           <span class="step-title">アカウント作成とAPIキー取得</span>
           <div class="step-desc">
-            Deepgramの公式サイト（コンソール）にアクセスし、Googleアカウント等でサインアップします。<br>
-            メニューから「API Keys」→「Create New API Key」を選択してキーを発行してください。
+            Soniox の公式サイト（コンソール）にアクセスし、Googleアカウント等でサインアップします。<br>
+            ダッシュボードから API Key を発行してください。
           </div>
           <div class="note-box">
             <strong>⚠️ 注意：</strong><br>
-            発行されたキー（Token）は一度しか表示されません。必ずコピーして控えてください。<br>
-            また、本格利用にはクレジットカード登録（従量課金）が必要です。
+            発行されたキーは一度しか表示されない場合があります。必ずコピーして安全な場所に控えてください。<br>
+            また、本格利用には課金プランへの登録（従量課金）が必要です。
           </div>
           <div class="url-box">
-            <span class="url-text">https://console.deepgram.com/</span>
-            <button class="url-copy-btn" onclick="copyText('https://console.deepgram.com/', this)">📋 URLをコピー</button>
+            <span class="url-text">https://console.soniox.com/</span>
+            <button class="url-copy-btn" onclick="copyText('https://console.soniox.com/', this)">📋 URLをコピー</button>
           </div>
         </div>
       </div>
@@ -187,7 +185,7 @@
           </div>
           <div class="code-container">
             # 既存の設定の下に追加してください<br>
-            <span style="color: #13ef93;">DEEPGRAM_API_KEY</span>=<span style="color: #e06c75;">ここにコピーしたキーを貼り付け</span>
+            <span style="color: #3B82F6;">SONIOX_KEY</span>=<span style="color: #e06c75;">ここにコピーしたキーを貼り付け</span>
           </div>
         </div>
       </div>
@@ -198,7 +196,7 @@
           <span class="step-title">サーバーの再起動</span>
           <div class="step-desc">
             設定を反映させるため、起動中の黒い画面（startapi.bat）を一度閉じて、<strong>もう一度 startapi.bat を実行</strong>してください。<br>
-            Deepgramモードが有効になった状態でサーバーが起動します。
+            Soniox モードが有効になった状態でサーバーが起動します。
           </div>
         </div>
       </div>
@@ -212,9 +210,9 @@
             字幕ツールの<strong>「翻訳クラウド接続」</strong>欄にペーストしてください。
           </div>
           <div class="step-desc" style="margin-top: 10px;">
-            最後に、オプション設定で「Deepgram API」を<strong>「有効 (Enable)」</strong>にすれば完了です。
+            最後に、オプション設定で「Soniox API」を<strong>「有効 (Enable)」</strong>にすれば完了です。
           </div>
-          <img src="images/guide_paste_id_local.png" alt="接続URLの入力場所" 
+          <img src="images/guide_paste_id_local.png" alt="接続URLの入力場所"
                style="width: 100%; max-width: 500px; margin-top: 15px; border-radius: 8px; border: 2px solid #eee; display: block;">
         </div>
       </div>
