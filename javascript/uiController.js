@@ -187,6 +187,13 @@ document.addEventListener('DOMContentLoaded', async function () {
         id: 'log-level-opt', type: 'select', key: 'log-level-preference', default: 'false',
         onApply: (val) => setLogLevel(val)
       },
+      {
+        id: 'auto-stop-enabled-opt', type: 'select', key: 'auto-stop-enabled', default: 'true',
+        onApply: (val) => {
+          const badge = document.getElementById('auto-stop-warning-badge');
+          if (badge) badge.style.display = val === 'false' ? 'inline-block' : 'none';
+        }
+      },
     ],
     panels: { 'Subtitle': 'source-styles-panel', 'options': 'options-panel' }
   };

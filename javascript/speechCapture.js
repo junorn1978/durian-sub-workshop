@@ -9,7 +9,7 @@ import { sendTranslationRequest } from './translationController.js';
 import { startDeepgram, stopDeepgram } from './deepgramService.js';
 import { startSoniox, stopSoniox } from './sonioxService.js';
 import { isDebugEnabled } from './logger.js';
-import { publishSourceTextToObs } from './obsBridge.js';
+import { publishSourceTextToObs, publishTranslationsToObs } from './obsBridge.js';
 import { loadKeywordRules, filterRayModeText, processRayModeTranscript } from './rayModeFilter.js';
 import { updateStatusDisplay, setRecognitionControlsState, clearAllTextElements } from './uiState.js';
 
@@ -34,6 +34,89 @@ const cachedPhrases = new Map();
 /** @type {string} 存儲上一次發送翻譯的文字，用於上下文比對 */
 let previousText = '';
 
+// #endregion
+
+// #region [連続使用上限ウォッチドッグ]
+/**
+ * 開始按鍵起算的硬性最大連續使用時長。
+ * 防止使用者忘記停止導致雲端 STT 帳單持續累積。
+ *
+ * 計時起點：按下「開始」按鈕（startSessionWatchdog 被呼叫的時刻）。
+ * 重置條件：按下「停止」、引擎自行 onStop、頁面重整。
+ * 自動重連（webspeech onend、Soniox/Deepgram retry）不重置。
+ */
+const SESSION_MAX_DURATION_MS = 5 * 60 * 60 * 1000;
+const SESSION_WATCHDOG_INTERVAL_MS = 30 * 1000;
+
+const SESSION_TIMEOUT_MESSAGES = {
+  'ja-JP': '強制停止時間に達しました。ページを更新するか、もう一度開始ボタンを押してください。',
+  'zh-TW': '已達強制停止時間，請重新整理網頁或重新按下開始按鍵。',
+  'en-US': 'Force-stop time reached. Please refresh the page or press the start button again.'
+};
+
+let sessionStartTime = 0;
+let sessionWatchdogInterval = null;
+
+function isAutoStopEnabled() {
+  return localStorage.getItem('auto-stop-enabled') !== 'false';
+}
+
+function startSessionWatchdog() {
+  stopSessionWatchdog();
+  sessionStartTime = Date.now();
+  // 用 Date.now() 比較而非單一 setTimeout(5h)，避免瀏覽器背景分頁節流導致延遲。
+  sessionWatchdogInterval = setInterval(checkSessionTimeout, SESSION_WATCHDOG_INTERVAL_MS);
+}
+
+function stopSessionWatchdog() {
+  if (sessionWatchdogInterval) {
+    clearInterval(sessionWatchdogInterval);
+    sessionWatchdogInterval = null;
+  }
+  sessionStartTime = 0;
+}
+
+function checkSessionTimeout() {
+  if (!isAutoStopEnabled()) return;
+  if (!sessionStartTime) return;
+  if (Date.now() - sessionStartTime < SESSION_MAX_DURATION_MS) return;
+  triggerSessionTimeout();
+}
+
+function getTimeoutMessageForLang(langCode) {
+  if (!langCode || langCode === 'none') return null;
+  return SESSION_TIMEOUT_MESSAGES[langCode] || SESSION_TIMEOUT_MESSAGES['en-US'];
+}
+
+function displaySessionTimeoutMessages() {
+  const sourceMsg = getTimeoutMessageForLang(document.getElementById('source-language')?.value);
+  if (sourceMsg) {
+    const sourceEl = document.getElementById('source-text');
+    if (sourceEl) sourceEl.textContent = sourceMsg;
+    publishSourceTextToObs(sourceMsg);
+  }
+
+  const targetSelects = ['target1-language', 'target2-language', 'target3-language'];
+  const targetEls = ['target-text-1', 'target-text-2', 'target-text-3'];
+  const targetTexts = targetSelects.map((selId, i) => {
+    const msg = getTimeoutMessageForLang(document.getElementById(selId)?.value);
+    const el = document.getElementById(targetEls[i]);
+    if (msg && el) el.textContent = msg;
+    return msg || '';
+  });
+  publishTranslationsToObs(targetTexts);
+}
+
+function triggerSessionTimeout() {
+  if (isDebugEnabled()) console.warn('[WARN] [SpeechRecognition] 連続使用 5 時間に達したため自動停止');
+  const engine = activeRecognitionEngine;
+  stopSessionWatchdog();
+  resetRecognitionState({ clearText: true });
+  if (engine === 'deepgram') stopDeepgram({ reason: 'session-timeout' });
+  else if (engine === 'soniox') stopSoniox({ reason: 'session-timeout' });
+  if (recognition) recognition.abort();
+  displaySessionTimeoutMessages();
+}
 // #endregion
 
 // #region [硬體檢測與 UI 控制]
@@ -450,12 +533,14 @@ function setupSpeechRecognitionHandlers() {
           onStatusChange: updateStatusDisplay,
           onStop: () => {
             resetRecognitionState({ clearText: true });
+            stopSessionWatchdog();
           }
         });
         if (deepgramStarted) {
           setRecognitionControlsState(true);
           isRecognitionActive = true;
           activeRecognitionEngine = 'deepgram';
+          startSessionWatchdog();
           return;
         }
       } catch (err) {
@@ -469,12 +554,14 @@ function setupSpeechRecognitionHandlers() {
           onStatusChange: updateStatusDisplay,
           onStop: () => {
             resetRecognitionState({ clearText: true });
+            stopSessionWatchdog();
           }
         });
         if (sonioxStarted) {
           setRecognitionControlsState(true);
           isRecognitionActive = true;
           activeRecognitionEngine = 'soniox';
+          startSessionWatchdog();
           return;
         }
       } catch (err) {
@@ -488,6 +575,7 @@ function setupSpeechRecognitionHandlers() {
     try {
       recognition.start();
       activeRecognitionEngine = 'webspeech';
+      startSessionWatchdog();
     } catch (error) {
       setRecognitionControlsState(false);
       isRecognitionActive = false;
@@ -499,6 +587,7 @@ function setupSpeechRecognitionHandlers() {
     // resetRecognitionState 會把 activeRecognitionEngine 清成 null，
     // 所以要先抓住目前的引擎再 reset。
     const engine = activeRecognitionEngine;
+    stopSessionWatchdog();
     resetRecognitionState({ clearText: true });
     if (engine === 'deepgram') stopDeepgram({ reason: 'manual-stop' });
     else if (engine === 'soniox') stopSoniox({ reason: 'manual-stop' });

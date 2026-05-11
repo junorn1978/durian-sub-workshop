@@ -311,6 +311,20 @@
           </div>
 
           <div class="option-card">
+            <div class="card-title" style="display: flex; align-items: center; justify-content: space-between;">
+              <span>自動停止 (Auto-Stop)</span>
+              <span id="auto-stop-warning-badge" class="auto-stop-warning-badge" style="display: none;" title="自動停止が無効です">⚠️ OFF</span>
+            </div>
+            <div class="card-row">
+              <span class="card-label">5時間で自動停止</span>
+              <select id="auto-stop-enabled-opt" class="card-select" title="連続使用が5時間に達したら自動停止します">
+                <option value="true" selected>有効 (Enable)</option>
+                <option value="false">無効 (Disable)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="option-card">
             <div class="card-title">システム</div>
             <div class="card-row">
               <span class="card-label">設定リセット</span>

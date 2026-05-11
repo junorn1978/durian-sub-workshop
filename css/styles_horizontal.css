@@ -497,6 +497,15 @@ body {
 }
 .full-height-card { height: 100%; }
 .card-title { font-size: 14px; font-weight: bold; color: #8B4513; border-bottom: 2px dashed #F1C6D2; padding-bottom: 5px; margin-bottom: 5px; }
+.auto-stop-warning-badge {
+  font-size: 11px;
+  font-weight: bold;
+  color: #fff;
+  background-color: #d9534f;
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+}
 .card-row   { display: flex; align-items: center; justify-content: space-between; }
 .card-label { font-size: 13px; color: #333; font-weight: bold; }
 
