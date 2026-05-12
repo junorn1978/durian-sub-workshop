@@ -300,6 +300,13 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
                            : (rules.find(rule => text.length <= rule.maxLength)?.time ?? 3);
       let data = await requestTranslationData(text, previousText, sourceLangId, rawTargetLangIds, sequenceId);
 
+      // 後端緊急停止訊號（預算保護用）。等同於使用者按下停止按鍵。
+      // 觸發條件：後端設定環境變數 FORCE_STOP_CLIENTS=true 時，回應會帶 stop:true。
+      if (data?.stop) {
+        document.getElementById('stop-recording')?.click();
+        return;
+      }
+
       if (data) {
         data.sequenceId = sequenceId;
         data.translations = filterTranslationsForTargets(data.translations, rawTargetLangIds);
