@@ -739,3 +739,295 @@ input[type="range"]:disabled {
   width: 100%;
   box-sizing: border-box;
 }
+
+/* =========================================
+   15. 2-Column Options Layout (Settings List + Sticky Test Pane)
+   ========================================= */
+.options-2col {
+  gap: 12px;
+  padding: 8px;
+  /* 滾動由 .options-settings-list 自己處理，這層不滾動 */
+  overflow-y: hidden;
+}
+
+.options-settings-list {
+  flex: 0 0 calc(40% - 6px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 6px; /* 滾動條留白 */
+}
+
+/* 漂亮的滾動條（左側設定列） */
+.options-settings-list::-webkit-scrollbar {
+  width: 8px;
+}
+.options-settings-list::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px 0;
+}
+.options-settings-list::-webkit-scrollbar-thumb {
+  background: rgba(139, 69, 19, 0.25);
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+.options-settings-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 69, 19, 0.55);
+}
+/* Firefox */
+.options-settings-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 69, 19, 0.25) transparent;
+}
+
+.options-test-area {
+  flex: 0 0 calc(60% - 6px);
+  align-self: flex-start;
+  min-width: 0;
+  /* === 翻訳テスト 卡片總高度（要調整就改這裡） === */
+  height: 250px;
+}
+
+.settings-section {
+  background-color: #FFFFFF;
+  border-radius: 8px;
+  padding: 6px 14px 8px;
+  box-shadow: 0 2px 4px rgba(139, 69, 19, 0.1);
+}
+
+.settings-section-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: #8B4513;
+  border-bottom: 2px dashed #F1C6D2;
+  padding: 6px 0 5px;
+  margin: 0 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 55px;
+  padding: 4px 0;
+  gap: 10px;
+  border-bottom: 1px solid #FBE9EE;
+}
+.settings-section .settings-row:last-child {
+  border-bottom: none;
+}
+
+/* 設定行內的 select 與調色盤統一寬度，視覺對齊 */
+.settings-section .settings-row > select.card-select {
+  width: 160px;
+  box-sizing: border-box;
+}
+.settings-section .settings-row > .option-color-picker {
+  width: 160px;
+  height: 28px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 2px;
+  background-color: #FAFAFA;
+  box-sizing: border-box;
+}
+
+.settings-row-label {
+  font-size: 13px;
+  color: #333;
+  font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.settings-row-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-row-button {
+  width: auto;
+  padding: 4px 14px;
+  font-size: 12px;
+  height: 28px;
+  min-width: 0;
+}
+
+.settings-row-input {
+  flex: 1;
+  max-width: 60%;
+}
+
+.settings-row-input-with-action {
+  position: relative;
+  flex: 1;
+  max-width: 60%;
+}
+.settings-row-input-with-action input.card-select {
+  width: 100%;
+  padding-right: 32px;
+  box-sizing: border-box;
+}
+
+.settings-row-wide {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.settings-row-wide .settings-row-label {
+  margin-bottom: 0;
+}
+
+/* Overflow 設定行：標籤靠左，3 個 radio-box 垂直堆疊靠右 */
+.settings-row-overflow .overflow-options-container {
+  flex-direction: column;
+  gap: 4px;
+  width: auto;
+  margin-bottom: 0;
+}
+.settings-row-overflow .radio-box {
+  width: 160px;
+  padding: 4px 10px;
+  box-sizing: border-box;
+}
+.settings-row-overflow .radio-box span {
+  font-size: 12px;
+}
+
+.link-help-inline {
+  position: static;
+  transform: none;
+  display: inline-flex;
+  align-items: center;
+  color: #888;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  height: auto;
+  width: auto;
+}
+
+.settings-row-drag-grid {
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.obs-drag-button-full {
+  text-decoration: none;
+  width: 100%;
+  justify-content: center;
+  font-size: 14px;
+  background-color: #2B65D9;
+  color: white;
+  cursor: grab;
+}
+.obs-drag-button {
+  text-decoration: none;
+  flex: 1;
+  justify-content: center;
+  font-size: 12px;
+  background-color: #2B65D9;
+  color: white;
+  cursor: grab;
+  padding: 5px;
+  min-width: 45%;
+}
+.obs-auto-setup-button {
+  width: 100%;
+  justify-content: center;
+  font-size: 14px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.translation-test-card-horizontal {
+  /* height: 100%; */
+  gap: 8px;
+  box-sizing: border-box;
+}
+.translation-test-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+.translation-test-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+.translation-test-pane-input .translation-test-input {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+}
+.translation-test-pane-result {
+  flex: 1;
+  background-color: #F8F9FA;
+  border: 1px solid #EEE;
+  border-radius: 6px;
+  padding: 10px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.translation-test-pane-result .translation-test-result {
+  margin-top: 0;
+  gap: 6px;
+}
+
+/* 翻譯結果區的滾動條（與左側風格一致） */
+.translation-test-pane-result::-webkit-scrollbar {
+  width: 6px;
+}
+.translation-test-pane-result::-webkit-scrollbar-track {
+  background: transparent;
+}
+.translation-test-pane-result::-webkit-scrollbar-thumb {
+  background: rgba(139, 69, 19, 0.25);
+  border-radius: 3px;
+}
+.translation-test-pane-result::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 69, 19, 0.55);
+}
+.translation-test-pane-result {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 69, 19, 0.25) transparent;
+}
+
+@media screen and (max-width: 950px) {
+  .options-2col {
+    overflow-y: auto;
+  }
+  .options-settings-list {
+    flex: none;
+    width: 100%;
+    overflow-y: visible;
+    min-height: auto;
+    padding-right: 0;
+  }
+  .options-test-area {
+    flex: none;
+    width: 100%;
+    height: auto;
+    min-height: 250px;
+  }
+  .translation-test-grid {
+    grid-template-columns: 1fr;
+  }
+}

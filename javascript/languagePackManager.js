@@ -149,7 +149,7 @@ async function updateLanguagePackButton(langId) {
     downloadButton.disabled = true;
   } else if (status.downloadable) {
     downloadButton.disabled = false;
-    downloadButton.textContent = 'オフライン音声認識用パックをダウンロード';
+    downloadButton.textContent = '音声認識パックをダウンロード';
   } else if (status.downloading) {
     downloadButton.disabled = true;
     downloadButton.textContent = 'ダウンロード中…';

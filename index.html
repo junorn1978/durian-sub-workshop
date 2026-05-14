@@ -231,183 +231,177 @@
         </div>
       </div>
 
-      <div id="options-panel" class="unified-options-view">
-        
-        <div class="options-column">
-          <div class="option-card">
-            <div class="card-title">字幕表示設定</div>
-            
-            <div class="card-row">
-              <span class="card-label">横位置 (Align)</span>
+      <div id="options-panel" class="unified-options-view options-2col">
+
+        <div class="options-settings-list">
+
+          <section class="settings-section">
+            <h3 class="settings-section-title">字幕表示</h3>
+
+            <div class="settings-row">
+              <span class="settings-row-label">横位置 (Align)</span>
               <div class="alignment-group" id="text-align">
                 <label><input type="radio" name="alignment" value="left"> 左</label>
                 <label><input type="radio" name="alignment" value="center"> 中央</label>
                 <label><input type="radio" name="alignment" value="right"> 右</label>
               </div>
             </div>
-            
-            <div class="card-row">
-              <label for="display-panel-color" class="card-label">背景色 (BG)</label>
+
+            <div class="settings-row">
+              <label for="display-panel-color" class="settings-row-label">背景色 (BG)</label>
               <input type="color" id="display-panel-color" list="display-color-list" value="#00FF00" class="option-color-picker">
             </div>
-          </div>
 
-          <div class="option-card">
-            <div class="card-title">音声認識エンジン (Engine)</div>
-            
-            <div class="card-row" style="flex-wrap: wrap;">
-              <div style="display: flex; align-items: center; gap: 6px;">
-                <span class="card-label" style="margin-right: 0;">Engine Select</span>
-                
-                <a id="engine-help-link" href="guide_deepgram.html" target="_blank" class="link-help-btn" title="設定ガイドを見る" 
-                  style="position: static; transform: none; display: inline-flex; align-items: center; color: #888; margin: 0; padding: 0; background: none; border: none; height: auto; width: auto;">
-                  <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                </a>
-              </div>
-
-              <select id="speech-engine-opt" class="card-select" title="音声認識エンジンの選択">
-                <option value="deepgram">Deepgram (中精度/有料)</option>
-                <option value="soniox" selected>Soniox (高精度/有料)</option>
-                <option value="webspeech">Web Speech API (無料)</option>
-              </select>
-
-              <button id="download-language-pack" class="menu3-button" style="width: 100%; margin-top: 8px; font-size: 12px; justify-content: center;">オフライン音声認識用パックをダウンロード</button>
-            </div>
-          </div>
-
-          <div class="option-card translation-test-card">
-            <div class="card-title">翻訳テスト</div>
-            <textarea id="translation-test-input" class="translation-test-input" rows="4" placeholder="翻訳したいテキストを入力" autocomplete="off" spellcheck="false" autocorrect="off"></textarea>
-            <div class="translation-test-actions">
-              <button id="translation-test-run" class="menu3-button" type="button">翻訳</button>
-              <button id="translation-test-clear" class="menu3-button" type="button">クリア</button>
-            </div>
-            <div id="translation-test-status" class="translation-test-status"></div>
-            <div id="translation-test-result" class="translation-test-result"></div>
-          </div>
-        </div>
-
-        <div class="options-column">
-          <div class="option-card">
-            <div class="card-title">声音認識設定</div>
-            <div class="card-row">
-              <span class="card-label">声音認識字幕単一行表示</span>
+            <div class="settings-row">
+              <span class="settings-row-label">音声字幕を1行表示</span>
               <select id="force-single-line-opt" class="card-select" title="長い文章を自動的にカットして1行に収める">
                 <option value="false" selected>無効 (Disable)</option>
                 <option value="true">有効 (Enable)</option>
               </select>
             </div>
-          </div>
 
-          <div class="option-card">
-            <div class="card-title">操作設定</div>
-            <div class="card-row">
-              <span class="card-label">字幕パネル最大化</span>
-              <select id="click-minimize-opt" class="card-select" title="画面クリックでの最小化機能">
-                <option value="true" selected>有効 (Enable)</option>
-                <option value="false">無効 (Disable)</option>
+            <div class="settings-row settings-row-overflow">
+              <span class="settings-row-label">翻訳字幕の行数</span>
+              <div class="overflow-options-container" id="overflow-layout">
+                <label class="radio-box">
+                  <input type="radio" name="overflow" value="normal">
+                  <span>制限なし</span>
+                </label>
+                <label class="radio-box">
+                  <input type="radio" name="overflow" value="truncate">
+                  <span>1行（省略表示）</span>
+                </label>
+                <label class="radio-box">
+                  <input type="radio" name="overflow" value="shrink">
+                  <span>1行（スクロール）</span>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <h3 class="settings-section-title">音声認識</h3>
+
+            <div class="settings-row">
+              <span class="settings-row-label">5時間で自動停止</span>
+              <div class="settings-row-control">
+                <select id="auto-stop-enabled-opt" class="card-select" title="連続使用が5時間に達したら自動停止します">
+                  <option value="true" selected>有効 (Enable)</option>
+                  <option value="false">無効 (Disable)</option>
+                </select>
+                <span id="auto-stop-warning-badge" class="auto-stop-warning-badge" style="display: none;" title="自動停止が無効です">⚠️ OFF</span>
+              </div>
+            </div>
+
+            <div class="settings-row">
+              <span class="settings-row-label">
+                エンジン選択
+                <a id="engine-help-link" href="guide_deepgram.html" target="_blank" class="link-help-btn link-help-inline" title="設定ガイドを見る">
+                  <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                </a>
+              </span>
+              <select id="speech-engine-opt" class="card-select" title="音声認識エンジンの選択">
+                <option value="deepgram">Deepgram (中精度/有料)</option>
+                <option value="soniox" selected>Soniox (高精度/有料)</option>
+                <option value="webspeech">Web Speech API (無料)</option>
               </select>
             </div>
-          </div>
 
-          <div class="option-card">
-            <div class="card-title" style="display: flex; align-items: center; justify-content: space-between;">
-              <span>自動停止 (Auto-Stop)</span>
-              <span id="auto-stop-warning-badge" class="auto-stop-warning-badge" style="display: none;" title="自動停止が無効です">⚠️ OFF</span>
+            <div class="settings-row">
+              <span class="settings-row-label">オフライン認識パック</span>
+              <button id="download-language-pack" class="menu3-button settings-row-button">ダウンロード</button>
             </div>
-            <div class="card-row">
-              <span class="card-label">5時間で自動停止</span>
-              <select id="auto-stop-enabled-opt" class="card-select" title="連続使用が5時間に達したら自動停止します">
-                <option value="true" selected>有効 (Enable)</option>
-                <option value="false">無効 (Disable)</option>
-              </select>
-            </div>
-          </div>
+          </section>
 
-          <div class="option-card">
-            <div class="card-title">システム</div>
-            <div class="card-row">
-              <span class="card-label">設定リセット</span>
-              <button class="options-button danger-zone" id="reset-settings">初期化</button>
-            </div>
-
-            <div class="card-row">
-              <span class="card-label">ログ表示 (Debug)</span>
-              <select id="log-level-opt" class="card-select" title="コンソールの出力詳細度">
-                <option value="true">有効 (Enable)</option>
-                <option value="false" selected>無効 (Disable)</option>
-              </select>
-            </div>
-          </div>
-          <div class="option-card">
-            <div class="card-title" style="display: flex; align-items: center; justify-content: space-between;">
-              <span>OBS Bridge</span>
-              <a href="guide_obs.html" target="_blank" class="link-help-btn" title="OBS連携ガイドを見る" style="position: static; transform: none; display: inline-flex; align-items: center; color: #888; margin: 0; padding: 0; background: none; border: none; height: auto; width: auto;">
+          <section class="settings-section">
+            <h3 class="settings-section-title">
+              <span>OBS連携</span>
+              <a href="guide_obs.html" target="_blank" class="link-help-btn link-help-inline" title="OBS連携ガイドを見る">
                 <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
               </a>
-            </div>
-            <div class="card-row">
-              <span class="card-label">Enable OBS WS</span>
+            </h3>
+
+            <div class="settings-row">
+              <span class="settings-row-label">Enable OBS WS</span>
               <select id="obs-ws-enabled" class="card-select" title="Enable or disable OBS WebSocket bridge">
                 <option value="false" selected>Disable</option>
                 <option value="true">Enable</option>
               </select>
             </div>
-            <div class="card-row obs-input-group">
-              <span class="card-label">OBS WS URL</span>
-              <input type="text" id="obs-ws-url" class="card-select" placeholder="ws://127.0.0.1:4455" autocomplete="off" spellcheck="false" autocorrect="off">
+
+            <div class="settings-row">
+              <label for="obs-ws-url" class="settings-row-label">OBS WS URL</label>
+              <input type="text" id="obs-ws-url" class="card-select settings-row-input" placeholder="ws://127.0.0.1:4455" autocomplete="off" spellcheck="false" autocorrect="off">
             </div>
-            <div class="card-row obs-input-group">
-              <span class="card-label">OBS Password</span>
-              <div style="position: relative; width: 100%;">
-                <input type="text" id="obs-ws-password" class="card-select input-masked" placeholder="OBS WebSocket password" autocomplete="off" spellcheck="false" autocorrect="off" style="width: 100%; padding-right: 30px; box-sizing: border-box;">
+
+            <div class="settings-row">
+              <label for="obs-ws-password" class="settings-row-label">OBS Password</label>
+              <div class="settings-row-input-with-action">
+                <input type="text" id="obs-ws-password" class="card-select input-masked" placeholder="OBS WebSocket password" autocomplete="off" spellcheck="false" autocorrect="off">
                 <button type="button" id="toggle-obs-pwd-visibility" class="visibility-btn" title="表示/非表示">
                   <svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
                 </button>
               </div>
             </div>
-            <div class="card-row" style="margin-top: 10px; display: none;">
-              <a id="obs-drag-link" href="#" draggable="true" class="menu3-button" style="text-decoration: none; width: 100%; justify-content: center; font-size: 14px; background-color: #2B65D9; color: white; cursor: grab;" title="このボタンをOBSのソース一覧にドラッグ＆ドロップしてください">全体(Full)ドラッグ＆ドロップ</a>
+
+            <div class="settings-row settings-row-hidden" style="display: none;">
+              <a id="obs-drag-link" href="#" draggable="true" class="menu3-button obs-drag-button-full" title="このボタンをOBSのソース一覧にドラッグ＆ドロップしてください">全体(Full)ドラッグ＆ドロップ</a>
             </div>
-            <div class="card-row" style="margin-top: 5px; display: none; gap: 5px; flex-wrap: wrap;">
-              <a id="obs-drag-link-source" href="#" draggable="true" class="menu3-button" style="text-decoration: none; flex: 1; justify-content: center; font-size: 12px; background-color: #2B65D9; color: white; cursor: grab; padding: 5px; min-width: 45%;" title="音声(Source)">音声(Src)</a>
-              <a id="obs-drag-link-target1" href="#" draggable="true" class="menu3-button" style="text-decoration: none; flex: 1; justify-content: center; font-size: 12px; background-color: #2B65D9; color: white; cursor: grab; padding: 5px; min-width: 45%;" title="翻訳1(Target1)">翻訳1</a>
-              <a id="obs-drag-link-target2" href="#" draggable="true" class="menu3-button" style="text-decoration: none; flex: 1; justify-content: center; font-size: 12px; background-color: #2B65D9; color: white; cursor: grab; padding: 5px; min-width: 45%;" title="翻訳2(Target2)">翻訳2</a>
-              <a id="obs-drag-link-target3" href="#" draggable="true" class="menu3-button" style="text-decoration: none; flex: 1; justify-content: center; font-size: 12px; background-color: #2B65D9; color: white; cursor: grab; padding: 5px; min-width: 45%;" title="翻訳3(Target3)">翻訳3</a>
+            <div class="settings-row settings-row-hidden settings-row-drag-grid" style="display: none;">
+              <a id="obs-drag-link-source" href="#" draggable="true" class="menu3-button obs-drag-button" title="音声(Source)">音声(Src)</a>
+              <a id="obs-drag-link-target1" href="#" draggable="true" class="menu3-button obs-drag-button" title="翻訳1(Target1)">翻訳1</a>
+              <a id="obs-drag-link-target2" href="#" draggable="true" class="menu3-button obs-drag-button" title="翻訳2(Target2)">翻訳2</a>
+              <a id="obs-drag-link-target3" href="#" draggable="true" class="menu3-button obs-drag-button" title="翻訳3(Target3)">翻訳3</a>
             </div>
-            <div class="card-row" style="margin-top: 10px;">
-              <button id="obs-auto-setup-btn" class="menu3-button" style="width: 100%; justify-content: center; font-size: 14px; background-color: #4CAF50; color: white; border: none; cursor: pointer;" title="OBS上に自動的に字幕ソースを構築します（要WebSocket接続）">OBS自動構築 (Auto Setup)</button>
+
+            <div class="settings-row settings-row-wide">
+              <button id="obs-auto-setup-btn" class="menu3-button obs-auto-setup-button" title="OBS上に自動的に字幕ソースを構築します（要WebSocket接続）">OBS自動構築 (Auto Setup)</button>
             </div>
-          </div>
+          </section>
+
+          <section class="settings-section">
+            <h3 class="settings-section-title">システム</h3>
+
+            <div class="settings-row">
+              <span class="settings-row-label">字幕パネル最大化</span>
+              <select id="click-minimize-opt" class="card-select" title="画面クリックでの最小化機能">
+                <option value="true" selected>有効 (Enable)</option>
+                <option value="false">無効 (Disable)</option>
+              </select>
+            </div>
+
+            <div class="settings-row">
+              <span class="settings-row-label">ログ表示 (Debug)</span>
+              <select id="log-level-opt" class="card-select" title="コンソールの出力詳細度">
+                <option value="true">有効 (Enable)</option>
+                <option value="false" selected>無効 (Disable)</option>
+              </select>
+            </div>
+
+            <div class="settings-row">
+              <span class="settings-row-label">設定リセット</span>
+              <button class="options-button danger-zone settings-row-button" id="reset-settings">初期化</button>
+            </div>
+          </section>
+
         </div>
 
-        <div class="options-column">
-          <div class="option-card full-height-card">
-            <div class="card-title">翻訳字幕行数制限 (Overflow)</div>
-            
-            <div class="overflow-options-container" id="overflow-layout">
-              <label class="radio-box">
-                <input type="radio" name="overflow" value="normal">
-                <span>制限なし</span>
-              </label>
-              <label class="radio-box">
-                <input type="radio" name="overflow" value="truncate">
-                <span>1行 (省略)</span>
-              </label>
-              <label class="radio-box">
-                <input type="radio" name="overflow" value="shrink">
-                <span>1行 (スクロール)</span>
-              </label>
+        <div class="options-test-area">
+          <div class="option-card translation-test-card translation-test-card-horizontal">
+            <div class="card-title">翻訳テスト</div>
+            <div class="translation-test-grid">
+              <div class="translation-test-pane translation-test-pane-input">
+                <textarea id="translation-test-input" class="translation-test-input" placeholder="翻訳したいテキストを入力" autocomplete="off" spellcheck="false" autocorrect="off"></textarea>
+                <div class="translation-test-actions">
+                  <button id="translation-test-run" class="menu3-button" type="button">翻訳</button>
+                  <button id="translation-test-clear" class="menu3-button" type="button">クリア</button>
+                </div>
+                <div id="translation-test-status" class="translation-test-status"></div>
+              </div>
+              <div class="translation-test-pane translation-test-pane-result">
+                <div id="translation-test-result" class="translation-test-result"></div>
+              </div>
             </div>
-          </div>
-          <div class="help-text-box">
-            <p>字幕が長すぎる場合の表示ルールを設定します。</p>
-            <ul>
-              <li><strong>制限なし：</strong> 全ての字幕を表示します（画面が埋まる可能性があります）。</li>
-              <li><strong>1行 (省略)：</strong> 1行を超えると「...」で省略されます。</li>
-              <li><strong>1行 (スクロール)：</strong> 1行を超える場合、字幕を1行ずつ自動スクロールして表示します。</li>
-            </ul>
-            <p class="note">※ 配信画面のスペースに合わせて調整してください。</p>
           </div>
         </div>
 
@@ -438,7 +432,7 @@
     <option value="#00FF00"></option>
   </datalist>
 
-  <div id="version-display" style="position: fixed; right: 8px; bottom: 4px; font-size: 10px; color: rgba(109, 19, 19, 0.5); pointer-events: none; z-index: 9999; font-family: sans-serif; letter-spacing: 0.5px;">v2.16.5</div>
+  <div id="version-display" style="position: fixed; right: 8px; bottom: 4px; font-size: 10px; color: rgba(109, 19, 19, 0.5); pointer-events: none; z-index: 9999; font-family: sans-serif; letter-spacing: 0.5px;">v2.17.0</div>
 
   <script type="module" src="javascript/uiController.js"></script>
   <script type="module" src="javascript/speechCapture.js"></script>
