@@ -68,12 +68,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     setLogLevel(isDebugMode);
   }
 
-  // #region [強制覆蓋 STT 引擎為 Soniox]
-  // 操作不慣れの利用者の選択を補助するため、リロード/再起動のたびに Soniox に強制切替。
-  // 利用者が Soniox に切り替えたことを確認できたらこのブロック全体を削除する。
-  localStorage.setItem('speech-recognition-engine', 'soniox');
-  // #endregion
-
   if (isDebugEnabled()) console.info('UI', '應用程式初始化開始...');
 
   setTimeout(() => {
@@ -163,16 +157,16 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
       },
       {
-        id: 'speech-engine-opt', type: 'select', key: 'speech-recognition-engine', default: 'soniox',
+        id: 'speech-engine-opt', type: 'select', key: 'speech-recognition-engine', default: 'webspeech',
         onApply: (val) => {
           setSpeechEngine(val);
           const isCloud = val === 'deepgram' || val === 'soniox';
 
           const dlBtn = document.getElementById('download-language-pack');
-          if (dlBtn && browserInfo.isChrome) {
+          const dlRow = dlBtn?.closest('.settings-row');
+          if (dlRow && browserInfo.isChrome) {
             // 等on device成為穩定版本時才開放使用
-            dlBtn.style.display = isCloud ? 'none' : 'flex';
-            //dlBtn.style.display = isCloud ? 'none' : 'none';
+            dlRow.style.display = isCloud ? 'none' : '';
           }
 
           const helpLink = document.getElementById('engine-help-link');
@@ -203,10 +197,12 @@ document.addEventListener('DOMContentLoaded', async function () {
   if (!browserInfo.isChrome) {
     if (isDebugEnabled()) console.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
 
-    ['prompt-api-download', 'download-language-pack'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = 'none';
-    });
+    const promptBtn = document.getElementById('prompt-api-download');
+    if (promptBtn) promptBtn.style.display = 'none';
+
+    const dlBtn = document.getElementById('download-language-pack');
+    const dlRow = dlBtn?.closest('.settings-row');
+    if (dlRow) dlRow.style.display = 'none';
   }
   // #endregion
 
