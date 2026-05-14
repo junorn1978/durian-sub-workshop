@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ハムハム字幕アトリエ | ドキュメント</title>
+
+  <link rel="icon" href="images/favicon.ico" type="image/x-icon">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-color: #F8E6F0;
+      --card-bg: #FFFFFF;
+      --primary-color: #8B4513;
+      --primary-dark: #6d1313;
+      --accent-color: #D28BC4;
+      --highlight-bg: #FFF2DE;
+      --code-bg: #282c34;
+      --code-text: #abb2bf;
+      --muted: #888;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 40px 20px 60px;
+      font-family: "Huninn", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--primary-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .container { width: 100%; max-width: 880px; }
+
+    header { text-align: center; margin-bottom: 24px; }
+
+    .logo-img { height: 80px; }
+
+    h1 {
+      font-size: 30px;
+      margin: 8px 0 6px;
+      color: var(--primary-dark);
+    }
+
+    .tagline {
+      font-size: 14px;
+      color: #666;
+      line-height: 1.7;
+      margin: 0;
+    }
+
+    /* Language switcher */
+    .lang-switcher {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin: 18px 0 30px;
+    }
+    .lang-btn {
+      padding: 6px 18px;
+      border: 2px solid #ddd;
+      background-color: #fff;
+      border-radius: 20px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: bold;
+      color: var(--muted);
+      transition: all 0.2s;
+    }
+    .lang-btn:hover { border-color: var(--accent-color); color: var(--accent-color); }
+    .lang-btn.active {
+      background-color: var(--accent-color);
+      color: #fff;
+      border-color: var(--accent-color);
+      box-shadow: 0 3px 8px rgba(210, 139, 196, 0.35);
+    }
+
+    /* CTA */
+    .cta {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: bold;
+      font-size: 14px;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+    .cta-primary { background-color: var(--primary-color); color: #fff; }
+    .cta-secondary { background-color: #fff; color: var(--primary-color); border: 2px solid var(--primary-color); }
+
+    /* Card */
+    .card {
+      background-color: var(--card-bg);
+      border-radius: 16px;
+      padding: 28px 32px;
+      box-shadow: 0 6px 20px rgba(139, 69, 19, 0.07);
+      border: 2px solid #fff;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      font-size: 20px;
+      margin: 0 0 16px;
+      padding-bottom: 12px;
+      border-bottom: 2px dashed #F1C6D2;
+      color: var(--primary-color);
+    }
+    h3 {
+      font-size: 16px;
+      margin: 18px 0 8px;
+      color: var(--primary-dark);
+    }
+
+    p, li { font-size: 14px; line-height: 1.8; color: #444; margin: 6px 0; }
+    ul, ol { padding-left: 22px; margin: 8px 0; }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: bold;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+    .pill-free { background-color: #E8F5E9; color: #2E7D32; }
+    .pill-paid { background-color: #FFF3E0; color: #E65100; }
+    .pill-default { background-color: #FFF2DE; color: var(--primary-color); }
+
+    .engine-block {
+      padding: 14px 16px;
+      margin: 10px 0;
+      border-left: 4px solid var(--accent-color);
+      background-color: #FFFAFC;
+      border-radius: 0 8px 8px 0;
+    }
+    .engine-block strong { color: var(--primary-dark); font-size: 15px; }
+
+    .note-box {
+      background-color: #FFF9E6;
+      border-left: 4px solid #FFD700;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      font-size: 13px;
+      margin: 12px 0;
+    }
+
+    a.link { color: var(--accent-color); text-decoration: none; font-weight: bold; border-bottom: 1px dotted var(--accent-color); }
+    a.link:hover { color: var(--primary-color); border-bottom-color: var(--primary-color); }
+
+    code {
+      background-color: #F4ECEF;
+      color: var(--primary-dark);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 13px;
+    }
+
+    pre {
+      margin: 10px 0 0;
+      padding: 18px;
+      background-color: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 8px;
+      overflow-x: auto;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .related-links {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 6px;
+    }
+    .related-card {
+      display: block;
+      padding: 14px 16px;
+      background-color: var(--highlight-bg);
+      border-radius: 10px;
+      text-decoration: none;
+      color: var(--primary-dark);
+      font-size: 13px;
+      font-weight: bold;
+      transition: transform 0.15s, box-shadow 0.15s;
+      border: 1px solid transparent;
+    }
+    .related-card:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.06); border-color: var(--accent-color); }
+
+    footer {
+      text-align: center;
+      margin-top: 30px;
+      font-size: 12px;
+      color: #aaa;
+    }
+    footer a { color: var(--muted); text-decoration: none; margin: 0 6px; }
+    footer a:hover { color: var(--accent-color); }
+
+    .lang-content { display: none; }
+    .lang-content.active { display: block; animation: fadeIn 0.3s ease; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    @media (max-width: 600px) {
+      body { padding: 24px 12px; }
+      .card { padding: 20px 18px; }
+      h1 { font-size: 24px; }
+      h2 { font-size: 17px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <header>
+      <img src="images/logo.png" alt="ハムハム字幕アトリエ" class="logo-img" onerror="this.style.display='none'">
+      <h1>ハムハム字幕アトリエ</h1>
+      <p class="tagline" data-i18n="tagline"></p>
+
+      <div class="lang-switcher" role="tablist">
+        <button class="lang-btn" data-lang="ja">日本語</button>
+        <button class="lang-btn" data-lang="zh-tw">繁體中文</button>
+        <button class="lang-btn" data-lang="en">English</button>
+      </div>
+
+      <div class="cta">
+        <a class="cta-btn cta-primary" href="https://junorn1978.github.io/durian-sub-workshop/" target="_blank" rel="noopener">
+          ▶ <span data-i18n="cta-open"></span>
+        </a>
+        <a class="cta-btn cta-secondary" href="https://github.com/Junorn1978/durian-sub-workshop" target="_blank" rel="noopener">
+          ⌨ <span data-i18n="cta-github"></span>
+        </a>
+      </div>
+    </header>
+
+    <!-- ===================== 日本語 ===================== -->
+    <div class="lang-content" data-lang="ja">
+
+      <section class="card">
+        <h2>📌 概要</h2>
+        <p>本ツールは、VTuber <a class="link" href="https://www.youtube.com/@OtsukaRay" target="_blank" rel="noopener">乙夏れい</a>さん向けに制作された、リアルタイム字幕＋翻訳の表示ツールです。乙夏れいさん専用のフィルタ機能を除き、どなたでもご自由にご利用いただけます。</p>
+        <p>音声をリアルタイムで文字起こしし、その場で翻訳して表示します。OBS で本ページのウィンドウをキャプチャすれば、配信画面にそのまま翻訳字幕を載せることができます。</p>
+      </section>
+
+      <section class="card">
+        <h2>🎙️ 音声認識エンジン</h2>
+
+        <div class="engine-block">
+          <strong>ブラウザ内蔵 (Web Speech API)</strong>
+          <span class="pill pill-free">無料</span>
+          <span class="pill pill-default">既定</span>
+          <p>Chrome / Edge に搭載されている音声認識 API を利用します。ネットワーク経由で Google のサーバーへ音声を送って認識する方式で、追加のセットアップは不要です。手軽さ重視の方におすすめ。</p>
+        </div>
+
+        <div class="engine-block">
+          <strong>Deepgram</strong>
+          <span class="pill pill-paid">有料</span>
+          <p>クラウド音声認識サービス。中精度。新規登録で <strong>200 米ドル相当</strong> のクレジット付与あり、目安は <strong>約 1 米ドル / 時間</strong>。設定方法は <a class="link" href="guide_deepgram.html">Deepgram 設定ガイド</a> を参照。</p>
+        </div>
+
+        <div class="engine-block">
+          <strong>Soniox</strong>
+          <span class="pill pill-paid">有料</span>
+          <p>高精度の WebSocket ストリーミング音声認識サービス。日本語の認識精度に優れ、句読点や話者区切りの判定も自然です。目安は <strong>約 1.5 米ドル / 時間</strong>。設定方法は <a class="link" href="guide_soniox.html">Soniox 設定ガイド</a> を参照。</p>
+        </div>
+
+        <div class="note-box">
+          ※ 既定では「ブラウザ内蔵」が選択されています。配信品質を上げたい場合は Deepgram / Soniox の利用を検討してください。
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>🌐 翻訳モード</h2>
+        <ul>
+          <li><strong>Google 翻訳 (内蔵)</strong> <span class="pill pill-default">既定</span>：内蔵された Google 翻訳を利用（無料、設定不要）</li>
+          <li><strong>翻訳クラウド接続 (カスタムリンク)</strong>：自作のバックエンドと連携（所定フォーマット対応であれば利用可能）</li>
+          <li><strong>Google Script Apps (GAS)</strong>：Google Apps Script の無料翻訳 API を利用（<strong>1 日 5,000 文</strong>まで）</li>
+          <li><strong>高速翻訳</strong>：ブラウザ内蔵のオンデバイス翻訳 API を利用（高速、精度は今後改善予定）</li>
+          <li><strong>ブラウザ AI</strong>：未公開（ブラウザ内蔵 AI モデルが安定したら公開予定）</li>
+        </ul>
+        <p>GAS の設定方法は <a class="link" href="guide.html">接続設定ガイド</a> を参照してください。</p>
+      </section>
+
+      <section class="card">
+        <h2>🚀 使い方</h2>
+        <ol>
+          <li>上の「<strong>ツールを開く</strong>」から Web アプリを起動</li>
+          <li><strong>音声認識</strong>を、配信で話す主な言語（例：日本語）に設定</li>
+          <li><strong>翻訳先</strong>を、字幕として表示したい言語（例：英語）に設定</li>
+          <li><strong>翻訳モード</strong>を選択（初心者は GAS 翻訳がおすすめ）</li>
+          <li><strong>開始</strong>ボタンで録音を開始</li>
+        </ol>
+
+        <h3>💡 おすすめ：別ウィンドウで起動</h3>
+        <p>OBS キャプチャ用途であれば「アプリモード」で別ウィンドウ起動するのがおすすめです。以下の BAT ファイルから起動すれば自動的に独立ウィンドウで開きます。</p>
+        <ul>
+          <li><a class="link" href="https://junorn1978.github.io/durian-sub-workshop/%E3%83%8F%E3%83%A0%E3%83%8F%E3%83%A0%E5%AD%97%E5%B9%95%E3%82%A2%E3%83%88%E3%83%AA%E3%82%A8_translate%20-%20github%20-%20chrome.bat">Chrome 用 BAT</a></li>
+          <li><a class="link" href="https://junorn1978.github.io/durian-sub-workshop/%E3%83%8F%E3%83%A0%E3%83%8F%E3%83%A0%E5%AD%97%E5%B9%95%E3%82%A2%E3%83%88%E3%83%AA%E3%82%A8_translate%20-%20github%20-%20edge.bat">Edge 用 BAT</a></li>
+        </ul>
+
+        <h3>📺 OBS との連携</h3>
+        <p>OBS WebSocket 経由で字幕ソースを自動構築できます。詳しくは <a class="link" href="guide_obs.html">OBS 連携ガイド</a> を参照してください。</p>
+      </section>
+
+      <section class="card">
+        <h2>🧩 対応ブラウザ</h2>
+        <ul>
+          <li><strong>Chrome</strong>：v145 以上</li>
+          <li><strong>Edge</strong>：v145 以上</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>🔧 上級者向け：自作翻訳 API との連携</h2>
+        <p>自作の翻訳バックエンド（例：TranslationGemma など）と連携する場合、下記のリクエスト形式に対応していれば利用できます。</p>
+
+        <h3>リクエスト</h3>
+        <ul>
+          <li><strong>Method</strong>：<code>POST</code></li>
+          <li><strong>Content-Type</strong>：<code>application/json</code></li>
+          <li><strong>Header (Optional)</strong>：<code>X-API-Key: &lt;Your-API-Key&gt;</code>（URL に <code>key://</code> プロトコルが含まれる場合は自動で付与）</li>
+        </ul>
+
+        <h3>Payload 例</h3>
+<pre>{
+  "text": "翻訳するテキスト",
+  "targetLangs": ["en", "ja"],
+  "sourceLang": "zh-TW",
+  "sequenceId": 123,
+  "previousText": "前の文脈（オプション）"
+}</pre>
+      </section>
+
+      <section class="card">
+        <h2>📚 関連リンク</h2>
+        <div class="related-links">
+          <a class="related-card" href="guide.html">⚙️ 接続設定ガイド (GAS)</a>
+          <a class="related-card" href="guide_deepgram.html">🎙️ Deepgram 設定ガイド</a>
+          <a class="related-card" href="guide_soniox.html">🎙️ Soniox 設定ガイド</a>
+          <a class="related-card" href="guide_obs.html">📺 OBS 連携ガイド</a>
+          <a class="related-card" href="CHANGELOG.md">📝 更新履歴</a>
+          <a class="related-card" href="https://github.com/Junorn1978/durian-sub-workshop">⌨ GitHub リポジトリ</a>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ===================== 繁體中文 ===================== -->
+    <div class="lang-content" data-lang="zh-tw">
+
+      <section class="card">
+        <h2>📌 介紹</h2>
+        <p>本軟體為 VTuber <a class="link" href="https://www.youtube.com/@OtsukaRay" target="_blank" rel="noopener">乙夏れい</a> 所製作的即時字幕＋翻譯顯示工具。除了乙夏れいさん專用過濾文字以外，其他功能皆可任意使用。</p>
+        <p>主要功能為將語音即時轉為文字逐字顯示，並進行即時翻譯。透過 OBS 擷取本軟體視窗，即可在直播畫面上呈現翻譯字幕的效果。</p>
+      </section>
+
+      <section class="card">
+        <h2>🎙️ 語音辨識引擎</h2>
+
+        <div class="engine-block">
+          <strong>瀏覽器內建 (Web Speech API)</strong>
+          <span class="pill pill-free">免費</span>
+          <span class="pill pill-default">預設</span>
+          <p>使用 Chrome / Edge 內建的語音辨識 API。音訊會經由網路傳送到 Google 伺服器辨識，無須額外設定，最方便上手。</p>
+        </div>
+
+        <div class="engine-block">
+          <strong>Deepgram</strong>
+          <span class="pill pill-paid">付費</span>
+          <p>專業語音辨識服務商。中精度。新帳號註冊通常提供 <strong>$200 美金額度</strong>，預估費用 <strong>約 $1 美金 / 小時</strong>。設定方式請見 <a class="link" href="guide_deepgram.html">Deepgram 設定指南</a>。</p>
+        </div>
+
+        <div class="engine-block">
+          <strong>Soniox</strong>
+          <span class="pill pill-paid">付費</span>
+          <p>高精度的 WebSocket 串流語音辨識服務。日語辨識精度高，標點與句讀判斷自然。預估費用 <strong>約 $1.5 美金 / 小時</strong>。設定方式請見 <a class="link" href="guide_soniox.html">Soniox 設定指南</a>。</p>
+        </div>
+
+        <div class="note-box">
+          ※ 預設選用「瀏覽器內建」。若需提升直播字幕品質，可考慮 Deepgram / Soniox。
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>🌐 翻譯模式</h2>
+        <ul>
+          <li><strong>Google 翻譯 (內建)</strong> <span class="pill pill-default">預設</span>：使用內建的 Google 翻譯（免費，無需任何設定）</li>
+          <li><strong>翻譯雲端連線 (自訂連結)</strong>：連接自有的翻譯後端（符合指定格式即可使用）</li>
+          <li><strong>Google Script Apps (GAS)</strong>：使用 Google Apps Script 的免費翻譯 API（每日 <strong>5,000 句</strong>上限）</li>
+          <li><strong>高速翻譯</strong>：使用瀏覽器內建的裝置端翻譯 API（速度快，精度持續改善中）</li>
+          <li><strong>瀏覽器 AI</strong>：尚未開放（待瀏覽器內建 AI 模型穩定後開放使用）</li>
+        </ul>
+        <p>GAS 的設定方式請見<a class="link" href="guide.html">連線設定指南</a>。</p>
+      </section>
+
+      <section class="card">
+        <h2>🚀 使用方式</h2>
+        <ol>
+          <li>從上方「<strong>開啟工具</strong>」進入網頁應用</li>
+          <li><strong>語音辨識</strong>設為直播主要使用的語言（例：日文）</li>
+          <li><strong>翻譯目標</strong>選擇要顯示為字幕的語言（例：英文）</li>
+          <li><strong>翻譯模式</strong>依需求選擇（初次使用建議用 GAS 翻譯）</li>
+          <li>按下<strong>開始</strong>進行錄音</li>
+        </ol>
+
+        <h3>💡 推薦：以獨立視窗啟動</h3>
+        <p>若用於 OBS 擷取，建議使用「應用程式模式」獨立視窗啟動。使用下列 BAT 檔案即可自動以獨立視窗開啟。</p>
+        <ul>
+          <li><a class="link" href="https://junorn1978.github.io/durian-sub-workshop/%E3%83%8F%E3%83%A0%E3%83%8F%E3%83%A0%E5%AD%97%E5%B9%95%E3%82%A2%E3%83%88%E3%83%AA%E3%82%A8_translate%20-%20github%20-%20chrome.bat">Chrome 專用 BAT</a></li>
+          <li><a class="link" href="https://junorn1978.github.io/durian-sub-workshop/%E3%83%8F%E3%83%A0%E3%83%8F%E3%83%A0%E5%AD%97%E5%B9%95%E3%82%A2%E3%83%88%E3%83%AA%E3%82%A8_translate%20-%20github%20-%20edge.bat">Edge 專用 BAT</a></li>
+        </ul>
+
+        <h3>📺 與 OBS 串接</h3>
+        <p>可透過 OBS WebSocket 自動建立字幕來源。詳見 <a class="link" href="guide_obs.html">OBS 連線指南</a>。</p>
+      </section>
+
+      <section class="card">
+        <h2>🧩 對應瀏覽器</h2>
+        <ul>
+          <li><strong>Chrome</strong>：v145 以上</li>
+          <li><strong>Edge</strong>：v145 以上</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>🔧 進階：自訂翻譯 API 連線</h2>
+        <p>若要使用自訂的翻譯後端（如 TranslationGemma 等），只要後端支援以下請求格式即可串接。</p>
+
+        <h3>請求</h3>
+        <ul>
+          <li><strong>Method</strong>：<code>POST</code></li>
+          <li><strong>Content-Type</strong>：<code>application/json</code></li>
+          <li><strong>Header (Optional)</strong>：<code>X-API-Key: &lt;Your-API-Key&gt;</code>（URL 內含 <code>key://</code> 通訊協定時會自動帶上）</li>
+        </ul>
+
+        <h3>Payload 範例</h3>
+<pre>{
+  "text": "要翻譯的文字",
+  "targetLangs": ["en", "ja"],
+  "sourceLang": "zh-TW",
+  "sequenceId": 123,
+  "previousText": "前一段上下文（選填）"
+}</pre>
+      </section>
+
+      <section class="card">
+        <h2>📚 相關連結</h2>
+        <div class="related-links">
+          <a class="related-card" href="guide.html">⚙️ 連線設定指南 (GAS)</a>
+          <a class="related-card" href="guide_deepgram.html">🎙️ Deepgram 設定指南</a>
+          <a class="related-card" href="guide_soniox.html">🎙️ Soniox 設定指南</a>
+          <a class="related-card" href="guide_obs.html">📺 OBS 連線指南</a>
+          <a class="related-card" href="CHANGELOG.md">📝 更新紀錄</a>
+          <a class="related-card" href="https://github.com/Junorn1978/durian-sub-workshop">⌨ GitHub 專案</a>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ===================== English ===================== -->
+    <div class="lang-content" data-lang="en">
+
+      <section class="card">
+        <h2>📌 Overview</h2>
+        <p>This tool is a real-time subtitle + translation overlay originally made for VTuber <a class="link" href="https://www.youtube.com/@OtsukaRay" target="_blank" rel="noopener">Otsuka Ray</a>. All features are free for anyone to use, except the Otsuka Ray–specific filtering.</p>
+        <p>It transcribes speech in real time and translates it instantly. Capture the app window in OBS to display translated subtitles on your livestream.</p>
+      </section>
+
+      <section class="card">
+        <h2>🎙️ Speech Recognition Engines</h2>
+
+        <div class="engine-block">
+          <strong>Browser Built-in (Web Speech API)</strong>
+          <span class="pill pill-free">Free</span>
+          <span class="pill pill-default">Default</span>
+          <p>Uses the built-in speech recognition API in Chrome / Edge. Audio is sent over the network to Google's servers for recognition. No extra setup required — the easiest option.</p>
+        </div>
+
+        <div class="engine-block">
+          <strong>Deepgram</strong>
+          <span class="pill pill-paid">Paid</span>
+          <p>Professional cloud speech recognition. Mid-accuracy. New accounts typically receive <strong>$200 in credits</strong>. Estimated cost: <strong>~$1 USD / hour</strong>. See <a class="link" href="guide_deepgram.html">Deepgram setup guide</a>.</p>
+        </div>
+
+        <div class="engine-block">
+          <strong>Soniox</strong>
+          <span class="pill pill-paid">Paid</span>
+          <p>High-accuracy WebSocket streaming speech recognition service. Excellent at Japanese, with natural punctuation and sentence boundary detection. Estimated cost: <strong>~$1.5 USD / hour</strong>. See <a class="link" href="guide_soniox.html">Soniox setup guide</a>.</p>
+        </div>
+
+        <div class="note-box">
+          Note: "Browser Built-in" is selected by default. For higher quality subtitles, consider Deepgram or Soniox.
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>🌐 Translation Modes</h2>
+        <ul>
+          <li><strong>Google Translation (Built-in)</strong> <span class="pill pill-default">Default</span>: Uses the built-in Google translation (free, no setup required)</li>
+          <li><strong>Translation Cloud (Custom Link)</strong>: Connect your own backend (if it matches the required request format)</li>
+          <li><strong>Google Apps Script (GAS)</strong>: Uses Google Apps Script's free translation API (limit: <strong>5,000 sentences/day</strong>)</li>
+          <li><strong>High-speed Translation</strong>: Uses the browser's built-in on-device translation API (fast, accuracy still improving)</li>
+          <li><strong>Browser AI</strong>: Not yet available (will be enabled once the browser built-in AI model stabilizes)</li>
+        </ul>
+        <p>For GAS setup details, see the <a class="link" href="guide.html">connection setup guide</a>.</p>
+      </section>
+
+      <section class="card">
+        <h2>🚀 How to use</h2>
+        <ol>
+          <li>Click "<strong>Open the app</strong>" above to launch</li>
+          <li>Set <strong>Speech Recognition</strong> to your main streaming language (e.g., Japanese)</li>
+          <li>Set <strong>Target language</strong> to the language you want shown as subtitles (e.g., English)</li>
+          <li>Pick a <strong>Translation Mode</strong> (GAS Translation is recommended for first-time users)</li>
+          <li>Press <strong>Start</strong> to begin recording</li>
+        </ol>
+
+        <h3>💡 Recommended: open in a standalone window</h3>
+        <p>For OBS capture, launching in a standalone "app window" is recommended. The BAT files below open the app in a standalone window automatically.</p>
+        <ul>
+          <li><a class="link" href="https://junorn1978.github.io/durian-sub-workshop/%E3%83%8F%E3%83%A0%E3%83%8F%E3%83%A0%E5%AD%97%E5%B9%95%E3%82%A2%E3%83%88%E3%83%AA%E3%82%A8_translate%20-%20github%20-%20chrome.bat">Chrome version BAT</a></li>
+          <li><a class="link" href="https://junorn1978.github.io/durian-sub-workshop/%E3%83%8F%E3%83%A0%E3%83%8F%E3%83%A0%E5%AD%97%E5%B9%95%E3%82%A2%E3%83%88%E3%83%AA%E3%82%A8_translate%20-%20github%20-%20edge.bat">Edge version BAT</a></li>
+        </ul>
+
+        <h3>📺 OBS Integration</h3>
+        <p>Subtitle sources can be auto-configured via OBS WebSocket. See the <a class="link" href="guide_obs.html">OBS integration guide</a>.</p>
+      </section>
+
+      <section class="card">
+        <h2>🧩 Supported Browsers</h2>
+        <ul>
+          <li><strong>Chrome</strong>: v145 or later</li>
+          <li><strong>Edge</strong>: v145 or later</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>🔧 Advanced: Custom translation backend</h2>
+        <p>If you want to use a self-hosted translation API (e.g., TranslationGemma), you can connect it as long as the backend supports the request format below.</p>
+
+        <h3>Request</h3>
+        <ul>
+          <li><strong>Method</strong>: <code>POST</code></li>
+          <li><strong>Content-Type</strong>: <code>application/json</code></li>
+          <li><strong>Header (Optional)</strong>: <code>X-API-Key: &lt;Your-API-Key&gt;</code> (automatically included if the URL uses the <code>key://</code> protocol)</li>
+        </ul>
+
+        <h3>Payload example</h3>
+<pre>{
+  "text": "Text to translate",
+  "targetLangs": ["en", "ja"],
+  "sourceLang": "zh-TW",
+  "sequenceId": 123,
+  "previousText": "Previous context text (optional)"
+}</pre>
+      </section>
+
+      <section class="card">
+        <h2>📚 Related links</h2>
+        <div class="related-links">
+          <a class="related-card" href="guide.html">⚙️ Connection setup guide (GAS)</a>
+          <a class="related-card" href="guide_deepgram.html">🎙️ Deepgram setup guide</a>
+          <a class="related-card" href="guide_soniox.html">🎙️ Soniox setup guide</a>
+          <a class="related-card" href="guide_obs.html">📺 OBS integration guide</a>
+          <a class="related-card" href="CHANGELOG.md">📝 Changelog</a>
+          <a class="related-card" href="https://github.com/Junorn1978/durian-sub-workshop">⌨ GitHub repository</a>
+        </div>
+      </section>
+
+    </div>
+
+    <footer>
+      <a href="https://github.com/Junorn1978/durian-sub-workshop">GitHub</a> ·
+      <a href="https://junorn1978.github.io/durian-sub-workshop/">App</a> ·
+      <a href="CHANGELOG.md">Changelog</a>
+    </footer>
+
+  </div>
+
+  <script>
+    (function () {
+      const SUPPORTED = ['ja', 'zh-tw', 'en'];
+      const DEFAULT_LANG = 'ja';
+
+      const i18n = {
+        ja: {
+          tagline: 'リアルタイム字幕＋翻訳の OBS 用オーバーレイツール。',
+          'cta-open': 'ツールを開く',
+          'cta-github': 'GitHub で見る',
+        },
+        'zh-tw': {
+          tagline: '即時字幕＋翻譯，給直播 OBS 用的字幕覆蓋工具。',
+          'cta-open': '開啟工具',
+          'cta-github': '前往 GitHub',
+        },
+        en: {
+          tagline: 'A real-time subtitle + translation overlay tool for livestreaming via OBS.',
+          'cta-open': 'Open the app',
+          'cta-github': 'View on GitHub',
+        },
+      };
+
+      function getLangFromURL() {
+        const params = new URLSearchParams(window.location.search);
+        const raw = (params.get('lang') || '').toLowerCase();
+        if (SUPPORTED.includes(raw)) return raw;
+        return DEFAULT_LANG;
+      }
+
+      function applyLang(lang) {
+        document.documentElement.lang = lang;
+
+        document.querySelectorAll('.lang-content').forEach(el => {
+          el.classList.toggle('active', el.getAttribute('data-lang') === lang);
+        });
+
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.getAttribute('data-lang') === lang);
+        });
+
+        const dict = i18n[lang] || i18n[DEFAULT_LANG];
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+          const key = el.getAttribute('data-i18n');
+          if (dict[key] !== undefined) el.textContent = dict[key];
+        });
+      }
+
+      function setLang(lang, updateUrl = true) {
+        if (!SUPPORTED.includes(lang)) lang = DEFAULT_LANG;
+        applyLang(lang);
+
+        if (updateUrl) {
+          const url = new URL(window.location.href);
+          if (lang === DEFAULT_LANG) url.searchParams.delete('lang');
+          else url.searchParams.set('lang', lang);
+          window.history.replaceState(null, '', url.toString());
+        }
+      }
+
+      document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.addEventListener('click', () => setLang(btn.getAttribute('data-lang')));
+      });
+
+      setLang(getLangFromURL(), false);
+    })();
+  </script>
+
+</body>
+</html>

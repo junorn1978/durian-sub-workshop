@@ -727,6 +727,14 @@ input[type="range"]:disabled {
 }
 
 /* =========================================
+   13.5. Version / Docs Link (bottom-right)
+   ========================================= */
+#version-display:hover {
+  color: rgba(109, 19, 19, 1) !important;
+  text-decoration: underline;
+}
+
+/* =========================================
    14. OBS Bridge Card Specific Styles
    ========================================= */
 .obs-input-group {
