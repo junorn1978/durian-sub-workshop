@@ -1,0 +1,214 @@
+/**
+ * @file languagePackManager.js
+ * @description 語音語言包管理模組。負責檢測瀏覽器本地語音辨識支援度及執行模型安裝程序。
+ * 目前暫時不使用，因為還是處在實驗性質並且不穩定。
+ * 目前已知可能會造成啟動失敗的原因有
+ * 1. 下載語言包之前沒有啟動過語音辨識
+ * 2. 預設值不是對應的語言(這一個似乎在Chrome 148版有改善的樣子，但不敢確定)
+ */
+
+// import { updateStatusDisplay } from './translationController.js';
+import { getLang } from './config.js'; // [修改] 引入 getLang 取代舊有分散函式
+import { isDebugEnabled } from './logger.js';
+import { isWebSpeechRecognitionRunning } from './speechCapture.js';
+
+// #region [狀態檢查邏輯]
+
+/**
+ * 檢查指定語言是否支援本地語音辨識
+ * @async
+ * @param {string} langId - 語言 ID (如 'ja-JP')
+ * @returns {Promise<{supported: boolean, downloadable: boolean, downloading: boolean}>}
+ */
+async function isLanguageSupportedLocally(langId) {
+  // [修改] 確保該語系在設定中存在
+  const langObj = getLang(langId);
+  if (!langObj) return { supported: false, downloadable: false, downloading: false };
+
+  const options = { langs: [langObj.id], processLocally: true };
+  
+  try {
+    /* 技術備註：SpeechRecognition.available 是 2025 Chrome 用於查詢裝置語音模型狀態的標準 API */
+    const status = await SpeechRecognition.available(options);
+    if (isDebugEnabled()) console.debug("[DEBUG]", "[languagePackManager]", "檢查語言包支援:", { id: langObj.id, status });
+    return {
+      supported: status === 'available',
+      downloadable: status === 'downloadable',
+      downloading: status === 'downloading'
+    };
+  } catch (error) {
+    if (isDebugEnabled()) console.error("[ERROR]", "[languagePackManager]", "檢查語言包狀態失敗:", error);
+    return { supported: false, downloadable: false, downloading: false };
+  }
+}
+// #endregion
+
+// #region [下載核心邏輯]
+
+/**
+ * 執行指定語言包的下載與安裝
+ * @async
+ * @param {string} langId - 語言 ID
+ * @param {Function} updateCallback - 狀態回傳回呼函式
+ * @returns {Promise<boolean>}
+ */
+async function downloadLanguagePack(langId, updateCallback) {
+  if (!navigator.onLine) {
+    if (isDebugEnabled()) console.warn("[WARN]", "[languagePackManager]", "無網路連線:", langId);
+    updateCallback('インターネットに接続されていません。ネットワークを確認してください。');
+    return false;
+  }
+
+  const downloadButton = document.getElementById('download-language-pack');
+  if (!downloadButton) {
+    if (isDebugEnabled()) console.error("[ERROR]", "[languagePackManager]", "未找到下載按鍵");
+    return false;
+  }
+
+  const langObj = getLang(langId); // [修改] 獲取統一物件
+  const status = await isLanguageSupportedLocally(langId);
+
+  if (status.downloading) {
+    downloadButton.disabled = true;
+    downloadButton.textContent = 'ダウンロード中…'; 
+    updateCallback(`「${langObj.label}」の言語パックをダウンロードしています`);
+    return false;
+  }
+
+  if (!status.downloadable) {
+    downloadButton.disabled = true;
+    downloadButton.textContent = 'ダウンロード不可';
+    updateCallback(`「${langObj.label}」の言語パックはダウンロードできません`);
+    return false;
+  }
+
+  try {
+    if (isDebugEnabled()) console.info("[INFO]", "[languagePackManager]", "開始下載語言包:", langObj.id);
+    downloadButton.disabled = true;
+    downloadButton.textContent = 'ダウンロード中…';
+    
+    /* en-US は SODA の基盤モデル。英語以外を選んだ場合は en-US を先に並べて
+       一緒にインストールする（選択した言語モデルが有効化されやすくなる）。 */
+    const PRIMER_LANG = 'en-US';
+    const langs = langObj.id !== PRIMER_LANG ? [PRIMER_LANG, langObj.id] : [langObj.id];
+    const options = { langs, processLocally: true };
+    if (isDebugEnabled()) console.debug("[DEBUG]", "[languagePackManager]", "インストール対象:", langs);
+    const success = await SpeechRecognition.install(options);
+    
+    if (success) {
+      if (isDebugEnabled()) console.info("[INFO]", "[languagePackManager]", `語言包 ${langObj.id} 安裝成功`);
+      downloadButton.textContent = 'ダウンロード済み';
+      downloadButton.disabled = true;
+      /* オンラインとオフラインで認識パラメータが異なるため、認識中であれば
+         一度停止し、オフライン用パラメータで再スタートしてもらう。 */
+      if (isWebSpeechRecognitionRunning()) {
+        document.getElementById('stop-recording')?.click();
+      }
+      updateCallback(`「${langObj.label}」のローカル音声認識の準備が整いました。もう一度「開始」ボタンを押してください。`);
+      return true;
+    } else {
+      downloadButton.disabled = false;
+      downloadButton.textContent = 'ダウンロード失敗';
+      updateCallback(`「${langObj.label}」の言語パックのダウンロードに失敗しました。再試行してください。`);
+      return false;
+    }
+  } catch (error) {
+    if (isDebugEnabled()) console.error("[ERROR]", "[languagePackManager]", "下載異常:", { error: error.message });
+    downloadButton.disabled = false;
+    downloadButton.textContent = 'ダウンロード失敗';
+    return false;
+  }
+}
+// #endregion
+
+// #region [UI 與事件管理]
+
+/**
+ * 根據語言包狀態更新 UI 按鈕樣式
+ * @async
+ * @param {string} langId 
+ */
+async function updateLanguagePackButton(langId) {
+  const downloadButton = document.getElementById('download-language-pack');
+  if (!downloadButton) return;
+
+  const langObj = getLang(langId);
+  if (!langObj) {
+    downloadButton.disabled = true;
+    downloadButton.textContent = '非対応';
+    return;
+  }
+
+  /* * 技術備註：目前 Chrome 核心對 zh-TW/cmn-Hant-TW 的本地語音辨識支援仍不穩定。
+   * [修改] 這裡改用物件屬性判斷，增加維護性。
+   */
+  if (langObj.id === 'cmn-Hant-TW' || langObj.languageModelApiCode === 'zh-TW') {
+    downloadButton.disabled = true;
+    downloadButton.textContent = '一時的に非対応';
+    return;
+  }
+
+  const status = await isLanguageSupportedLocally(langId);
+  if (status.supported) {
+    downloadButton.textContent = 'ダウンロード済み';
+    downloadButton.disabled = true;
+  } else if (status.downloadable) {
+    downloadButton.disabled = false;
+    downloadButton.textContent = 'ダウンロード';
+  } else if (status.downloading) {
+    downloadButton.disabled = true;
+    downloadButton.textContent = 'ダウンロード中…';
+  } else {
+    downloadButton.disabled = true;
+    downloadButton.textContent = '非対応';
+  }
+}
+
+/**
+ * 綁定語言選擇器與下載按鍵的連動邏輯
+ * @async
+ * @param {string} languageSelectorId - 下拉選單的 DOM ID
+ * @param {Function} updateCallback - 狀態回呼函式
+ */
+async function setupLanguagePackButton(languageSelectorId, updateCallback) {
+  const speechLangPack = document.getElementById('download-language-pack');
+  const sourceLanguageSelect = document.getElementById(languageSelectorId);
+
+  if (!speechLangPack || !sourceLanguageSelect) {
+    if (isDebugEnabled()) console.error("[ERROR]", "[languagePackManager]", "初始化失敗：元件未找到");
+    return;
+  }
+
+  // 初始化狀態
+  await updateLanguagePackButton(sourceLanguageSelect.value);
+
+  // 點擊觸發下載程序
+  speechLangPack.addEventListener('click', async () => {
+    const langId = sourceLanguageSelect.value;
+    const langObj = getLang(langId);
+    if (!langObj) return;
+
+    try {
+      const status = await isLanguageSupportedLocally(langId);
+
+      if (status.supported) {
+        updateCallback(`「${langObj.label}」のローカル音声認識の準備が整いました。`);
+        return;
+      }
+
+      if (status.downloadable) {
+        await downloadLanguagePack(langId, updateCallback);
+      }
+    } catch (error) {
+      if (isDebugEnabled()) console.error("[ERROR]", "[languagePackManager]", "執行點擊邏輯失敗", error);
+    }
+  });
+
+  // 語言切換同步更新
+  sourceLanguageSelect.addEventListener('change', async () => {
+    await updateLanguagePackButton(sourceLanguageSelect.value);
+  });
+}
+// #endregion
+
+export { isLanguageSupportedLocally, downloadLanguagePack, updateLanguagePackButton, setupLanguagePackButton };

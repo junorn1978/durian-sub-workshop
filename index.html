@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ハムハム字幕アトリエ</title>
+  <meta name="description" content="Chrome/Edge対応。多言語のリアルタイム声音認識と翻訳、配信や生放送の字幕生成に最適です。">
+  
+  <link rel="stylesheet" href="css/styles_horizontal.css">
+  <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="display-panel">
+    <div id="Subtitle-style">
+      <div id="source-text">ハムハム字幕アトリエ</div>
+      <div id="target-text-1">開発者：ジュノーン（乙夏れいファン）</div>
+      <div id="target-text-2">モードA</div>
+      <div id="target-text-3">自動翻訳によるもので、精度は保証できません。ご了承ください。</div>
+    </div>
+  </div>
+
+  <div id="control-panel">
+    
+    <div id="recorder-panel">
+      <button type="button" id="settings-gear" class="settings-gear-btn" title="その他の設定" aria-label="その他の設定">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      </button>
+      <img id="logo" src="images/logo.png" alt="Logo">
+      <button class="record-button" id="start-recording" disabled>開始</button>
+      <button class="record-button" id="stop-recording" disabled>停止</button>
+    </div>
+
+    <div id="settings-panel">
+      
+      <div class="top-control-bar">
+        <div class="mode-selector-group">
+          <label for="translation-mode">翻訳モード</label>
+          <select id="translation-mode" title="翻訳エンジンの選択">
+            <option value="gtx" selected>Google 翻訳 (無料)</option>
+            <option value="link">翻訳クラウド接続</option>
+            <!-- 高速翻訳・ブラウザAIは一時的に非表示。機能・ロジックは保持（再公開時は hidden を外すだけ） -->
+            <option value="fast" hidden>高速翻訳 (翻訳精度低め)</option>
+            <option value="promptapi" hidden disabled>ブラウザAI (実験機能)</option>
+          </select>
+        </div>
+
+        <div id="fast-mode-controls" style="display: none; align-items: center; gap: 8px; margin-left: 5px;">
+           <button id="fast-mode-download-btn" class="menu3-button" style="width: auto; padding: 0 10px; min-width: 80px;">モデルDL</button>
+           <span id="fast-mode-progress" style="font-size: 12px; color: #6d1313; font-weight: bold; white-space: nowrap;"></span>
+        </div>
+
+        <form id="link-input-wrapper" class="link-wrapper" style="display:none;" onsubmit="return false;">
+          <button type="button" id="link-help-btn" class="link-help-btn" title="カスタム URL の設定方法">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </button>
+          <input type="text" class="t-link input-masked" placeholder="翻訳クラウド接続用リンク" id="translation-link" value="" autocomplete="off" spellcheck="false" autocorrect="off">
+          <button type="button" id="toggle-link-visibility" class="visibility-btn" title="表示/非表示">
+            <svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+          </button>
+        </form>
+
+        <button id="prompt-api-download" class="menu3-button" style="display: none;">モデルDL</button>
+
+        <div class="menu-panel">
+          <div id="menu">
+            <button class="menu-button" id="Subtitle">字幕設定</button>
+            <button class="menu-button" id="options">テキスト翻訳</button>
+            <button class="menu-button" id="obs-settings">OBS連携</button>
+
+            <!-- モードB：配信用途への最適化を検討中につき一時的に非表示。機能・ロジックは保持（再公開時は style を外すだけ） -->
+            <label class="capsule-checkbox-label" title="モードB 切換（字幕固定3行・素材合成向け）" style="display: none;">
+              <input type="checkbox" id="modeb"><span>モードB</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div id="source-styles-panel" class="unified-settings-view">
+        
+        <div class="settings-left-col">
+          <div class="setting-row source-row">
+            <div class="row-label">音声認識</div>
+            <select id="source-language" title="音声認識言語">
+              <option value="" selected>言語を選択</option>
+              <option value="ja-JP">日本語</option>
+              <option value="zh-TW">中国語(台湾)</option>
+              <option value="yue-Hant-HK">中国語(香港-粵語)</option>
+              <option value="en-US">英語</option>
+              <option value="es-ES">スペイン語</option>
+              <option value="id-ID">インドネシア語</option>
+              <option value="ko-KR">韓国語</option>
+              <option value="th-TH">タイ語</option>
+              <option value="vi-VN">ベトナム語</option>
+            </select>
+            <div class="control-group">
+              <input type="color" id="source-font-color" list="color-list" title="文字色">
+              <input type="color" id="source-font-stroke-color" list="color-list" value="#000000" title="縁取り色">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">サイズ</span>
+              <input type="range" id="source-font-size" min="16" max="32" value="20" title="文字サイズ">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">縁取り</span>
+              <input type="range" id="source-font-stroke-size" min="2" max="8" value="4" title="縁取りサイズ">
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="row-label">翻訳 1</div>
+            <select id="target1-language" title="翻訳言語1">
+              <option value="none" selected>翻訳しない</option>
+              <option value="ja-JP">日本語</option>
+              <option value="zh-TW">中国語(台湾)</option>
+              <!--- <option value="zh-HK">中国語(香港-粵語)</option> --->
+              <option value="en-US">英語</option>
+              <option value="es-ES">スペイン語</option>
+              <option value="id-ID">インドネシア語</option>
+              <option value="ko-KR">韓国語</option>
+              <option value="th-TH">タイ語</option>
+              <option value="vi-VN">ベトナム語</option>
+            </select>
+            <div class="control-group">
+              <input type="color" id="target1-font-color" list="color-list" value="#FFFFFF" title="文字色">
+              <input type="color" id="target1-font-stroke-color" list="color-list" value="#000000" title="縁取り色">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">サイズ</span>
+              <input type="range" id="target1-font-size" min="16" max="32" value="20" title="文字サイズ">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">縁取り</span>
+              <input type="range" id="target1-font-stroke-size" min="2" max="8" value="4" title="縁取りサイズ">
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="row-label">翻訳 2</div>
+            <select id="target2-language" title="翻訳言語2">
+              <option value="none" selected>翻訳しない</option>
+              <option value="ja-JP">日本語</option>
+              <option value="zh-TW">中国語(台湾)</option>
+              <!--- <option value="zh-HK">中国語(香港-粵語)</option> --->
+              <option value="en-US">英語</option>
+              <option value="es-ES">スペイン語</option>
+              <option value="id-ID">インドネシア語</option>
+              <option value="ko-KR">韓国語</option>
+              <option value="th-TH">タイ語</option>
+              <option value="vi-VN">ベトナム語</option>
+            </select>
+            <div class="control-group">
+              <input type="color" id="target2-font-color" list="color-list" value="#FFFFFF" title="文字色">
+              <input type="color" id="target2-font-stroke-color" list="color-list" value="#000000" title="縁取り色">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">サイズ</span>
+              <input type="range" id="target2-font-size" min="16" max="32" value="20" title="文字サイズ">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">縁取り</span>
+              <input type="range" id="target2-font-stroke-size" min="2" max="8" value="4" title="縁取りサイズ">
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="row-label">翻訳 3</div>
+            <select id="target3-language" title="翻訳言語3">
+              <option value="none" selected>翻訳しない</option>
+              <option value="ja-JP">日本語</option>
+              <option value="zh-TW">中国語(台湾)</option>
+              <!--- <option value="zh-HK">中国語(香港-粵語)</option> --->
+              <option value="en-US">英語</option>
+              <option value="es-ES">スペイン語</option>
+              <option value="id-ID">インドネシア語</option>
+              <option value="ko-KR">韓国語</option>
+              <option value="th-TH">タイ語</option>
+              <option value="vi-VN">ベトナム語</option>
+            </select>
+            <div class="control-group">
+              <input type="color" id="target3-font-color" list="color-list" value="#FFFFFF" title="文字色">
+              <input type="color" id="target3-font-stroke-color" list="color-list" value="#000000" title="縁取り色">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">サイズ</span>
+              <input type="range" id="target3-font-size" min="16" max="32" value="20" title="文字サイズ">
+            </div>
+            <div class="slider-group">
+              <span class="tiny-label">縁取り</span>
+              <input type="range" id="target3-font-stroke-size" min="2" max="8" value="4" title="縁取りサイズ">
+            </div>
+          </div>
+        </div>
+
+        <div class="info-right-col">
+          <section class="settings-section">
+            <div class="settings-row">
+              <span class="settings-row-label">横位置 (Align)</span>
+              <div class="alignment-group" id="text-align">
+                <label><input type="radio" name="alignment" value="left"> 左</label>
+                <label><input type="radio" name="alignment" value="center"> 中央</label>
+                <label><input type="radio" name="alignment" value="right"> 右</label>
+              </div>
+            </div>
+
+            <div class="settings-row">
+              <label for="display-panel-color" class="settings-row-label">背景色 (BG)</label>
+              <input type="color" id="display-panel-color" list="display-color-list" value="#00FF00" class="option-color-picker">
+            </div>
+
+            <div class="settings-row">
+              <span class="settings-row-label">音声字幕を1行表示</span>
+              <select id="force-single-line-opt" class="card-select" title="長い文章を自動的にカットして1行に収める">
+                <option value="false" selected>無効 (Disable)</option>
+                <option value="true">有効 (Enable)</option>
+              </select>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div id="options-panel" class="unified-options-view">
+
+        <div class="options-test-area">
+          <div class="option-card translation-test-card translation-test-card-horizontal">
+            <div class="card-title">翻訳</div>
+            <div class="translation-test-grid">
+              <div class="translation-test-pane translation-test-pane-input">
+                <textarea id="translation-test-input" class="translation-test-input" placeholder="翻訳したいテキストを入力" autocomplete="off" spellcheck="false" autocorrect="off"></textarea>
+                <div class="translation-test-actions">
+                  <select id="text-translate-target" class="card-select" title="翻訳先の言語">
+                    <option value="ja-JP" selected>日本語</option>
+                    <option value="zh-TW">中国語(台湾)</option>
+                    <option value="en-US">英語</option>
+                    <option value="es-ES">スペイン語</option>
+                    <option value="id-ID">インドネシア語</option>
+                    <option value="ko-KR">韓国語</option>
+                    <option value="th-TH">タイ語</option>
+                    <option value="vi-VN">ベトナム語</option>
+                  </select>
+                  <button id="translation-test-run" class="menu3-button" type="button">翻訳</button>
+                  <button id="translation-test-clear" class="menu3-button" type="button">クリア</button>
+                </div>
+                <div id="translation-test-status" class="translation-test-status"></div>
+              </div>
+              <div class="translation-test-pane translation-test-pane-result">
+                <div id="translation-test-result" class="translation-test-result"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <div id="status-panel">
+    <div id="default-mic" class="status-mic" title="現在使用中のマイク"></div>
+    <div class="status-info" id="status-display">声音認識反応ないの場合は、一度止めて數秒待ってから、もう一回録音ボタンを押し直すことをお勧めします。</div>
+    <span id="version-display">v3.1.1</span>
+  </div>
+
+  <!-- OBS連携 設定モーダル（選單列「OBS連携」ボタンで開閉。✕／Esc で閉じる・背景クリックでは閉じない） -->
+  <div id="obs-modal-overlay" class="obs-modal-overlay" style="display: none;">
+    <div class="obs-modal" role="dialog" aria-modal="true" aria-labelledby="obs-modal-title">
+      <div class="obs-modal-header">
+        <h3 id="obs-modal-title" class="obs-modal-title">
+          <span>OBS連携</span>
+          <button type="button" id="obs-help-btn" class="link-help-btn link-help-inline" title="OBS WebSocket の設定方法">
+            <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          </button>
+        </h3>
+        <button type="button" id="obs-modal-close" class="obs-modal-close" title="閉じる" aria-label="閉じる">✕</button>
+      </div>
+      <div class="obs-modal-body">
+        <section class="settings-section">
+          <div class="settings-row">
+            <span class="settings-row-label">Enable OBS WS</span>
+            <select id="obs-ws-enabled" class="card-select" title="Enable or disable OBS WebSocket bridge">
+              <option value="false" selected>Disable</option>
+              <option value="true">Enable</option>
+            </select>
+          </div>
+
+          <div class="settings-row">
+            <label for="obs-ws-ip" class="settings-row-label">サーバーIP</label>
+            <input type="text" id="obs-ws-ip" class="card-select settings-row-input" value="127.0.0.1" placeholder="127.0.0.1" autocomplete="off" spellcheck="false" autocorrect="off">
+          </div>
+
+          <div class="settings-row">
+            <label for="obs-ws-port" class="settings-row-label">サーバーポート</label>
+            <input type="text" id="obs-ws-port" class="card-select settings-row-input" value="4455" placeholder="4455" inputmode="numeric" autocomplete="off" spellcheck="false" autocorrect="off">
+          </div>
+
+          <div class="settings-row">
+            <label for="obs-ws-password" class="settings-row-label">サーバーパスワード</label>
+            <div class="settings-row-input-with-action">
+              <input type="text" id="obs-ws-password" class="card-select input-masked" placeholder="OBS WebSocket password" autocomplete="off" spellcheck="false" autocorrect="off">
+              <button type="button" id="toggle-obs-pwd-visibility" class="visibility-btn" title="表示/非表示">
+                <svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <button type="button" id="obs-test-btn" class="menu3-button settings-row-button">接続テスト</button>
+            <span id="obs-test-status" class="obs-test-status" aria-live="polite"></span>
+          </div>
+
+          <div class="settings-row settings-row-hidden" style="display: none;">
+            <a id="obs-drag-link" href="#" draggable="true" class="menu3-button obs-drag-button-full" title="このボタンをOBSのソース一覧にドラッグ＆ドロップしてください">全体(Full)ドラッグ＆ドロップ</a>
+          </div>
+          <div class="settings-row settings-row-hidden settings-row-drag-grid" style="display: none;">
+            <a id="obs-drag-link-source" href="#" draggable="true" class="menu3-button obs-drag-button" title="音声(Source)">音声(Src)</a>
+            <a id="obs-drag-link-target1" href="#" draggable="true" class="menu3-button obs-drag-button" title="翻訳1(Target1)">翻訳1</a>
+            <a id="obs-drag-link-target2" href="#" draggable="true" class="menu3-button obs-drag-button" title="翻訳2(Target2)">翻訳2</a>
+            <a id="obs-drag-link-target3" href="#" draggable="true" class="menu3-button obs-drag-button" title="翻訳3(Target3)">翻訳3</a>
+          </div>
+
+          <div class="settings-row settings-row-wide">
+            <button id="obs-auto-setup-btn" class="menu3-button obs-auto-setup-button" title="OBS上に自動的に字幕ソースを構築します（要WebSocket接続）">OBS自動構築 (Auto Setup)</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- その他の設定モーダル（齒輪ボタンで開閉。✕／Esc で閉じる・背景クリックでは閉じない） -->
+  <div id="settings-modal-overlay" class="settings-modal-overlay" style="display: none;">
+    <div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+      <div class="settings-modal-header">
+        <h3 id="settings-modal-title" class="settings-modal-title"><span>その他の設定</span></h3>
+        <button type="button" id="settings-modal-close" class="settings-modal-close" title="閉じる" aria-label="閉じる">✕</button>
+      </div>
+      <div class="settings-modal-body">
+        <section class="settings-section">
+          <h3 class="settings-section-title">音声認識</h3>
+
+          <div class="settings-row">
+            <span class="settings-row-label">5時間で自動停止</span>
+            <div class="settings-row-control">
+              <select id="auto-stop-enabled-opt" class="card-select" title="連続使用が5時間に達したら自動停止します">
+                <option value="true" selected>有効 (Enable)</option>
+                <option value="false">無効 (Disable)</option>
+              </select>
+              <span id="auto-stop-warning-badge" class="auto-stop-warning-badge" style="display: none;" title="自動停止が無効です">⚠️ OFF</span>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <span class="settings-row-label">
+              エンジン選択
+              <button id="engine-help-link" type="button" class="link-help-btn link-help-inline" title="Soniox の使い方">
+                <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              </button>
+            </span>
+            <select id="speech-engine-opt" class="card-select" title="音声認識エンジンの選択">
+              <option value="soniox">Soniox (高精度/有料)</option>
+              <option value="webspeech" selected>ブラウザ内蔵 (無料)</option>
+            </select>
+          </div>
+
+          <div class="settings-row">
+            <span class="settings-row-label">オフラインパック</span>
+            <button id="download-language-pack" class="menu3-button settings-row-button">ダウンロード</button>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <h3 class="settings-section-title">システム</h3>
+
+          <div class="settings-row">
+            <span class="settings-row-label">字幕パネル最大化</span>
+            <select id="click-minimize-opt" class="card-select" title="画面クリックでの最小化機能">
+              <option value="true" selected>有効 (Enable)</option>
+              <option value="false">無効 (Disable)</option>
+            </select>
+          </div>
+
+          <div class="settings-row">
+            <span class="settings-row-label">ログ表示 (Debug)</span>
+            <select id="log-level-opt" class="card-select" title="コンソールの出力詳細度">
+              <option value="true">有効 (Enable)</option>
+              <option value="false" selected>無効 (Disable)</option>
+            </select>
+          </div>
+
+          <div class="settings-row">
+            <span class="settings-row-label">設定リセット</span>
+            <button class="options-button danger-zone settings-row-button" id="reset-settings">初期化</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- 翻訳クラウド接続（カスタム URL）設定モーダル（? ボタンで開閉。✕／Esc で閉じる・背景クリックでは閉じない） -->
+  <div id="link-help-modal-overlay" class="settings-modal-overlay" style="display: none;">
+    <div class="settings-modal link-help-modal" role="dialog" aria-modal="true" aria-labelledby="link-help-title">
+      <div class="settings-modal-header">
+        <h3 id="link-help-title" class="settings-modal-title"><span>翻訳クラウド接続（カスタム URL）</span></h3>
+        <button type="button" id="link-help-close" class="settings-modal-close" title="閉じる" aria-label="閉じる">✕</button>
+      </div>
+      <div class="settings-modal-body link-help-body">
+
+        <h4 class="link-help-subtitle">URL の書き方</h4>
+        <ul class="link-help-list">
+          <li><code>合言葉://localhost:8083</code>（「合言葉」が X-API-Key として送信されます）</li>
+          <li><code>合言葉://127.0.0.1:8083</code>（localhost と同じ。どちらでも可）</li>
+        </ul>
+
+        <div class="link-help-warning">
+          ⚠️ 下記スクリプトには API キーを直接書き込みます。<strong>キーを記入したファイルは、絶対にクラウドストレージや公開リポジトリへアップロードしないでください。</strong>キーが漏洩すると不正利用や高額請求の恐れがあります。
+        </div>
+
+        <div class="link-help-code-head">
+          <h4 class="link-help-subtitle">server.py（ローカル翻訳サーバー）</h4>
+          <button type="button" id="link-help-copy" class="menu3-button">📋 コピー</button>
+        </div>
+        <pre class="link-help-code"><code id="link-help-code">from flask import Flask, request, jsonify
+from flask_cors import CORS
+from google import genai
+import json, urllib.request
+
+# === 設定（自分の値に書き換える）===
+GEMINI_API_KEY = 'YOUR_GEMINI_API_KEY'   # Gemini API キー
+SONIOX_API_KEY = 'YOUR_SONIOX_API_KEY'   # Soniox を使う場合のみ
+VALID_API_KEY  = 'my-secret'             # フロントの「合言葉://」と一致させる
+MODEL = 'gemini-3.1-flash-lite'
+
+app = Flask(__name__)
+CORS(app)
+client = genai.Client(api_key=GEMINI_API_KEY)
+
+SYSTEM_PROMPT = """あなたはリアルタイム字幕の翻訳エンジンです。
+入力テキストを指定された言語へ自然に翻訳してください。
+出力ルール：
+- JSON のみを出力：{"translation": "..."}
+- 他のキー、Markdown、説明文は一切出力しない。
+- 原文に主語が明示されていない場合、主語を補わない。"""
+
+def translate_one(text, lang):
+    resp = client.models.generate_content(
+        model=MODEL,
+        contents=f"翻訳先の言語: {lang}\n原文:\n{text}",
+        config={'system_instruction': SYSTEM_PROMPT,
+                'response_mime_type': 'application/json', 'temperature': 0.3})
+    data = json.loads(resp.text or '{}')
+    out = data.get('translation', '')
+    return out if isinstance(out, str) else ''
+
+@app.post('/translate')
+def translate():
+    if request.headers.get('X-API-Key') != VALID_API_KEY:
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json(silent=True) or {}
+    text = (data.get('text') or '').strip()
+    targets = data.get('targetLangs') or []
+    seq = data.get('sequenceId')
+    if not text or not isinstance(targets, list):
+        return jsonify({'error': 'Invalid parameters', 'sequenceId': seq}), 400
+    try:
+        translations = [translate_one(text, lang) for lang in targets]
+    except Exception as e:
+        app.logger.error('[translate] %s', e)
+        return jsonify({'error': 'Translation failed', 'sequenceId': seq}), 500
+    return jsonify({'translations': translations, 'sequenceId': seq})
+
+@app.get('/soniox/token')
+def soniox_token():
+    if request.headers.get('X-API-Key') != VALID_API_KEY:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if not SONIOX_API_KEY:
+        return jsonify({'error': 'Server configuration error'}), 500
+    try:
+        req = urllib.request.Request(
+            'https://api.soniox.com/v1/auth/temporary-api-key',
+            data=json.dumps({'usage_type': 'transcribe_websocket',
+                             'expires_in_seconds': 60}).encode(),
+            headers={'Authorization': f'Bearer {SONIOX_API_KEY}',
+                     'Content-Type': 'application/json'}, method='POST')
+        with urllib.request.urlopen(req) as r:
+            d = json.loads(r.read())
+    except Exception as e:
+        app.logger.error('[soniox] %s', e)
+        return jsonify({'error': 'Failed to grant Soniox key'}), 500
+    temp = d.get('api_key') or d.get('key') or d.get('access_token')
+    return jsonify({'key': temp, 'expiresIn': d.get('expires_in_seconds', 60),
+                    'tokenType': 'soniox'})
+
+if __name__ == '__main__':
+    app.run(host='127.0.0.1', port=8083)</code></pre>
+
+        <h4 class="link-help-subtitle">使い方</h4>
+        <ol class="link-help-steps">
+          <li><a href="https://www.python.org/downloads/" target="_blank" rel="noopener">Python</a>（3.10 以上推奨）をインストール（Windows はインストール時「Add Python to PATH」に必ずチェック）</li>
+          <li><code>pip install flask flask-cors google-genai</code> で依存をインストール</li>
+          <li>上のコードを <code>server.py</code> に貼り付け、3 つのキーを記入</li>
+          <li><code>python server.py</code> で起動</li>
+          <li>このリンク欄に <code>合言葉://localhost:8083</code> を入力（「合言葉」は VALID_API_KEY と同じ文字列）</li>
+        </ol>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Soniox 音声認識 説明モーダル（エンジン選択の ? から開く。設定モーダルの上に重ねる） -->
+  <div id="soniox-help-modal-overlay" class="settings-modal-overlay" style="display: none;">
+    <div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="soniox-help-title">
+      <div class="settings-modal-header">
+        <h3 id="soniox-help-title" class="settings-modal-title"><span>Soniox 音声認識</span></h3>
+        <button type="button" id="soniox-help-close" class="settings-modal-close" title="閉じる" aria-label="閉じる">✕</button>
+      </div>
+      <div class="settings-modal-body link-help-body">
+
+        <p class="soniox-help-intro">Soniox は高精度なクラウド音声認識サービス（有料）です。利用には Soniox の API キーと、ローカル翻訳サーバー（<strong>翻訳クラウド接続</strong>と同じ <code>server.py</code>）が必要です。</p>
+
+        <div class="link-help-warning">
+          ⚠️ Soniox は従量課金です。API キーを書き込んだ <code>server.py</code> は、クラウドストレージや公開リポジトリへアップロードしないでください。
+        </div>
+
+        <h4 class="link-help-subtitle">使い方</h4>
+        <ol class="link-help-steps">
+          <li><a href="https://console.soniox.com/" target="_blank" rel="noopener">console.soniox.com</a> で API キーを取得</li>
+          <li>「翻訳クラウド接続」の <code>?</code> にある <code>server.py</code> の <code>SONIOX_API_KEY</code> に貼り付け</li>
+          <li><code>python server.py</code> でサーバーを起動</li>
+          <li>翻訳モードで「<strong>翻訳クラウド接続</strong>」を選び、URL 欄に <code>合言葉://localhost:8083</code> を入力（Soniox のトークンもこのサーバー経由で取得します）</li>
+          <li>エンジン選択で「<strong>Soniox</strong>」を選んで録音を開始</li>
+        </ol>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- OBS WebSocket 説明モーダル（OBS連携モーダル内の ? から開く。その上に重ねる） -->
+  <div id="obs-help-modal-overlay" class="settings-modal-overlay" style="display: none;">
+    <div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="obs-help-title">
+      <div class="settings-modal-header">
+        <h3 id="obs-help-title" class="settings-modal-title"><span>OBS WebSocket の設定</span></h3>
+        <button type="button" id="obs-help-close" class="settings-modal-close" title="閉じる" aria-label="閉じる">✕</button>
+      </div>
+      <div class="settings-modal-body link-help-body">
+
+        <p class="soniox-help-intro">OBS 側で WebSocket サーバーを有効にすると、このツールが字幕を OBS のブラウザソースへ直接送信できます（OBS 28 以降は標準搭載。旧版は obs-websocket プラグインが必要）。</p>
+
+        <h4 class="link-help-subtitle">OBS 側の設定</h4>
+        <ol class="link-help-steps">
+          <li>OBS のメニュー「<strong>ツール</strong>」→「<strong>WebSocket サーバー設定</strong>」を開く</li>
+          <li>「<strong>WebSocket サーバーを有効にする</strong>」にチェック</li>
+          <li><strong>サーバーポート</strong>（既定 <code>4455</code>）を確認</li>
+          <li>「<strong>接続情報を表示</strong>」から<strong>サーバーパスワード</strong>を確認（認証を使う場合）</li>
+          <li>「OK」で設定を保存</li>
+        </ol>
+
+        <h4 class="link-help-subtitle">このツール側の設定</h4>
+        <ol class="link-help-steps">
+          <li><strong>サーバーIP</strong>：<code>127.0.0.1</code>（OBS と同じ PC の場合）</li>
+          <li><strong>サーバーポート</strong>：OBS と同じ（既定 <code>4455</code>）</li>
+          <li><strong>サーバーパスワード</strong>：OBS で確認したパスワード</li>
+          <li><strong>Enable OBS WS</strong> を有効にし、<strong>接続テスト</strong>で「接続完了」を確認</li>
+          <li>ドラッグ用ボタンを OBS のソース一覧へドラッグ＆ドロップ、または「<strong>OBS自動構築</strong>」で字幕ソースを作成</li>
+        </ol>
+
+      </div>
+    </div>
+  </div>
+
+  <datalist id="color-list">
+    <option value="#FFFFFF"></option>
+    <option value="#000000"></option>
+    <option value="#4b8ce2"></option>
+    <option value="#FF80FF"></option>
+    <option value="#CB9947"></option>
+    <option value="#FF6264"></option>
+    <option value="#988952"></option>
+    <option value="#FF0000"></option>
+    <option value="#FF6C6C"></option>
+    <option value="#BE78FF"></option>
+  </datalist>
+  <datalist id="display-color-list">
+    <option value="#000000"></option>
+    <option value="#FFFFFF"></option>
+    <option value="#00FF00"></option>
+  </datalist>
+
+  <script type="module" src="javascript/uiController.js"></script>
+  <script type="module" src="javascript/speechCapture.js"></script>
+</body>
+</html>

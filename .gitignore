@@ -1,0 +1,8 @@
+# Local AI assistant files
+.claude/
+CLAUDE.md
+ARCHITECTURE.md
+
+# Local launch scripts
+localhost*.bat
+*localhost*.bat
