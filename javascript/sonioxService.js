@@ -43,7 +43,7 @@ const MAX_RETRIES = 10;
 
 // #region [設定與配置]
 const SONIOX_WS_URL = "wss://stt-rt.soniox.com/transcribe-websocket";
-const SONIOX_MODEL = "stt-rt-v4";
+const SONIOX_MODEL = "stt-rt-v5";
 const AUTO_STOP_TIMEOUT = 5 * 60 * 1000;
 const ENDPOINT_TOKEN = "<end>";
 const FINISHED_TOKEN = "<fin>";
