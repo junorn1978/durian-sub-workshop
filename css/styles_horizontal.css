@@ -924,8 +924,19 @@ body {
     height: auto;
     min-height: 250px;
   }
+  /* 縦並びでは卡片の % 高さが親(auto)に対して解決できず潰れるため、
+     auto + 各要素へ実効 min-height を与えて高さ崩壊を防ぐ */
+  .translation-test-card-horizontal {
+    height: auto;
+  }
   .translation-test-grid {
     grid-template-columns: 1fr;
+  }
+  .translation-test-pane-input .translation-test-input {
+    min-height: 82px;
+  }
+  .translation-test-pane-result {
+    min-height: 140px;
   }
 }
 

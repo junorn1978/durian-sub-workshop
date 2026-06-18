@@ -11,7 +11,7 @@
   { "lang": "ja-JP", "note": "【安全防護：防止語音辨識誤觸敏感詞】", "source": "兒童強姦", "target": "\\*\\*\\*" },
   { "lang": "ja-JP", "note": "【安全防護：防止語音辨識誤觸敏感詞】", "source": "兒童ポルノ", "target": "\\*\\*\\*" },
   { "lang": "ja-JP", "note": "【安全防護：防止語音辨識誤觸敏感詞】", "source": "兒ポ", "target": "\\*\\*" },
-  { "lang": "ja-JP", "note": "【安全防護：防止語音辨識誤觸敏感詞】", "source": "姦", "target": "かん" },
+  { "lang": "ja-JP", "note": "【安全防護：防止語音辨識誤觸敏感詞】", "source": "姦", "target": "がん" },
 
   { "lang": "ja-JP", "note": "【名稱修正：乙夏れい/れいか相關】", "source": "れいちゃん", "target": "れいちゃん" },
   { "lang": "ja-JP", "note": "【名稱修正：乙夏れい/れいか相關】", "source": "れいかちゃん", "target": "れいかちゃん" },
@@ -142,9 +142,11 @@
     
   { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "\\*\\*\\*ょっと", "target": "(ちょっと)" },
   { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "政府", "target": "(セーフ)" },
-  { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "歷史", "target": "(Lexy)" },
+  { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "レキシー", "target": "(Lexy)" },
+  { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "レギシー", "target": "(Lexy)" },
   { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "敦盛", "target": "(あつ森)" },
-  { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "漢字", "target": "(感じ)" },
+  { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "漢字", "target": "(かんじ)" },
+  { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "感じ", "target": "(かんじ)" },
   { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "ヒトラ", "target": "しとら" },
 
   { "lang": "ja-JP", "note": "【敏感術語遮蔽】", "source": "トランプ", "target": "(ト○ンプ)" },
