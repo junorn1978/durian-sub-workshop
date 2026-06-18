@@ -133,10 +133,6 @@ document.addEventListener('DOMContentLoaded', async function () {
         onApply: () => { handleObsBridgeSettingsChanged(); updateObsDragLink(); }
       },
       {
-        id: 'modeb', type: 'checkbox', key: 'subtitle-style-active',
-        onApply: (checked) => applyModeBState(checked)
-      },
-      {
         id: 'click-minimize-opt', type: 'select', key: 'click-minimize-enabled', default: 'true'
       },
       {
@@ -157,7 +153,7 @@ document.addEventListener('DOMContentLoaded', async function () {
           const dlBtn = document.getElementById('download-language-pack');
           const dlRow = dlBtn?.closest('.settings-row');
           if (dlRow && browserInfo.isChrome) {
-            // 等on device成為穩定版本時才開放使用
+            // 離線語言包僅在 on-device (Web Speech) 引擎時有意義，雲端 (Soniox) 引擎時隱藏
             dlRow.style.display = isCloud ? 'none' : '';
           }
 
@@ -438,7 +434,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
   };
 
-  /** 翻譯模式（GAS, Link, Fast, AI）切換邏輯 */
+  /** 翻譯模式切換邏輯（現行 UI 開放 gtx / link；fast、promptapi 邏輯保留但暫時隱藏，見 index.html） */
   const setupTranslationModeHandler = () => {
     const modeSelect = document.getElementById('translation-mode');
     const linkWrapper = document.getElementById('link-input-wrapper');
@@ -478,7 +474,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     };
 
     const savedMode = Storage.load('translation-mode-selection') || 'gtx';
-    modeSelect.value = savedMode === 'gas' ? 'gtx' : savedMode === 'ai' ? 'promptapi' : savedMode;
+    modeSelect.value = savedMode;
     applyMode(modeSelect.value);
     
     modeSelect.addEventListener('change', (e) => applyMode(e.target.value));
@@ -591,44 +587,6 @@ document.addEventListener('DOMContentLoaded', async function () {
   };
   // #endregion
 
-  /** * モードB（字幕固定3行・素材合成向け）管理
-   * UI: top-control-bar の #modeb チェックボックス（CONFIG.special 経由）
-   */
-  const MODE_B_INPUTS = ['source-font-size', 'target1-font-size', 'target2-font-size', 'target3-font-size'];
-  const MODE_B_MESSAGES = {
-    'source-text': '現在はモードBを使用しており、モードBでは言語3は使用できません。',
-    'target-text-1': 'モードBでは字幕は3行固定で表示され、行数を超えた場合はスクロール表示となります。字幕サイズは固定されています。',
-    'target-text-2': 'モードBは、素材と組み合わせた状態での使用を想定しています。',
-    'target-text-3': ''
-  };
-
-  /**
-   * モードBの構造的な状態のみを適用する（class とサイズ入力の有効/無効）。
-   * 冪等なため、起動時の復元（load）と切替（change）の両方から安全に呼べる。
-   * プレビュー文字には触れないので、起動時に既定の表示文言を消さない。
-   */
-  const applyModeBState = (isActive) => {
-    document.getElementById('Subtitle-style')?.classList.toggle('active-style', !!isActive);
-    MODE_B_INPUTS.forEach(id => {
-      const input = document.getElementById(id);
-      if (input) input.disabled = !!isActive;
-    });
-  };
-
-  /** ユーザー操作時のみプレビューに説明文を出す（load では発火しない） */
-  const setupSubtitleModeB = () => {
-    const checkbox = document.getElementById('modeb');
-    if (!checkbox) return;
-    checkbox.addEventListener('change', (e) => {
-      const isActive = e.target.checked;
-      Object.entries(MODE_B_MESSAGES).forEach(([id, text]) => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = isActive ? text : '';
-      });
-      if (isDebugEnabled()) console.info('UI', `モードB已${isActive ? '啟用' : '停用'}`);
-    });
-  };
-
   // #region [主初始化流程]
   await loadLanguageConfig();
 
@@ -641,7 +599,6 @@ document.addEventListener('DOMContentLoaded', async function () {
 
   setupPanelSwitching();
   setupResetButton(handlers);
-  setupSubtitleModeB();
   await setupLanguagePackButton('source-language', updateStatusDisplay);
   monitorLocalTranslationAPI();
   setupDisplayPanelInteraction();
@@ -758,11 +715,7 @@ document.addEventListener('DOMContentLoaded', async function () {
   if (!browserInfo.isChrome) {
     const fastModeOption = document.querySelector('#translation-mode option[value="fast"]');
     if (fastModeOption) fastModeOption.disabled = true;
-  } else {
-    // 目前還處在實驗性質，最少也要等到Chrome 145+以後的版本才有機會使用到
-    // 並且問題可能很多，非必要不建議使用。
-    setupPromptModelDownload();
-  };
+  }
   
   updateObsDragLink();
   
@@ -774,30 +727,12 @@ document.addEventListener('DOMContentLoaded', async function () {
   }
   // #endregion
 
-// #region [模式B字幕處理方式(CSS限制寬度和高度、超過使用滾動方式移動)]
-
-  const smoothScrollToSlowly = (element, to, duration) => {
-    const start = element.scrollTop;
-    const change = to - start;
-    const startTime = performance.now();
-
-    const animateScroll = (currentTime) => {
-      const elapsed = currentTime - startTime;
-      const t = Math.min(1, elapsed / duration);
-      const easeOut = t * (2 - t);
-
-      element.scrollTop = start + (change * easeOut);
-
-      if (elapsed < duration) { requestAnimationFrame(animateScroll); }
-    };
-
-    requestAnimationFrame(animateScroll);
-  };
+// #region [Source Text 即時捲動]
 
   /**
    * Source Text 專用滾動邏輯
    * 特性：即時響應、標準平滑滾動 (Native Smooth Scroll)
-   * 適用於：Deepgram 或 Web Speech API 的即時語音轉錄顯示
+   * 適用於：Soniox 或 Web Speech API 的即時語音轉錄顯示
    */
   const setupSourceScrollBehavior = (elementId) => {
     const el = document.getElementById(elementId);

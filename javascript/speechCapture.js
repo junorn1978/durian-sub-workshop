@@ -42,7 +42,7 @@ let previousText = '';
  *
  * 計時起點：按下「開始」按鈕（startSessionWatchdog 被呼叫的時刻）。
  * 重置條件：按下「停止」、引擎自行 onStop、頁面重整。
- * 自動重連（webspeech onend、Soniox/Deepgram retry）不重置。
+ * 自動重連（webspeech onend、Soniox retry）不重置。
  */
 const SESSION_MAX_DURATION_MS = 5 * 60 * 60 * 1000;
 const SESSION_WATCHDOG_INTERVAL_MS = 30 * 1000;
@@ -170,8 +170,8 @@ async function showMicInfoOnce() {
 }
 
 /**
- * 切換錄音控制按鈕的 DOM 狀態
- * @param {boolean} isStarting - 是否進入啟動流程
+ * 是否正在以 Web Speech API 引擎進行辨識
+ * @returns {boolean}
  */
 function isWebSpeechRecognitionRunning() {
   return isRecognitionActive && activeRecognitionEngine === 'webspeech';
@@ -235,7 +235,7 @@ async function configureRecognition(recognition, sourceLanguage) {
 }
 
 /**
- * 處理來自雲端 STT 服務 (Deepgram / Soniox) 的串流回傳值
+ * 處理來自雲端 STT 服務 (Soniox) 的串流回傳值
  * @param {string} text - 目前完整的顯示文字
  * @param {boolean} isFinal - 是否為確認文字
  * @param {boolean} shouldTranslate - 是否觸發翻譯請求
@@ -357,7 +357,6 @@ function wrapWithNoteByAlignment(baseText, symbolType) {
                                 : `${baseText}${symbolTextA}`;
 }
 
-/** 重置所有字幕顯示欄位 */
 // #endregion
 
 // #region [語音辨識控制流程]

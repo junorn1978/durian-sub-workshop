@@ -3,7 +3,6 @@
    ========================================= */
 :root {
   --text-font-size: 22px;
-  --text-font-size-mode-b: 18px;
   --text-color: #FFFFFF;
   --stroke-color: #000000;
   --stroke-width: 5px;
@@ -616,7 +615,7 @@ body {
 }
 
 /* =========================================
-   13. 字幕顯示的方式、一種背景全透明字幕、一種當素材用的字幕
+   13. 字幕顯示的方式（背景全透明字幕）
    ========================================= */
 #Subtitle-style {
   display: flex;
@@ -638,53 +637,6 @@ body {
     box-shadow 0.3s ease;
   
   z-index: 10;
-}
-
-/* OBS當素材用的字幕顯示方式 */
-#Subtitle-style.active-style {
-  margin: 0 auto;
-  background-color: transparent; /* 白底失去彈性，改用頁面背景(BG)調整 */
-  width: 600px;
-  height: 230px;
-  padding: 15px 30px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  gap: 4px;
-  
-  /* 特效 */
-  backdrop-filter: blur(12px);
-}
-
-#Subtitle-style.active-style #source-text {
-  height: 2.7em;
-  padding: 0px 5px;
-  font-size: var(--text-font-size-mode-b) !important;
-  overflow: hidden !important;
-  /* モードB は強制左寄せ（横位置設定を無視） */
-  align-items: flex-start !important;
-  text-align: left !important;
-}
-#Subtitle-style.active-style #target-text-1,
-#Subtitle-style.active-style #target-text-2,
-#Subtitle-style.active-style #target-text-3 {
-  font-size: var(--text-font-size-mode-b) !important;
-  height: 3.9em;
-  padding: 0px 5px;
-  /* モードB は強制左寄せ（横位置設定を無視） */
-  align-items: flex-start !important;
-  text-align: left !important;
-  /* 動畫 */
-  transition: line-height 0.3s ease;
-}
-/* 素材模式下語言三隱藏，因為不夠放 */
-#Subtitle-style.active-style #target-text-3 {
-  display: none;
-}
-
-input[type="range"]:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  filter: grayscale(100%);
 }
 
 /* =========================================

@@ -1,7 +1,7 @@
 /**
  * @file translationController.js
  * @description 翻譯請求中心。負責處理請求佇列、路由分流(AI/本地/遠端)以及字幕顯示緩衝控制。
- * 2025 優化版：全面採用統一語系物件 (getLang) 模式。
+ * 全面採用統一語系物件 (getLang) 模式。
  */
 
 import { browserInfo, getLang, isRayModeActive } from './config.js';
@@ -290,7 +290,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       const sourceLangObj = getLang(sourceLangId);
       const rules = sourceLangObj?.displayTimeRules || [];
 
-      // サーバーサイド処理 (Link) は表示時間を計算、ローカル処理 (Fast/Prompt) は即時更新のため 0
+      // サーバーサイド処理 (Link) のみ表示時間を計算。その他 (gtx/Fast/Prompt) は即時更新のため 0
       const minDisplayTime = currentMode !== 'link'
                            ? 0
                            : (rules.find(rule => text.length <= rule.maxLength)?.time ?? 3);

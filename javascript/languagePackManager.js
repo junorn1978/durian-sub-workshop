@@ -1,14 +1,12 @@
 /**
  * @file languagePackManager.js
  * @description 語音語言包管理模組。負責檢測瀏覽器本地語音辨識支援度及執行模型安裝程序。
- * 目前暫時不使用，因為還是處在實驗性質並且不穩定。
- * 目前已知可能會造成啟動失敗的原因有
- * 1. 下載語言包之前沒有啟動過語音辨識
- * 2. 預設值不是對應的語言(這一個似乎在Chrome 148版有改善的樣子，但不敢確定)
+ * 由 uiController.js 在初始化時透過 setupLanguagePackButton() 綁定
+ * 「オフラインパック」下載按鈕（index.html 的 #download-language-pack）。
+ * 但仍屬實驗性功能，部分語系（zh-TW / cmn-Hant-TW）因瀏覽器支援不穩定而於下方手動停用。
  */
 
-// import { updateStatusDisplay } from './translationController.js';
-import { getLang } from './config.js'; // [修改] 引入 getLang 取代舊有分散函式
+import { getLang } from './config.js';
 import { isDebugEnabled } from './logger.js';
 import { isWebSpeechRecognitionRunning } from './speechCapture.js';
 
@@ -21,14 +19,13 @@ import { isWebSpeechRecognitionRunning } from './speechCapture.js';
  * @returns {Promise<{supported: boolean, downloadable: boolean, downloading: boolean}>}
  */
 async function isLanguageSupportedLocally(langId) {
-  // [修改] 確保該語系在設定中存在
   const langObj = getLang(langId);
   if (!langObj) return { supported: false, downloadable: false, downloading: false };
 
   const options = { langs: [langObj.id], processLocally: true };
   
   try {
-    /* 技術備註：SpeechRecognition.available 是 2025 Chrome 用於查詢裝置語音模型狀態的標準 API */
+    /* 技術備註：SpeechRecognition.available 是 Chrome 用於查詢裝置語音模型狀態的標準 API */
     const status = await SpeechRecognition.available(options);
     if (isDebugEnabled()) console.debug("[DEBUG]", "[languagePackManager]", "檢查語言包支援:", { id: langObj.id, status });
     return {
@@ -65,7 +62,7 @@ async function downloadLanguagePack(langId, updateCallback) {
     return false;
   }
 
-  const langObj = getLang(langId); // [修改] 獲取統一物件
+  const langObj = getLang(langId);
   const status = await isLanguageSupportedLocally(langId);
 
   if (status.downloading) {
@@ -139,9 +136,7 @@ async function updateLanguagePackButton(langId) {
     return;
   }
 
-  /* * 技術備註：目前 Chrome 核心對 zh-TW/cmn-Hant-TW 的本地語音辨識支援仍不穩定。
-   * [修改] 這裡改用物件屬性判斷，增加維護性。
-   */
+  /* 技術備註：目前 Chrome 核心對 zh-TW/cmn-Hant-TW 的本地語音辨識支援仍不穩定，故手動停用。 */
   if (langObj.id === 'cmn-Hant-TW' || langObj.languageModelApiCode === 'zh-TW') {
     downloadButton.disabled = true;
     downloadButton.textContent = '一時的に非対応';

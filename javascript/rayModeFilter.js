@@ -91,7 +91,7 @@ function filterRayModeText(text, sourceLang) {
   return result;
 }
 
-/** 在 Ray Mode 時發送翻譯會經過這邊先替換語句（Deepgram + 顯示用） */
+/** 在 Ray Mode 時發送翻譯會經過這邊先替換語句（Soniox + 顯示用） */
 function processRayModeTranscript(text, sourceLang) {
   if (!text || !text.trim() || ['っ', 'っ。', '。', '？'].includes(text.trim())) return '';
   const pack = cachedRules.get(sourceLang);

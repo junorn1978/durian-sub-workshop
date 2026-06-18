@@ -2,7 +2,7 @@
  * @file sonioxService.js
  * @description 管理 Soniox WebSocket 連線與音訊串流。
  *
- * Deepgram と異なる点：
+ * 実装上の要点：
  * - 認証は接続後の最初の JSON メッセージで api_key を送る (sub-protocol ではない)。
  * - 結果は token 単位で返る。is_final=true は確定、false は仮 (次のメッセージで置換され得る)。
  * - エンドポイント検出は <end> トークンとして配信される。
@@ -52,7 +52,7 @@ const FINISHED_TOKEN = "<fin>";
 //   MAX_BUFFER_LENGTH：累積文字超過此長度強制斷句 (極端情境防呆，正常切句完全交給 Soniox endpoint)
 const MAX_BUFFER_LENGTH = 250;
 
-// AudioWorklet 處理器代碼 (Deepgram 版と同じ)
+// AudioWorklet 處理器代碼
 const PCM_PROCESSOR_CODE = `
 class PCMProcessor extends AudioWorkletProcessor {
   constructor(options) {

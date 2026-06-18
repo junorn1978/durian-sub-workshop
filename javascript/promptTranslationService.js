@@ -1,10 +1,11 @@
 /**
  * @file promptTranslationService.js
- * @description 瀏覽器內建 AI (Gemini Nano/3.0) 翻譯服務。
- * 目前還處在實驗性質，等Chrome 145+以後才會繼續維護，目前停用
+ * @description 瀏覽器內建 AI (Gemini Nano) 翻譯服務，對應翻譯模式 'promptapi'。
+ * 翻譯路由與初始化已接上，但仍屬實驗性功能：UI 選項在 index.html 中為 hidden + disabled，
+ * 穩定度有待 Chrome 後續版本改善，非必要不建議使用。
  */
 
-import { getLang } from './config.js'; // [修改] 引入 getLang
+import { getLang } from './config.js';
 import { isDebugEnabled } from './logger.js';
 
 // #region [配置與工作階段管理]
@@ -124,7 +125,6 @@ export async function sendPromptTranslation(text, targetLangIds, sourceLangId) {
   const Available = await ensureModelLoaded();
   if (Available !== 'available') return null;
 
-  // [修改] 獲取來源語系物件
   const sourceLangObj = getLang(sourceLangId);
   if (!sourceLangObj) return null;
 
@@ -133,7 +133,6 @@ export async function sendPromptTranslation(text, targetLangIds, sourceLangId) {
 
   try {
     const translationPromises = targetLangIds.map(async (langId, index) => {
-      // [修改] 獲取目標語系物件
       const targetLangObj = getLang(langId);
       if (!targetLangObj) { if (isDebugEnabled()) console.error("找不到目標語系物件"); return; }
 

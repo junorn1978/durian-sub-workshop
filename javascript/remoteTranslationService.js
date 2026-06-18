@@ -1,6 +1,6 @@
 /**
  * @file remoteTranslationService.js
- * @description 遠端翻譯通訊模組。支援 POST (自訂伺服器) 與 GET (Google Apps Script) 雙通訊模式。
+ * @description 遠端翻譯通訊模組。以 POST 方式發送翻譯請求至自訂伺服器 (serviceType 'link')。
  * 此檔用途為發送雲端請求，需搭配後端程式碼使用。
  */
 
@@ -35,8 +35,8 @@ async function fetchWithTimeout(input, init = {}, ms = 10000) {
  * @async
  * @param {string} text - 待翻譯文字
  * @param {Array<string>} targetLangs - 目標語言代碼陣列
- * @param {string} serviceUrl - 服務網址
- * @param {string|null} serviceKey - API Key
+ * @param {string} sourceLang - 來源語言代碼
+ * @param {string} serviceUrl - 服務網址 (可含 key://url 形式，API Key 會自動解析)
  * @param {number} sequenceId - 請求序號
  * @param {string|null} previousText - 上文脈絡 (Context)
  * @returns {Promise<Object|null>} 翻譯結果物件
