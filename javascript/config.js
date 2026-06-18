@@ -11,7 +11,7 @@ const _languages = new Map();
 
 let _config = null;
 let _isForceSingleLine = false;
-let _currentSpeechEngine = 'webspeech'; // 'webspeech' | 'soniox'
+let _currentSpeechEngine = 'soniox'; // 'webspeech' | 'soniox'
 
 let _currentAlignment  = 'left';
 // #endregion

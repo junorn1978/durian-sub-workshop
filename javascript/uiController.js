@@ -145,7 +145,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
       },
       {
-        id: 'speech-engine-opt', type: 'select', key: 'speech-recognition-engine', default: 'webspeech',
+        id: 'speech-engine-opt', type: 'select', key: 'speech-recognition-engine', default: 'soniox',
         onApply: (val) => {
           setSpeechEngine(val);
           const isCloud = val === 'soniox';
