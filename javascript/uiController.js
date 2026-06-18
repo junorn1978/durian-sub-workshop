@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', async function () {
       },
       {
         id: 'force-single-line-opt', type: 'select', key: 'force-single-line-enabled',
-        default: 'false',
+        default: 'true',
         onApply: (val) => {
           const isEnabled = val === 'true';
           setForceSingleLineStatus(isEnabled);
