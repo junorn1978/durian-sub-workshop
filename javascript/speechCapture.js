@@ -148,7 +148,7 @@ async function showMicInfoOnce() {
     if (!audioInputs.length) {
       const msg = 'マイクが見つかりません';
       if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition]', msg);
-      if (micInfoEl) micInfoEl.textContent = `🎙️ ${msg}`;
+      if (micInfoEl) setMicLabel(micInfoEl, `🎙️ ${msg}`);
       return;
     }
 
@@ -157,7 +157,7 @@ async function showMicInfoOnce() {
 
     if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition] 偵測到的裝置列表:', audioInputs);
     if (micInfoEl) {
-      micInfoEl.textContent = `🎙️ ${micName}`;
+      setMicLabel(micInfoEl, `🎙️ ${micName}`);
       micInfoEl.title = micName;
     }
   } catch (err) {
@@ -166,6 +166,52 @@ async function showMicInfoOnce() {
     if (tempStream) {
       tempStream.getTracks().forEach(t => t.stop());
     }
+  }
+}
+
+/**
+ * 狀態列のマイク名を設定する。幅(205px)に収まらない場合のみニュースティッカー風に
+ * シームレスループでスクロールし、収まる場合は静止表示する（CSS は .status-mic 参照）。
+ * @param {HTMLElement} el #default-mic 要素
+ * @param {string} text 表示テキスト
+ */
+function setMicLabel(el, text) {
+  if (!el) return;
+  el.classList.remove('is-marquee');
+  el.textContent = text; // 既定は静止表示（収まらなければ下でティッカー化）
+
+  const activate = () => {
+    if (el.scrollWidth <= el.clientWidth) return; // 収まるなら静止のまま
+
+    // 溢位時：同一テキストを2つ並べてシームレスループさせる
+    el.textContent = '';
+    const track = document.createElement('span');
+    track.className = 'mic-track';
+    const first = document.createElement('span');
+    first.className = 'mic-seg';
+    first.textContent = text;
+    const second = document.createElement('span');
+    second.className = 'mic-seg';
+    second.setAttribute('aria-hidden', 'true');
+    second.textContent = text;
+    track.append(first, second);
+    el.appendChild(track);
+    el.classList.add('is-marquee');
+
+    requestAnimationFrame(() => {
+      const GAP_PX = 32;     // CSS .mic-track の gap と一致させること
+      const SPEED_PX_S = 45; // スクロール速度 (px/秒)
+      const shift = first.offsetWidth + GAP_PX;
+      track.style.setProperty('--mic-shift', `${shift}px`);
+      track.style.setProperty('--mic-duration', `${(shift / SPEED_PX_S).toFixed(1)}s`);
+    });
+  };
+
+  // カスタムフォントの幅ズレを避けるためフォント確定後に計測
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(() => requestAnimationFrame(activate));
+  } else {
+    requestAnimationFrame(activate);
   }
 }
 

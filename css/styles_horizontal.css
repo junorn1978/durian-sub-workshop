@@ -104,25 +104,52 @@ body {
 
 /* 底部狀態列左側：現在使用中のマイク (小字、過長截斷) */
 .status-mic {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 32%;
+  flex: 0 0 auto;
+  width: 205px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-align: center;
   font-size: 11px;
-  color: #6d1313;
-  opacity: 0.85;
+  /* 半透明黑底の膠囊で底色と區隔し、設定値を強調 */
+  color: rgba(255, 242, 222, 0.92);
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 999px;
+  padding: 2px 10px;
 }
 .status-mic:empty { display: none; }
+
+/* マイク名が幅を超える場合のみニュースティッカー風スクロール（JS が is-marquee を付与） */
+.status-mic.is-marquee { text-align: left; }
+.status-mic .mic-track {
+  display: inline-flex;
+  gap: 32px; /* JS の GAP_PX と一致させること */
+  white-space: nowrap;
+  will-change: transform;
+  /* 4 回スクロールしたら停止（先頭表示に戻る） */
+  animation: mic-marquee var(--mic-duration, 8s) linear 4;
+}
+.status-mic .mic-seg { white-space: nowrap; }
+.status-mic.is-marquee:hover .mic-track { animation-play-state: paused; }
+@keyframes mic-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(calc(-1 * var(--mic-shift, 50%))); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .status-mic .mic-track { animation: none; }
+}
 
 /* 底部狀態列右側：版本／使い方ガイド連結 */
 #version-display {
   flex: 0 0 auto;
   white-space: nowrap;
   font-size: 11px;
-  color: rgba(109, 19, 19, 0.65);
   letter-spacing: 0.5px;
+  /* 半透明黑底の膠囊で底色と區隔し、設定値を強調 */
+  color: rgba(255, 242, 222, 0.92);
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 999px;
+  padding: 2px 10px;
 }
 
 #control-panel {
@@ -137,9 +164,20 @@ body {
   min-width: 1200px;
   min-height: 280px;
   z-index: 2;
+  position: relative;
   border-top-left-radius: 10px;
   border-top-right-radius: 10px;
+}
+
+/* control-panel 下端の破線。左右に余白を残すため border ではなく疑似要素で描画 */
+#control-panel::after {
+  content: "";
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 0;
   border-bottom: 2px dashed #6d1313;
+  pointer-events: none;
 }
 
 /* =========================================
