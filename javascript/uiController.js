@@ -4,9 +4,7 @@
  */
 
 import { updateStatusDisplay } from './uiState.js';
-import { setupPromptModelDownload } from './promptTranslationService.js';
 import { setupLanguagePackButton } from './languagePackManager.js';
-import { checkTranslationAvailability, monitorLocalTranslationAPI } from './translatorApiService.js';
 import { browserInfo, loadLanguageConfig, setAlignment, setForceSingleLineStatus, setSpeechEngine } from './config.js';
 import { isDebugEnabled, setLogLevel } from './logger.js';
 import { handleObsBridgeSettingsChanged, triggerAutoSetup, testObsConnection } from './obsBridge.js';
@@ -183,9 +181,6 @@ document.addEventListener('DOMContentLoaded', async function () {
   if (!browserInfo.isChrome) {
     if (isDebugEnabled()) console.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
 
-    const promptBtn = document.getElementById('prompt-api-download');
-    if (promptBtn) promptBtn.style.display = 'none';
-
     const dlBtn = document.getElementById('download-language-pack');
     const dlRow = dlBtn?.closest('.settings-row');
     if (dlRow) dlRow.style.display = 'none';
@@ -241,10 +236,6 @@ document.addEventListener('DOMContentLoaded', async function () {
       element.addEventListener(config.type === 'select' ? 'change' : 'input', (e) => {
         const value = config.type === 'range' ? `${e.target.value}px` : e.target.value;
         this.save(value);
-        if (config.id.includes('language')) {
-          const mode = document.getElementById('translation-mode')?.value;
-          if (mode === 'fast') { checkTranslationAvailability(); }
-        }
         this.handleSpecialCases(e);
       });
     },
@@ -434,40 +425,21 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
   };
 
-  /** 翻譯模式切換邏輯（現行 UI 開放 gtx / link；fast、promptapi 邏輯保留但暫時隱藏，見 index.html） */
+  /** 翻譯模式切換邏輯（現行 UI 開放 gtx / link） */
   const setupTranslationModeHandler = () => {
     const modeSelect = document.getElementById('translation-mode');
     const linkWrapper = document.getElementById('link-input-wrapper');
-    const promptDownloadBtn = document.getElementById('prompt-api-download');
-    const fastModeControls = document.getElementById('fast-mode-controls');
-    const fastModeProgress = document.getElementById('fast-mode-progress');
 
     setupToggleVisibility('toggle-link-visibility', 'translation-link');
 
     if (!modeSelect) return;
 
     const applyMode = (mode) => {
-      [linkWrapper, promptDownloadBtn, fastModeControls].forEach(w => { if (w) w.style.display = 'none'; });
-      if (fastModeProgress) fastModeProgress.textContent = '';
-
-      Storage.save('local-translation-api-active', 'false');
-      Storage.save('local-prompt-api-active', 'false');
-      //updateStatusDisplay('');
+      if (linkWrapper) linkWrapper.style.display = 'none';
 
       switch (mode) {
         case 'link':
           if (linkWrapper) { linkWrapper.style.display = 'block'; document.getElementById('translation-link')?.focus(); }
-          break;
-        case 'fast':
-          if (!browserInfo.isChrome) { alert('高速翻訳はEdgeに対応しておりません。'); applyMode('link'); return; }
-          Storage.save('local-translation-api-active', 'true');
-          if (fastModeControls) fastModeControls.style.display = 'flex';
-          checkTranslationAvailability();
-          break;
-        case 'promptapi':
-          if (!browserInfo.isChrome) { alert('ブラウザAI翻訳はEdgeに対応しておりません。'); applyMode('link'); return; }
-          Storage.save('local-prompt-api-active', 'true');
-          setupPromptModelDownload();
           break;
       }
       Storage.save('translation-mode-selection', mode);
@@ -600,7 +572,6 @@ document.addEventListener('DOMContentLoaded', async function () {
   setupPanelSwitching();
   setupResetButton(handlers);
   await setupLanguagePackButton('source-language', updateStatusDisplay);
-  monitorLocalTranslationAPI();
   setupDisplayPanelInteraction();
   setupTranslationModeHandler();
   setupTranslationTestTool();
@@ -712,11 +683,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
   const defaultTab = document.getElementById('Subtitle');
   if (defaultTab) defaultTab.click();
-  if (!browserInfo.isChrome) {
-    const fastModeOption = document.querySelector('#translation-mode option[value="fast"]');
-    if (fastModeOption) fastModeOption.disabled = true;
-  }
-  
+
   updateObsDragLink();
   
   const autoSetupBtn = document.getElementById('obs-auto-setup-btn');

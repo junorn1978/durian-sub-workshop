@@ -4,11 +4,9 @@
  * 全面採用統一語系物件 (getLang) 模式。
  */
 
-import { browserInfo, getLang, isRayModeActive } from './config.js';
+import { getLang, isRayModeActive } from './config.js';
 import { filterTextWithKeywords, processRayModeTranscript } from './rayModeFilter.js';
-import { destroyLocalTranslators, sendLocalTranslation } from './translatorApiService.js';
 import { translateWithGTX } from './gtxTranslationService.js';
-import { sendPromptTranslation } from './promptTranslationService.js';
 import { processTranslationUrl } from './remoteTranslationService.js';
 import { isDebugEnabled } from './logger.js';
 import { publishTranslationsToObs } from './obsBridge.js';
@@ -128,12 +126,6 @@ async function requestTranslationData(text, previousText, sourceLangId, rawTarge
   if (currentMode === 'gtx') {
     data = await translateWithGTX(text, rawTargetLangIds, sourceLangId);
     translatedLangIds = rawTargetLangIds;
-
-  } else if (currentMode === 'promptapi' && 'LanguageModel' in self) {
-    data = await sendPromptTranslation(text, activeLangIds, sourceLangId);
-
-  } else if (currentMode === 'fast' && browserInfo.supportsTranslatorAPI) {
-    data = await sendLocalTranslation(text, activeLangIds, sourceLangId);
 
   } else {
     if (!serviceUrl) return null;
@@ -356,7 +348,6 @@ async function translateTestText(text) {
 // #endregion
 
 window.addEventListener('beforeunload', () => {
-  destroyLocalTranslators();
   if (bufferCheckInterval) clearInterval(bufferCheckInterval);
   queue.forEach(task => task.reject(new Error('頁面即將關閉')));
   queue.length = 0;

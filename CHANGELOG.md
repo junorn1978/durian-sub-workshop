@@ -1,5 +1,12 @@
 # 更新履歴
 
+## [v3.1.9]
+### 削除
+ - 未使用の翻訳エンジン2種を完全に削除しました（特化用途のため）。いずれも UI では hidden / disabled で通常操作からは到達できず、保持する意味がなくなっていました。
+   - ブラウザAI翻訳（Prompt API / Gemini Nano、`promptapi`）：`javascript/promptTranslationService.js` とルーティング・UI・`promptApiCode` 設定を削除。
+   - 高速翻訳（Translator API、`fast`）：`javascript/translatorApiService.js`（ダウンロードキュー・日本語標点プリプロセス含む）とルーティング・UI を削除。
+ - 翻訳エンジンは Google 翻訳（`gtx`）と翻訳クラウド接続（`link`）の2種に整理しました。
+
 ## [v3.1.8]
 ### 追加
  - Soniox の認識精度を調整する辞書機能（context）を追加しました。`data/soniox_context.json` に記載した `terms`（専有名詞・術語）と `general`（配信ドメインの背景情報）を、接続時の設定に `context` として送信します。語系には依存せず session 全体に一度だけ送るため、配信者が日本語と英語を切り替えても両方の専有名詞を同時に認識補助できます。空の場合は送信しません（仕様上の上限は terms + general 合算で約 10,000 文字）。

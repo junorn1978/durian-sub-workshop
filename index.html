@@ -42,15 +42,7 @@
           <select id="translation-mode" title="翻訳エンジンの選択">
             <option value="gtx" selected>Google 翻訳 (無料)</option>
             <option value="link">翻訳クラウド接続</option>
-            <!-- 高速翻訳・ブラウザAIは一時的に非表示。機能・ロジックは保持（再公開時は hidden を外すだけ） -->
-            <option value="fast" hidden>高速翻訳 (翻訳精度低め)</option>
-            <option value="promptapi" hidden disabled>ブラウザAI (実験機能)</option>
           </select>
-        </div>
-
-        <div id="fast-mode-controls" style="display: none; align-items: center; gap: 8px; margin-left: 5px;">
-           <button id="fast-mode-download-btn" class="menu3-button" style="width: auto; padding: 0 10px; min-width: 80px;">モデルDL</button>
-           <span id="fast-mode-progress" style="font-size: 12px; color: #6d1313; font-weight: bold; white-space: nowrap;"></span>
         </div>
 
         <form id="link-input-wrapper" class="link-wrapper" style="display:none;" onsubmit="return false;">
@@ -69,8 +61,6 @@
             </svg>
           </button>
         </form>
-
-        <button id="prompt-api-download" class="menu3-button" style="display: none;">モデルDL</button>
 
         <div class="menu-panel">
           <div id="menu">
@@ -263,7 +253,7 @@
   <div id="status-panel">
     <div id="default-mic" class="status-mic" title="現在使用中のマイク"></div>
     <div class="status-info" id="status-display">声音認識反応ないの場合は、一度止めて數秒待ってから、もう一回録音ボタンを押し直すことをお勧めします。</div>
-    <span id="version-display">v3.1.8</span>
+    <span id="version-display">v3.1.9</span>
   </div>
 
   <!-- OBS連携 設定モーダル（選單列「OBS連携」ボタンで開閉。✕／Esc で閉じる・背景クリックでは閉じない） -->

@@ -50,8 +50,7 @@ export async function loadLanguageConfig(url = './data/language_config.json') {
   json.languages.forEach(item => {
     /* 整合 JSON 原始內容與預設規則，產生標準化存取物件 */
     const langObj = {
-      ...item, 
-      promptApiCode: item.promptApiCode || item.id,
+      ...item,
       languageModelApiCode: item.languageModelApiCode || json.targetCodeMap[item.id] || item.id,
       deepgramCode: json.targetCodeMap[item.id] || item.id,
       chunkSize: item.chunkSize || json.defaults?.chunkSize || 40,
