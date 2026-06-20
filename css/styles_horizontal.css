@@ -126,8 +126,8 @@ body {
   gap: 32px; /* JS の GAP_PX と一致させること */
   white-space: nowrap;
   will-change: transform;
-  /* 4 回スクロールしたら停止（先頭表示に戻る） */
-  animation: mic-marquee var(--mic-duration, 8s) linear 4;
+  /* 5 秒待ってから 4 回スクロールして停止（先頭表示に戻る） */
+  animation: mic-marquee var(--mic-duration, 8s) linear 5s 4;
 }
 .status-mic .mic-seg { white-space: nowrap; }
 .status-mic.is-marquee:hover .mic-track { animation-play-state: paused; }
