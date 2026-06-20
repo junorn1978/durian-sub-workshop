@@ -142,6 +142,42 @@ async function fetchSonioxTemporaryToken() {
   }
 }
 
+// Soniox context (辨識詞調整)。語系非依存で session 全体に一度だけ送る。
+//   - terms: 専有名詞・術語の認識精度を上げる文字列配列
+//   - general: 配信のドメイン背景を伝える {key, value} 配列
+// 仕様上の上限は約 10,000 文字 (terms + general + text 合算)。
+let sonioxContextCache = null;     // 読み込み済みなら再 fetch しない
+let sonioxContextLoaded = false;
+
+async function loadSonioxContext() {
+  if (sonioxContextLoaded) return sonioxContextCache;
+  sonioxContextLoaded = true;
+  try {
+    const response = await fetch("data/soniox_context.json");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+
+    const terms = Array.isArray(data.terms)
+      ? data.terms.filter((t) => typeof t === "string" && t.trim())
+      : [];
+    const general = Array.isArray(data.general)
+      ? data.general.filter(
+          (g) => g && typeof g.key === "string" && typeof g.value === "string" && g.value.trim()
+        )
+      : [];
+
+    const context = {};
+    if (terms.length) context.terms = terms;
+    if (general.length) context.general = general;
+
+    sonioxContextCache = Object.keys(context).length ? context : null;
+  } catch (error) {
+    if (isDebugEnabled()) console.warn("[WARN]", "[SonioxService]", "辨識詞 context 載入失敗，將不送 context", error);
+    sonioxContextCache = null;
+  }
+  return sonioxContextCache;
+}
+
 const JP_CHAR_RANGE = "\\u3000-\\u303f\\u3040-\\u309f\\u30a0-\\u30ff\\uff00-\\uff9f\\u4e00-\\u9faf";
 const JP_SPACE_PATTERN = new RegExp(`([${JP_CHAR_RANGE}])\\s+([${JP_CHAR_RANGE}])`, "g");
 
@@ -249,6 +285,8 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
     return false;
   }
 
+  const sonioxContext = await loadSonioxContext();
+
   isIntentionalStop = false;
   if (!retryCount) retryCount = 0;
 
@@ -331,6 +369,11 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         enable_endpoint_detection: true,
         max_endpoint_delay_ms: 1000
       };
+
+      // 辨識詞調整 (context) は語系非依存。空なら送らない。
+      if (sonioxContext) {
+        config.context = sonioxContext;
+      }
 
       try {
         socket.send(JSON.stringify(config));
