@@ -41,7 +41,7 @@ export function triggerAutoSetup() {
     return;
   }
   if (!authenticated) {
-    alert("OBS WebSocket に接続されていません。サーバー IP、ポート、パスワードを確認してください。接続後に字幕ソースの追加を開始します。");
+    alert("OBS WebSocket に接続されていません。サーバーIP、ポート、パスワードを確認してください。接続でき次第、字幕ソースを追加します。");
     pendingAutoSetup = true;
     ensureConnection();
     return;
@@ -99,11 +99,11 @@ async function executeAutoSetup() {
 
     // 定義要建立的來源
     const sourcesToCreate = [
-      { name: 'HamHam字幕-全顯示', mode: 'all', visible: true },
-      { name: 'HamHam字幕-語音', mode: 'source', visible: false },
-      { name: 'HamHam字幕-翻譯1', mode: 'target1', visible: false },
-      { name: 'HamHam字幕-翻譯2', mode: 'target2', visible: false },
-      { name: 'HamHam字幕-翻譯3', mode: 'target3', visible: false }
+      { name: 'HamHam字幕-全体表示', mode: 'all', visible: true },
+      { name: 'HamHam字幕-音声', mode: 'source', visible: false },
+      { name: 'HamHam字幕-翻訳1', mode: 'target1', visible: false },
+      { name: 'HamHam字幕-翻訳2', mode: 'target2', visible: false },
+      { name: 'HamHam字幕-翻訳3', mode: 'target3', visible: false }
     ];
 
     // 直接將所有的 Browser Source 建立在「使用者目前的場景」裡面
@@ -168,11 +168,11 @@ async function executeAutoSetup() {
       }
     }
 
-    alert("OBSに字幕ソースを追加しました。\n現在のシーンに5つの字幕ソースを設定しました。\n初期状態では「全体表示」のみ有効です。必要に応じて配置やグループを調整してください。");
+    alert("現在のシーンに5つの字幕ソースを追加しました。\n初期状態では「全体表示」のみ表示されます。必要に応じて、各ソースの配置やグループ分けを調整してください。");
 
   } catch (error) {
     console.error("[OBS Bridge] Auto setup failed:", error);
-    alert("OBSへの字幕ソース追加に失敗しました：" + error.message);
+    alert("OBSへの字幕ソースの追加に失敗しました。\n" + error.message);
   }
 }
 

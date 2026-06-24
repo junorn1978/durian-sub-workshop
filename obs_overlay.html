@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -125,7 +125,7 @@
         return toBase64(new Uint8Array(hashBuffer));
       } catch (err) {
         console.error("Crypto API error:", err);
-        sourceEl.textContent = "Crypto API Error: " + err.message;
+        sourceEl.textContent = "暗号化処理エラー：" + err.message;
         applyStyle(sourceEl, { color: "#ff0000", strokeColor: "#000000", strokeSize: "2px", fontSize: "24px" });
         throw err;
       }
@@ -190,7 +190,7 @@
 
     function connect() {
       if (!initialConnectionDone) {
-        sourceEl.textContent = 'Connecting to OBS WebSocket...';
+        sourceEl.textContent = 'OBS WebSocket に接続しています…';
         target1El.textContent = '';
         target2El.textContent = '';
         target3El.textContent = '';
@@ -202,7 +202,7 @@
         socket = new WebSocket(wsUrl);
       } catch (err) {
         console.error("Failed to create WebSocket instance:", err);
-        sourceEl.textContent = `WebSocket Error: ${err.message}. Blocked by HTTPS Mixed Content?`;
+        sourceEl.textContent = `WebSocket 接続エラー：${err.message}。HTTPS と HTTP の混在によりブロックされている可能性があります。`;
         applyStyle(sourceEl, { color: "#ff0000", strokeColor: "#000000", strokeSize: "2px", fontSize: "24px" });
         return;
       }
@@ -283,14 +283,14 @@
 
       socket.onerror = (err) => {
          console.error("OBS WebSocket connection error", err);
-         sourceEl.textContent = `Error connecting to ${wsUrl}. If using GitHub Pages, HTTP/HTTPS mixed content might be blocking it.`;
+         sourceEl.textContent = `${wsUrl} に接続できませんでした。HTTPS と HTTP の混在によりブロックされている可能性があります。`;
          applyStyle(sourceEl, { color: "#ffaa00", strokeColor: "#000000", strokeSize: "2px", fontSize: "20px" });
       };
 
       socket.onclose = (event) => {
         console.log(`WebSocket closed (Code: ${event.code}). Reconnecting in 3s...`);
         if (!initialConnectionDone) {
-             sourceEl.textContent = `Connection closed. Retrying...`;
+             sourceEl.textContent = `接続が切断されました。再接続しています…`;
         }
         setTimeout(connect, 3000);
       };
