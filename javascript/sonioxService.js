@@ -270,7 +270,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
   globalOnTranscriptUpdate = onTranscriptUpdate;
   if (isRunning) return true;
 
-  notifyStatusChange('接続中。しばらくお待ちください...');
+  notifyStatusChange('接続しています。しばらくお待ちください...');
   const langObj = getLang(langId);
   if (!langObj) {
     if (isDebugEnabled()) console.error("[ERROR] [Soniox] 找不到語系定義:", langId);
@@ -281,7 +281,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
 
   const authInfo = await fetchSonioxTemporaryToken();
   if (!authInfo?.value) {
-    notifyStatusChange("Soniox 臨時 Token 取得失敗、Web Speech API へ切り替えます...");
+    notifyStatusChange("Soniox の一時トークンを取得できませんでした。Web Speech API に切り替えます...");
     return false;
   }
 
@@ -379,7 +379,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         socket.send(JSON.stringify(config));
         isConfigured = true;
         isRunning = true;
-        notifyStatusChange("Soniox 接続成功 (Raw Audio Mode)");
+        notifyStatusChange("Soniox に接続しました。");
 
         if (pendingAudioChunks.length > 0) {
           for (const chunk of pendingAudioChunks) {
@@ -390,13 +390,13 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
 
         watchdogInterval = setInterval(() => {
           if (Date.now() - lastSpeechTime > AUTO_STOP_TIMEOUT) {
-            notifyStatusChange("⚠️ 長時間無音のため、自動的に切斷しました (成本節約)。");
+            notifyStatusChange("長時間音声が検出されなかったため、自動的に切断しました。");
             stopSoniox({ intentional: false, reason: 'auto-timeout' });
           }
         }, 10000);
       } catch (err) {
         if (isDebugEnabled()) console.error("[ERROR]", "[SonioxService]", "送出設定失敗", err);
-        notifyStatusChange("Soniox 設定送信失敗。");
+        notifyStatusChange("Soniox の設定送信に失敗しました。");
       }
     };
 
@@ -477,14 +477,14 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         if (retryCount < MAX_RETRIES) {
           const delay = 800;
           retryCount++;
-          notifyStatusChange(`接続が切断されました。再接続中...`);
+          notifyStatusChange(`接続が切断されました。再接続しています...`);
           cleanupAudioResources({ keepStream: true });
           isRunning = false;
           setTimeout(() => {
             startSoniox(langId, onTranscriptUpdate, lifecycleHandlers);
           }, delay);
         } else {
-          notifyStatusChange("再接続に失敗しました。手動で再開してください。");
+          notifyStatusChange("再接続に失敗しました。もう一度「開始」を押してください。");
           stopSoniox({ intentional: false, reason: 'retry-exhausted' });
         }
       }
@@ -492,7 +492,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
 
     socket.onerror = (e) => {
       if (isDebugEnabled()) console.error("[ERROR]", "[SonioxService]", "Socket 錯誤", e);
-      notifyStatusChange("Soniox 接続エラー。バックエンドまたはネットワークを確認してください。");
+      notifyStatusChange("Soniox の接続エラーです。バックエンドまたはネットワークを確認してください。");
     };
   } catch (error) {
     if (isDebugEnabled()) console.error("[ERROR]", "[SonioxService]", "啟動失敗", error);

@@ -6,7 +6,7 @@
   <title>OBS Overlay - ハムハム字幕アトリエ</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Huninn&family=Kosugi+Maru&family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
   <style>
     :root {
       --text-align: center;
@@ -16,7 +16,7 @@
       margin: 0;
       padding: 10px 20px;
       background-color: transparent;
-      font-family: "Huninn", Arial, sans-serif;
+      font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
       display: flex;
       flex-direction: column;
       align-items: var(--text-align);
@@ -48,6 +48,17 @@
 
     .text-line:empty {
       display: none;
+    }
+
+    .text-line:lang(ja) {
+      font-family: "M PLUS Rounded 1c", "Huninn", Arial, sans-serif;
+    }
+
+    .text-line:lang(zh-TW),
+    .text-line:lang(zh-Hant),
+    .text-line:lang(zh-HK),
+    .text-line:lang(yue-Hant-HK) {
+      font-family: "Huninn", "M PLUS Rounded 1c", Arial, sans-serif;
     }
 
     .visual-single-line {
@@ -247,17 +258,26 @@
           }
 
           // 只更新文字，不再重置動畫，避免頻繁閃爍
-          const updateText = (el, newText, styleData) => {
+          const applyLang = (el, lang) => {
+            if (lang && lang !== 'none') {
+              el.lang = lang;
+            } else {
+              el.removeAttribute('lang');
+            }
+          };
+
+          const updateText = (el, newText, styleData, lang) => {
+            applyLang(el, lang);
             if (el.textContent !== newText) {
               el.textContent = newText || '';
             }
             if (styleData) applyStyle(el, styleData);
           };
 
-          updateText(sourceEl, data.source, data.styles?.source);
-          updateText(target1El, data.target1, data.styles?.target1);
-          updateText(target2El, data.target2, data.styles?.target2);
-          updateText(target3El, data.target3, data.styles?.target3);
+          updateText(sourceEl, data.source, data.styles?.source, data.langs?.source);
+          updateText(target1El, data.target1, data.styles?.target1, data.langs?.target1);
+          updateText(target2El, data.target2, data.styles?.target2, data.langs?.target2);
+          updateText(target3El, data.target3, data.styles?.target3, data.langs?.target3);
         }
       };
 

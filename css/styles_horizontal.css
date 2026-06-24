@@ -21,7 +21,7 @@ body {
   display: flex;
   flex-direction: column;
   background-color: var(--body-background);
-  font-family: "Huninn", Arial, sans-serif;
+  font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
   min-width: 950px;
   overflow-x: hidden;
   overflow-y: hidden;
@@ -54,7 +54,7 @@ body {
   
   /* 字體設定 */
   color: var(--text-color);
-  font-family: "Huninn", Arial, sans-serif;
+  font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
   font-size: var(--text-font-size);
   line-height: 1.3em;
     
@@ -66,6 +66,32 @@ body {
   position: relative; /* 雖不再需要給偽元素定位，但保留作為其他可能的定位基準 */
   overflow: hidden;
   flex-shrink: 0;
+}
+
+#source-text:lang(ja),
+#target-text-1:lang(ja),
+#target-text-2:lang(ja),
+#target-text-3:lang(ja) {
+  font-family: "M PLUS Rounded 1c", "Huninn", Arial, sans-serif;
+}
+
+#source-text:lang(zh-TW),
+#source-text:lang(zh-Hant),
+#source-text:lang(zh-HK),
+#source-text:lang(yue-Hant-HK),
+#target-text-1:lang(zh-TW),
+#target-text-1:lang(zh-Hant),
+#target-text-1:lang(zh-HK),
+#target-text-1:lang(yue-Hant-HK),
+#target-text-2:lang(zh-TW),
+#target-text-2:lang(zh-Hant),
+#target-text-2:lang(zh-HK),
+#target-text-2:lang(yue-Hant-HK),
+#target-text-3:lang(zh-TW),
+#target-text-3:lang(zh-Hant),
+#target-text-3:lang(zh-HK),
+#target-text-3:lang(yue-Hant-HK) {
+  font-family: "Huninn", "M PLUS Rounded 1c", Arial, sans-serif;
 }
 
 /* =========================================
@@ -207,7 +233,7 @@ body {
   font-size: 16px;
   cursor: pointer;
   transition: background-color 0.3s;
-  font-family: "Huninn", Arial, sans-serif;
+  font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
 }
 .record-button:hover { background-color: #E0E0E0; }
 .record-button:disabled { background-color: #CCCCCC; color: #666; cursor: not-allowed; opacity: 0.6; }
@@ -256,7 +282,7 @@ body {
   border: 1px solid #ccc;
   background-color: #fff;
   cursor: pointer;
-  font-family: "Huninn", Arial, sans-serif;
+  font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
 }
 
 .link-wrapper {
@@ -274,7 +300,7 @@ body {
   border: 1px solid #aaa;
   padding-left: 32px; /* 留出問號按鈕空間 */
   padding-right: 30px; /* 留出眼睛按鈕空間 */
-  font-family: "Huninn", Arial, sans-serif;
+  font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
   font-size: 12px;
 }
 
@@ -364,7 +390,7 @@ body {
   font-size: 12px;
   cursor: pointer;
   transition: background-color 0.3s;
-  font-family: "Huninn", Arial, sans-serif;
+  font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
   padding: 0;
   display: flex;
   align-items: center;
@@ -391,7 +417,7 @@ body {
   background-color: #FFF2DE;
   color: #333;
   font-size: 12px;
-  font-family: "Huninn", Arial, sans-serif;
+  font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
   cursor: pointer;
   padding: 0 10px;
   user-select: none;
@@ -461,13 +487,191 @@ body {
   height: 30px;
   border: 1px solid #ccc;
   border-radius: 5px;
-  font-family: "Huninn", Arial, Helvetica, sans-serif;
+  font-family: "Kosugi Maru", "Huninn", Arial, Helvetica, sans-serif;
 }
 
 .control-group { display: flex; gap: 5px; align-items: center; }
 .setting-row input[type="color"] { width: 30px; height: 30px; border: none; cursor: pointer; background: none; }
+.native-color-input {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+.color-picker-trigger {
+  --selected-color: #FFFFFF;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.color-picker-trigger::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 5px;
+  background: var(--selected-color);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+.color-picker-trigger:hover::before { box-shadow: inset 0 0 0 1px #8B4513; }
+.color-picker-trigger:focus-visible {
+  outline: 2px solid #8B4513;
+  outline-offset: 2px;
+}
+.color-picker-trigger-wide {
+  width: 50px;
+  flex-basis: 160px;
+}
+.color-picker-popover {
+  position: fixed;
+  z-index: 3000;
+  display: none;
+  width: 264px;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #D8BFD1;
+  border-radius: 10px;
+  background: #FFFDF8;
+  box-shadow: 0 8px 24px rgba(70, 40, 20, 0.22);
+  color: #333;
+}
+.color-picker-popover.is-open { display: block; }
+.color-picker-header {
+  margin-bottom: 9px;
+  color: #8B4513;
+  font-size: 13px;
+  font-weight: bold;
+}
+.color-picker-saturation {
+  --picker-hue: hsl(0, 100%, 50%);
+  position: relative;
+  width: 100%;
+  height: 128px;
+  overflow: hidden;
+  border-radius: 7px;
+  background-color: var(--picker-hue);
+  background-image:
+    linear-gradient(to top, #000, transparent),
+    linear-gradient(to right, #FFF, transparent);
+  cursor: crosshair;
+  touch-action: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+}
+.color-picker-saturation:focus-visible {
+  outline: 2px solid #8B4513;
+  outline-offset: 2px;
+}
+.color-picker-saturation-cursor {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 2px solid #FFF;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #333, 0 1px 3px rgba(0, 0, 0, 0.55);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.color-picker-field-label,
+.color-picker-hex-label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #666;
+  font-size: 10px;
+}
+.color-picker-field-label { margin-top: 8px; }
+.color-picker-hue {
+  width: 100%;
+  height: 12px;
+  margin: 0;
+  padding: 0;
+  border-radius: 8px;
+  background: linear-gradient(to right, #F00, #FF0, #0F0, #0FF, #00F, #F0F, #F00);
+  cursor: pointer;
+  appearance: none;
+}
+.color-picker-hue::-webkit-slider-runnable-track {
+  height: 12px;
+  border-radius: 8px;
+  background: transparent;
+}
+.color-picker-hue::-webkit-slider-thumb {
+  width: 14px;
+  height: 18px;
+  margin-top: -3px;
+  border: 2px solid #FFF;
+  border-radius: 5px;
+  background: transparent;
+  box-shadow: 0 0 0 1px #555, 0 1px 2px rgba(0, 0, 0, 0.3);
+  appearance: none;
+}
+.color-picker-value-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 9px;
+}
+.color-picker-preview {
+  width: 34px;
+  height: 30px;
+  flex: 0 0 34px;
+  box-sizing: border-box;
+  border: 1px solid #AAA;
+  border-radius: 5px;
+}
+.color-picker-hex-label { flex: 1; }
+.color-picker-hex {
+  width: 100%;
+  height: 30px;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border: 1px solid #BBB;
+  border-radius: 5px;
+  color: #333;
+  background: #FFF;
+  font: 12px Consolas, "Courier New", monospace;
+  text-transform: uppercase;
+}
+.color-picker-hex:focus { outline: 2px solid rgba(139, 69, 19, 0.25); border-color: #8B4513; }
+.color-picker-hex.is-invalid { border-color: #C62828; }
+.color-picker-presets-label {
+  margin-top: 10px;
+  color: #666;
+  font-size: 10px;
+}
+.color-picker-presets {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+  margin-top: 4px;
+}
+.color-picker-preset {
+  --preset-color: #FFF;
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.28);
+  border-radius: 4px;
+  background: var(--preset-color);
+  cursor: pointer;
+}
+.color-picker-preset:hover { transform: scale(1.12); }
+.color-picker-preset.is-selected { box-shadow: 0 0 0 2px #FFF, 0 0 0 4px #8B4513; }
+.color-picker-preset:focus-visible { outline: 2px solid #8B4513; outline-offset: 1px; }
 .slider-group { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; min-width: 80px; }
-.tiny-label { font-size: 10px; color: #666; margin-bottom: 7px; }
+.tiny-label { font-size: 10px; color: #666; margin-bottom: 10px; }
 .setting-row input[type="range"] { width: 100%; height: 5px; cursor: pointer; margin: 0; }
 
 /* =========================================
@@ -522,7 +726,7 @@ body {
   font-size: 13px;
   background-color: #FAFAFA;
   color: #333;
-  font-family: "Huninn", Arial, sans-serif;
+  font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
   cursor: pointer;
   outline: none;
   height: 28px;
@@ -533,6 +737,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+.translation-test-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 .translation-test-input {
   width: 100%;
@@ -563,9 +773,11 @@ body {
   min-width: 0;
 }
 .translation-test-status {
-  min-height: 16px;
-  margin-top: 6px;
+  min-width: 0;
+  margin-left: auto;
   font-size: 12px;
+  font-weight: normal;
+  text-align: right;
   color: #8B4513;
 }
 .translation-test-result {

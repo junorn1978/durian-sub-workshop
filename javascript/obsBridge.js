@@ -37,11 +37,11 @@ function generateObsOverlayUrl(mode) {
 
 export function triggerAutoSetup() {
   if (!isEnabled()) {
-    alert("先に OBS WebSocket Bridge を有効にして接続してください。");
+    alert("先に「OBS WebSocket」を有効にしてください。");
     return;
   }
   if (!authenticated) {
-    alert("OBS WebSocket にまだ接続されていません。URLとパスワードを確認し、接続が完了するまでお待ちください。");
+    alert("OBS WebSocket に接続されていません。サーバー IP、ポート、パスワードを確認してください。接続後に字幕ソースの追加を開始します。");
     pendingAutoSetup = true;
     ensureConnection();
     return;
@@ -168,11 +168,11 @@ async function executeAutoSetup() {
       }
     }
 
-    alert("OBS 字幕ソースの自動構築が完了しました！\n現在のシーンに5つの独立した字幕ソースを作成しました。\nデフォルトでは『全顯示(全体)』のみが表示されています。自由に配置やグループ化を行ってください。");
+    alert("OBSに字幕ソースを追加しました。\n現在のシーンに5つの字幕ソースを設定しました。\n初期状態では「全体表示」のみ有効です。必要に応じて配置やグループを調整してください。");
 
   } catch (error) {
     console.error("[OBS Bridge] Auto setup failed:", error);
-    alert("OBS 自動構築に失敗しました: " + error.message);
+    alert("OBSへの字幕ソース追加に失敗しました：" + error.message);
   }
 }
 
@@ -313,6 +313,12 @@ function getStyleFor(prefix) {
   };
 }
 
+function getLanguageFor(prefix) {
+  const langEl = document.getElementById(`${prefix}-language`);
+  const lang = langEl ? langEl.value : '';
+  return lang && lang !== 'none' ? lang : '';
+}
+
 function broadcastSubtitleUpdate() {
   if (!authenticated) return;
   requestCounter += 1;
@@ -345,6 +351,12 @@ function broadcastSubtitleUpdate() {
           target2: latestTranslations[1] || '',
           target3: latestTranslations[2] || '',
           alignment: alignment,
+          langs: {
+            source: getLanguageFor('source'),
+            target1: getLanguageFor('target1'),
+            target2: getLanguageFor('target2'),
+            target3: getLanguageFor('target3')
+          },
           layoutClasses: {
             source: sourceClasses
           },

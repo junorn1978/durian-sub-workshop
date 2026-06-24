@@ -9,6 +9,7 @@ import { browserInfo, loadLanguageConfig, setAlignment, setForceSingleLineStatus
 import { isDebugEnabled, setLogLevel } from './logger.js';
 import { handleObsBridgeSettingsChanged, triggerAutoSetup, testObsConnection } from './obsBridge.js';
 import { translateTestText } from './translationController.js';
+import { setupColorPickers } from './colorPicker.js';
 
 const setupToggleVisibility = (btnId, inputId) => {
   const btn = document.getElementById(btnId);
@@ -97,10 +98,10 @@ document.addEventListener('DOMContentLoaded', async function () {
       { id: 'target3-font-stroke-size', target: 'target-text-3', css: '--stroke-width', type: 'range' }
     ],
     languages: [
-      { id: 'source-language', type: 'select' },
-      { id: 'target1-language', type: 'select', clearTarget: 'target-text-1' },
-      { id: 'target2-language', type: 'select', clearTarget: 'target-text-2' },
-      { id: 'target3-language', type: 'select', clearTarget: 'target-text-3' }
+      { id: 'source-language', type: 'select', langTarget: 'source-text', onApply: () => handleObsBridgeSettingsChanged() },
+      { id: 'target1-language', type: 'select', langTarget: 'target-text-1', clearTarget: 'target-text-1', onApply: () => handleObsBridgeSettingsChanged() },
+      { id: 'target2-language', type: 'select', langTarget: 'target-text-2', clearTarget: 'target-text-2', onApply: () => handleObsBridgeSettingsChanged() },
+      { id: 'target3-language', type: 'select', langTarget: 'target-text-3', clearTarget: 'target-text-3', onApply: () => handleObsBridgeSettingsChanged() }
     ],
     radioGroups: [
       {
@@ -208,6 +209,17 @@ document.addEventListener('DOMContentLoaded', async function () {
    * @param {Object} config - 設定項物件
    */
   const createSettingHandler = (config) => ({
+    applyLanguage(value) {
+      if (!config.langTarget) return;
+      const targetEl = document.getElementById(config.langTarget);
+      if (!targetEl) return;
+      const lang = value && value !== 'none' ? value : '';
+      if (lang) {
+        targetEl.lang = lang;
+      } else {
+        targetEl.removeAttribute('lang');
+      }
+    },
     load() {
       const element = document.getElementById(config.id);
       const target = config.target ? document.getElementById(config.target) : null;
@@ -218,12 +230,14 @@ document.addEventListener('DOMContentLoaded', async function () {
       if (!value) return;
 
       element.value = config.type === 'range' ? parseFloat(value) : value;
+      this.applyLanguage(value);
       if (!target || !config.css) return;
 
       target.style.setProperty(config.css, value);
     },
     save(value) {
       Storage.save(config.id, value);
+      this.applyLanguage(value);
       const target = config.target ? document.getElementById(config.target) : null;
       if (!target || !config.css) return;
 
@@ -237,6 +251,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         const value = config.type === 'range' ? `${e.target.value}px` : e.target.value;
         this.save(value);
         this.handleSpecialCases(e);
+        if (config.onApply) config.onApply(value);
       });
     },
     handleSpecialCases(e) {
@@ -550,11 +565,12 @@ document.addEventListener('DOMContentLoaded', async function () {
   };
 
   /** 全域重置按鈕邏輯 */
-  const setupResetButton = (handlers) => {
+  const setupResetButton = (handlers, syncColorPickers) => {
     const rBtn = document.getElementById('reset-settings');
     if (rBtn) rBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       Object.values(handlers).flat().forEach(h => { if (h.reset) h.reset(); });
+      syncColorPickers();
     });
   };
   // #endregion
@@ -568,9 +584,10 @@ document.addEventListener('DOMContentLoaded', async function () {
     radioHandlers: CONFIG.radioGroups.map(c => { const h = createRadioHandler(c); h.load(); h.setupListener(); return h; }),
     specialHandlers: CONFIG.special.map(c => { const h = createSpecialHandler(c); h.load(); h.setupListener(); return h; })
   };
+  const colorPickers = setupColorPickers();
 
   setupPanelSwitching();
-  setupResetButton(handlers);
+  setupResetButton(handlers, colorPickers.sync);
   await setupLanguagePackButton('source-language', updateStatusDisplay);
   setupDisplayPanelInteraction();
   setupTranslationModeHandler();
@@ -594,12 +611,12 @@ document.addEventListener('DOMContentLoaded', async function () {
     const testBtn = document.getElementById('obs-test-btn');
     const testStatus = document.getElementById('obs-test-status');
     testBtn?.addEventListener('click', async () => {
-      if (testStatus) { testStatus.textContent = '接続中...'; testStatus.className = 'obs-test-status testing'; }
+      if (testStatus) { testStatus.textContent = '接続中…'; testStatus.className = 'obs-test-status testing'; }
       testBtn.disabled = true;
       const ok = await testObsConnection();
       testBtn.disabled = false;
       if (testStatus) {
-        testStatus.textContent = ok ? '接続完了' : '接続失敗';
+        testStatus.textContent = ok ? '接続成功' : '接続失敗';
         testStatus.className = `obs-test-status ${ok ? 'ok' : 'fail'}`;
       }
     });

@@ -68,14 +68,14 @@ async function downloadLanguagePack(langId, updateCallback) {
   if (status.downloading) {
     downloadButton.disabled = true;
     downloadButton.textContent = 'ダウンロード中…'; 
-    updateCallback(`「${langObj.label}」の言語パックをダウンロードしています`);
+    updateCallback(`「${langObj.label}」の言語パックをダウンロードしています。`);
     return false;
   }
 
   if (!status.downloadable) {
     downloadButton.disabled = true;
     downloadButton.textContent = 'ダウンロード不可';
-    updateCallback(`「${langObj.label}」の言語パックはダウンロードできません`);
+    updateCallback(`「${langObj.label}」の言語パックはダウンロードできません。`);
     return false;
   }
 
@@ -101,12 +101,12 @@ async function downloadLanguagePack(langId, updateCallback) {
       if (isWebSpeechRecognitionRunning()) {
         document.getElementById('stop-recording')?.click();
       }
-      updateCallback(`「${langObj.label}」のローカル音声認識の準備が整いました。もう一度「開始」ボタンを押してください。`);
+      updateCallback(`「${langObj.label}」のローカル音声認識を使用できるようになりました。もう一度「開始」を押してください。`);
       return true;
     } else {
       downloadButton.disabled = false;
       downloadButton.textContent = 'ダウンロード失敗';
-      updateCallback(`「${langObj.label}」の言語パックのダウンロードに失敗しました。再試行してください。`);
+      updateCallback(`「${langObj.label}」の言語パックのダウンロードに失敗しました。もう一度お試しください。`);
       return false;
     }
   } catch (error) {
@@ -187,7 +187,7 @@ async function setupLanguagePackButton(languageSelectorId, updateCallback) {
       const status = await isLanguageSupportedLocally(langId);
 
       if (status.supported) {
-        updateCallback(`「${langObj.label}」のローカル音声認識の準備が整いました。`);
+        updateCallback(`「${langObj.label}」のローカル音声認識を使用できます。`);
         return;
       }
 

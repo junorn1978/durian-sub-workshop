@@ -302,7 +302,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       }
     } catch (error) {
       if (isDebugEnabled()) console.error('[ERROR] [translationController] 異常:', error.message);
-      updateStatusDisplay('翻訳エラー:', { error: error.message });
+      updateStatusDisplay(`翻訳中にエラーが発生しました。${error.message}`);
       setTimeout(() => updateStatusDisplay(''), 5000);
       throw error;
     }

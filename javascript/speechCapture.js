@@ -550,7 +550,7 @@ function setupSpeechRecognitionHandlers() {
     updateStatusDisplay('');
     const sourceLang = await getSourceLanguage();
     if (!sourceLang) {
-      updateStatusDisplay('音声認識を始める前に、音声認識言語を選択してください。');
+      updateStatusDisplay('音声認識を開始する前に、音声認識言語を選択してください。');
       return;
     }
 
