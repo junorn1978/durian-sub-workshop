@@ -1,5 +1,7 @@
 # Local AI assistant files
 .claude/
+.agents/
+skills-lock.json
 CLAUDE.md
 ARCHITECTURE.md
 
