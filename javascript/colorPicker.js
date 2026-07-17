@@ -177,11 +177,13 @@ export const setupColorPickers = () => {
     const height = popover.offsetHeight;
     const left = clamp(rect.left + rect.width / 2 - width / 2, gap, window.innerWidth - width - gap);
     const below = rect.bottom + gap;
-    const top = below + height <= window.innerHeight - gap
-      ? below
-      : Math.max(gap, rect.top - height - gap);
+    const opensBelow = below + height <= window.innerHeight - gap;
+    const top = opensBelow ? below : Math.max(gap, rect.top - height - gap);
     popover.style.left = `${left}px`;
     popover.style.top = `${top}px`;
+    // 入場アニメーションがトリガー（色ボタン）側から展開するように原点を合わせる
+    const originX = clamp(rect.left + rect.width / 2 - left, 0, width);
+    popover.style.transformOrigin = `${originX}px ${opensBelow ? '0px' : '100%'}`;
   };
 
   const close = ({ restoreFocus = false } = {}) => {

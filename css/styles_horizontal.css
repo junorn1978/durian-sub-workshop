@@ -9,6 +9,10 @@
   --text-align: center;
   --body-background: #00FF00;
   --display-panel-height: 55%;
+  /* UI アニメーション共通イージング（標準の ease-out より立ち上がりが強い） */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  /* 操作パネルのラベル色（#8B4513 を一段濃くしてコントラストを確保） */
+  --ui-label-color: #74390D;
 }
 
 *, *::before, *::after {
@@ -226,17 +230,42 @@ body {
 .record-button {
   width: 150px;
   padding: 10px 30px;
-  border-radius: 10px;
+  border-radius: 999px;
   border: none;
   background-color: #FFF2DE;
-  color: #333;
+  color: #2B2B2B;
   font-size: 16px;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: background-color 0.18s ease, transform 160ms var(--ease-out);
   font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
 }
-.record-button:hover { background-color: #E0E0E0; }
-.record-button:disabled { background-color: #CCCCCC; color: #666; cursor: not-allowed; opacity: 0.6; }
+@media (hover: hover) and (pointer: fine) {
+  .record-button:hover:not(:disabled) { background-color: #FFE3C1; }
+}
+.record-button:active:not(:disabled) { transform: scale(0.97); }
+/* disabled は透明度のみで表現（ピンク面での灰色は「汚れ」に見えるため） */
+.record-button:disabled { cursor: not-allowed; opacity: 0.5; }
+
+/* 開始＝主ボタン。押せる時だけ濃い茶色で強調（disabled 時は通常の見た目に戻る） */
+#start-recording:not(:disabled) {
+  background-color: var(--ui-label-color);
+  color: #FFF7EC;
+}
+@media (hover: hover) and (pointer: fine) {
+  #start-recording:hover:not(:disabled) { background-color: #8B4513; }
+}
+
+/* 録音中（停止が押せる状態）は停止ボタンに静的な赤ドットを表示。点滅はさせない */
+#stop-recording:not(:disabled)::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background-color: #D93025;
+  vertical-align: 1px;
+}
 
 /* =========================================
    6. 頂部操作列與輸入框 (Control Bar & Inputs)
@@ -273,7 +302,7 @@ body {
 .mode-selector-group label {
   font-size: 12px;
   font-weight: bold;
-  color: #8B4513;
+  color: var(--ui-label-color);
 }
 #translation-mode {
   height: 22px;
@@ -318,13 +347,15 @@ body {
   padding: 0;
   border: none;
   background: none;
-  color: #8B4513;
+  color: var(--ui-label-color);
   opacity: 0.7;
   cursor: pointer;
   border-radius: 50%;
-  transition: all 0.2s;
+  transition: opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
 }
-.link-help-btn:hover { opacity: 1; background-color: #FFF2DE; color: #D28BC4; }
+@media (hover: hover) and (pointer: fine) {
+  .link-help-btn:hover { opacity: 1; background-color: #FFF2DE; color: #D28BC4; }
+}
 
 .input-masked {
   -webkit-text-security: disc !important;
@@ -348,11 +379,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
+  color: #575757;
   opacity: 0.6;
   z-index: 2;
+  transition: opacity 0.15s ease, color 0.15s ease;
 }
-.visibility-btn:hover { opacity: 1; color: #8B4513; }
+@media (hover: hover) and (pointer: fine) {
+  .visibility-btn:hover { opacity: 1; color: var(--ui-label-color); }
+}
 .eye-icon { pointer-events: none; }
 
 /* =========================================
@@ -382,26 +416,53 @@ body {
 .menu-button, .menu3-button, .options-button {
   width: 100px;
   min-width: 100px;
-  height: 25px;
+  height: 28px;
   border-radius: 25px;
   border: 2px solid #8B4513;
   background-color: #D8BFD1;
-  color: #333;
+  color: #2B2B2B;
   font-size: 12px;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: background-color 0.18s ease, transform 160ms var(--ease-out);
   font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.menu-button:hover, .menu3-button:hover, .options-button:hover {
-  background-color: #E0E0E0;
+@media (hover: hover) and (pointer: fine) {
+  .menu-button:hover, .menu3-button:hover, .options-button:hover {
+    background-color: #E2AFD2;
+  }
 }
+.menu-button:active:not(:disabled),
+.menu3-button:active:not(:disabled),
+.options-button:active:not(:disabled) { transform: scale(0.97); }
 .menu-button.active, .menu3-button.active, .options-button.active {
-  border: 2px solid #000000;
+  border: 2px solid var(--ui-label-color);
   background-color: #D28BC4;
+  font-weight: bold;
+}
+
+/* 破壊的操作（設定リセット）は赤系で他のボタンと区別する */
+.options-button.danger-zone {
+  background-color: #FFF;
+  border-color: #C62828;
+  color: #C62828;
+}
+@media (hover: hover) and (pointer: fine) {
+  .options-button.danger-zone:hover { background-color: #FDECEA; }
+}
+
+/* キーボード操作時のフォーカスリング（.card-select と同系統） */
+.record-button:focus-visible,
+.menu-button:focus-visible, .menu3-button:focus-visible, .options-button:focus-visible,
+.capsule-checkbox-label:focus-visible,
+.link-help-btn:focus-visible, .visibility-btn:focus-visible,
+.settings-gear-btn:focus-visible,
+.obs-modal-close:focus-visible, .settings-modal-close:focus-visible {
+  outline: 2px solid var(--ui-label-color);
+  outline-offset: 2px;
 }
 
 .capsule-checkbox-label {
@@ -411,11 +472,11 @@ body {
   gap: 6px;
   width: auto;
   min-width: 110px;
-  height: 25px;
+  height: 28px;
   border-radius: 15px;
   border: 2px solid #8B4513;
   background-color: #FFF2DE;
-  color: #333;
+  color: #2B2B2B;
   font-size: 12px;
   font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
   cursor: pointer;
@@ -423,7 +484,9 @@ body {
   user-select: none;
   transition: background-color 0.2s, border-color 0.2s;
 }
-.capsule-checkbox-label:hover { background-color: #E0E0E0; }
+@media (hover: hover) and (pointer: fine) {
+  .capsule-checkbox-label:hover { background-color: #FFE3C1; }
+}
 .capsule-checkbox-label:has(input:checked) {
   background-color: #D28BC4;
   border-color: #000000;
@@ -433,7 +496,7 @@ body {
   cursor: pointer;
   width: 14px;
   height: 14px;
-  accent-color: #8B4513;
+  accent-color: var(--ui-label-color);
   margin: 0;
 }
 
@@ -477,7 +540,7 @@ body {
   width: 60px;
   font-size: 12px;
   font-weight: bold;
-  color: #8B4513;
+  color: var(--ui-label-color);
   text-align: right;
   margin-right: 5px;
 }
@@ -523,7 +586,9 @@ body {
   background: var(--selected-color);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
 }
-.color-picker-trigger:hover::before { box-shadow: inset 0 0 0 1px #8B4513; }
+@media (hover: hover) and (pointer: fine) {
+  .color-picker-trigger:hover::before { box-shadow: inset 0 0 0 1px #8B4513; }
+}
 .color-picker-trigger:focus-visible {
   outline: 2px solid #8B4513;
   outline-offset: 2px;
@@ -543,12 +608,22 @@ body {
   border-radius: 10px;
   background: #FFFDF8;
   box-shadow: 0 8px 24px rgba(70, 40, 20, 0.22);
-  color: #333;
+  color: #2B2B2B;
+  opacity: 1;
+  transform: scale(1);
+  /* transform-origin は JS（colorPicker.js の positionPopover）がトリガー位置に合わせて設定 */
+  transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out);
 }
 .color-picker-popover.is-open { display: block; }
+@starting-style {
+  .color-picker-popover.is-open {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
 .color-picker-header {
   margin-bottom: 9px;
-  color: #8B4513;
+  color: var(--ui-label-color);
   font-size: 13px;
   font-weight: bold;
 }
@@ -587,7 +662,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  color: #666;
+  color: #575757;
   font-size: 10px;
 }
 .color-picker-field-label { margin-top: 8px; }
@@ -638,16 +713,16 @@ body {
   padding: 4px 8px;
   border: 1px solid #BBB;
   border-radius: 5px;
-  color: #333;
+  color: #2B2B2B;
   background: #FFF;
   font: 12px Consolas, "Courier New", monospace;
   text-transform: uppercase;
 }
-.color-picker-hex:focus { outline: 2px solid rgba(139, 69, 19, 0.25); border-color: #8B4513; }
+.color-picker-hex:focus { outline: 2px solid rgba(139, 69, 19, 0.25); border-color: var(--ui-label-color); }
 .color-picker-hex.is-invalid { border-color: #C62828; }
 .color-picker-presets-label {
   margin-top: 10px;
-  color: #666;
+  color: #575757;
   font-size: 10px;
 }
 .color-picker-presets {
@@ -666,12 +741,16 @@ body {
   border-radius: 4px;
   background: var(--preset-color);
   cursor: pointer;
+  transition: transform 120ms var(--ease-out);
 }
-.color-picker-preset:hover { transform: scale(1.12); }
+@media (hover: hover) and (pointer: fine) {
+  .color-picker-preset:hover { transform: scale(1.08); }
+}
+.color-picker-preset:active { transform: scale(0.95); }
 .color-picker-preset.is-selected { box-shadow: 0 0 0 2px #FFF, 0 0 0 4px #8B4513; }
 .color-picker-preset:focus-visible { outline: 2px solid #8B4513; outline-offset: 1px; }
 .slider-group { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; min-width: 80px; }
-.tiny-label { font-size: 10px; color: #666; margin-bottom: 10px; }
+.tiny-label { font-size: 11px; color: #4A4A4A; margin-bottom: 10px; }
 .setting-row input[type="range"] { width: 100%; height: 5px; cursor: pointer; margin: 0; }
 
 /* =========================================
@@ -702,7 +781,7 @@ body {
   display: flex; flex-direction: column; gap: 10px;
 }
 .full-height-card { height: 100%; }
-.card-title { font-size: 14px; font-weight: bold; color: #8B4513; border-bottom: 2px dashed #F1C6D2; padding-bottom: 5px; margin-bottom: 5px; }
+.card-title { font-size: 14px; font-weight: bold; color: var(--ui-label-color); border-bottom: 2px dashed #F1C6D2; padding-bottom: 5px; margin-bottom: 5px; }
 .auto-stop-warning-badge {
   font-size: 11px;
   font-weight: bold;
@@ -713,7 +792,7 @@ body {
   letter-spacing: 0.5px;
 }
 .card-row   { display: flex; align-items: center; justify-content: space-between; }
-.card-label { font-size: 13px; color: #333; font-weight: bold; }
+.card-label { font-size: 13px; color: #2B2B2B; font-weight: bold; }
 
 .alignment-group       { display: flex; gap: 10px; background-color: #FFF9E6; padding: 5px 10px; border-radius: 20px; border: 1px solid #FFE4B5; }
 .alignment-group label { font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 3px; }
@@ -725,13 +804,18 @@ body {
   border: 1px solid #ccc;
   font-size: 13px;
   background-color: #FAFAFA;
-  color: #333;
+  color: #2B2B2B;
   font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
   cursor: pointer;
-  outline: none;
   height: 28px;
 }
-.card-select:hover { border-color: #8B4513; }
+@media (hover: hover) and (pointer: fine) {
+  .card-select:hover { border-color: var(--ui-label-color); }
+}
+.card-select:focus-visible {
+  outline: 2px solid #8B4513;
+  outline-offset: 1px;
+}
 
 .translation-test-card {
   display: flex;
@@ -754,12 +838,12 @@ body {
   resize: vertical;
   font-size: 13px;
   line-height: 1.5;
-  color: #333;
+  color: #2B2B2B;
   background-color: #FFF;
 }
 .translation-test-input:focus {
   outline: none;
-  border-color: #8B4513;
+  border-color: var(--ui-label-color);
   box-shadow: 0 0 0 2px rgba(139, 69, 19, 0.12);
 }
 .translation-test-actions {
@@ -778,7 +862,7 @@ body {
   font-size: 12px;
   font-weight: normal;
   text-align: right;
-  color: #8B4513;
+  color: var(--ui-label-color);
 }
 .translation-test-result {
   display: flex;
@@ -797,13 +881,13 @@ body {
   margin-bottom: 4px;
   font-size: 12px;
   font-weight: bold;
-  color: #8B4513;
+  color: var(--ui-label-color);
 }
 .translation-test-result-text {
   min-height: 18px;
   font-size: 13px;
   line-height: 1.5;
-  color: #333;
+  color: #2B2B2B;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -964,7 +1048,7 @@ body {
 .settings-section-title {
   font-size: 14px;
   font-weight: bold;
-  color: #8B4513;
+  color: var(--ui-label-color);
   border-bottom: 2px dashed #F1C6D2;
   padding: 6px 0 5px;
   margin: 0 0 4px;
@@ -1004,7 +1088,7 @@ body {
 
 .settings-row-label {
   font-size: 13px;
-  color: #8B4513;
+  color: var(--ui-label-color);
   font-weight: bold;
   display: inline-flex;
   align-items: center;
@@ -1098,6 +1182,11 @@ body {
   color: white;
   border: none;
   cursor: pointer;
+}
+/* 色付きボタンは hover で灰色化させず、元の色を少し濃くする */
+@media (hover: hover) and (pointer: fine) {
+  .obs-drag-button:hover, .obs-drag-button-full:hover { background-color: #2456BE; }
+  .obs-auto-setup-button:hover { background-color: #43A047; }
 }
 
 .translation-test-card-horizontal {
@@ -1204,6 +1293,8 @@ body {
   backdrop-filter: blur(2px);
   padding: 20px;
   box-sizing: border-box;
+  opacity: 1;
+  transition: opacity 200ms var(--ease-out);
 }
 
 .obs-modal {
@@ -1217,6 +1308,15 @@ body {
   border-radius: 12px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
   overflow: hidden;
+  /* モーダルは中央出現なので transform-origin は既定（center）のまま */
+  transform: scale(1);
+  transition: transform 200ms var(--ease-out);
+}
+
+/* display: none → flex 切替時の入場アニメーション（Esc/✕ での退場は即時のまま） */
+@starting-style {
+  .obs-modal-overlay { opacity: 0; }
+  .obs-modal { transform: scale(0.97); }
 }
 
 .obs-modal-header {
@@ -1236,7 +1336,7 @@ body {
   margin: 0;
   font-size: 15px;
   font-weight: bold;
-  color: #8B4513;
+  color: var(--ui-label-color);
 }
 
 .obs-modal-close {
@@ -1245,12 +1345,14 @@ body {
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
-  color: #8B4513;
+  color: var(--ui-label-color);
   padding: 4px 8px;
   border-radius: 6px;
   transition: background-color 0.2s;
 }
-.obs-modal-close:hover { background-color: rgba(139, 69, 19, 0.12); }
+@media (hover: hover) and (pointer: fine) {
+  .obs-modal-close:hover { background-color: rgba(139, 69, 19, 0.12); }
+}
 
 .obs-modal-body {
   padding: 8px 16px 16px;
@@ -1265,7 +1367,7 @@ body {
   font-size: 13px;
   font-weight: bold;
 }
-.obs-test-status.testing { color: #8B4513; }
+.obs-test-status.testing { color: var(--ui-label-color); }
 .obs-test-status.ok      { color: #2e7d32; }
 .obs-test-status.fail    { color: #c62828; }
 
@@ -1286,12 +1388,14 @@ body {
   border: none;
   border-radius: 50%;
   background-color: rgba(255, 255, 255, 0.65);
-  color: #8B4513;
+  color: var(--ui-label-color);
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   transition: background-color 0.2s, transform 0.2s;
 }
-.settings-gear-btn:hover { background-color: rgba(255, 255, 255, 0.95); transform: rotate(45deg); }
+@media (hover: hover) and (pointer: fine) {
+  .settings-gear-btn:hover { background-color: rgba(255, 255, 255, 0.95); transform: rotate(45deg); }
+}
 .settings-gear-btn svg { pointer-events: none; }
 
 /* =========================================
@@ -1308,6 +1412,8 @@ body {
   backdrop-filter: blur(2px);
   padding: 20px;
   box-sizing: border-box;
+  opacity: 1;
+  transition: opacity 200ms var(--ease-out);
 }
 .settings-modal {
   width: 100%;
@@ -1320,6 +1426,12 @@ body {
   border-radius: 12px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
   overflow: hidden;
+  transform: scale(1);
+  transition: transform 200ms var(--ease-out);
+}
+@starting-style {
+  .settings-modal-overlay { opacity: 0; }
+  .settings-modal { transform: scale(0.97); }
 }
 .settings-modal-header {
   display: flex;
@@ -1337,7 +1449,7 @@ body {
   margin: 0;
   font-size: 15px;
   font-weight: bold;
-  color: #8B4513;
+  color: var(--ui-label-color);
 }
 .settings-modal-close {
   border: none;
@@ -1345,12 +1457,14 @@ body {
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
-  color: #8B4513;
+  color: var(--ui-label-color);
   padding: 4px 8px;
   border-radius: 6px;
   transition: background-color 0.2s;
 }
-.settings-modal-close:hover { background-color: rgba(139, 69, 19, 0.12); }
+@media (hover: hover) and (pointer: fine) {
+  .settings-modal-close:hover { background-color: rgba(139, 69, 19, 0.12); }
+}
 .settings-modal-body {
   padding: 12px 16px 16px;
   overflow-y: auto;
@@ -1373,13 +1487,13 @@ body {
   margin: 4px 0 6px;
   font-size: 13px;
   font-weight: bold;
-  color: #8B4513;
+  color: var(--ui-label-color);
 }
 .link-help-list, .link-help-steps {
   margin: 0 0 12px;
   padding-left: 20px;
   font-size: 13px;
-  color: #333;
+  color: #2B2B2B;
   line-height: 1.7;
 }
 .link-help-list code, .link-help-steps code {
@@ -1427,12 +1541,25 @@ body {
 }
 .link-help-code code { font-family: inherit; color: inherit; }
 
+/* =========================================
+   モーション低減設定（フェードは残し、拡大縮小・回転のみ止める）
+   ========================================= */
+@media (prefers-reduced-motion: reduce) {
+  .obs-modal, .settings-modal, .color-picker-popover {
+    transition-property: opacity;
+  }
+  .settings-gear-btn:hover { transform: none; }
+  .color-picker-preset,
+  .color-picker-preset:hover,
+  .color-picker-preset:active { transition: none; transform: none; }
+}
+
 /* Soniox 説明モーダル */
 .soniox-help-intro {
   margin: 0 0 12px;
   font-size: 13px;
   line-height: 1.7;
-  color: #333;
+  color: #2B2B2B;
 }
 .soniox-help-intro code {
   background-color: #F1F1F1;
