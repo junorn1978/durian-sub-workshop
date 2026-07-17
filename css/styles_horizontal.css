@@ -449,7 +449,7 @@ body {
   padding: 5px;
   background-color: #F1C6D2;
   border-radius: 10px;
-  overflow-y: auto;
+  overflow-y: hidden;
   overflow-x: hidden;
 }
 
@@ -951,7 +951,7 @@ body {
   align-self: flex-start;
   min-width: 0;
   /* === 翻訳テスト 卡片總高度（要調整就改這裡） === */
-  height: 250px;
+  height: 100%;
 }
 
 .settings-section {
@@ -1101,7 +1101,7 @@ body {
 }
 
 .translation-test-card-horizontal {
-  height: 75%;
+  height: 100%;
   gap: 8px;
   box-sizing: border-box;
 }

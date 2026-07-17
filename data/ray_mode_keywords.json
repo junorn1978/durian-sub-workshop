@@ -149,8 +149,8 @@
   { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "レキシー", "target": "(Lexy)" },
   { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "レギシー", "target": "(Lexy)" },
   { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "敦盛", "target": "(あつ森)" },
-  { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "漢字", "target": "(かんじ)" },
-  { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "感じ", "target": "(かんじ)" },
+  { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "漢字", "target": "かんじ" },
+  { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "感じ", "target": "かんじ" },
   { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "ヒトラ", "target": "しとら" },
 
   { "lang": "ja-JP", "note": "【敏感術語遮蔽】", "source": "トランプ", "target": "(ト○ンプ)" },
@@ -159,6 +159,7 @@
   { "lang": "ja-JP", "note": "【敏感術語遮蔽】", "source": "種付け", "target": "**" },
   { "lang": "ja-JP", "note": "【敏感術語遮蔽】", "source": "從軍", "target": "***" },
   { "lang": "ja-JP", "note": "【敏感術語遮蔽】", "source": "セクサーブ", "target": "67" },
+  { "lang": "ja-JP", "note": "【敏感術語遮蔽】", "source": "セックス", "target": "***" },
   { "lang": "ja-JP", "note": "【敏感術語遮蔽】", "source": "下毛", "target": "シュタゲ" },
 
   { "lang": "zh-TW", "source": "特普朗", "target": "***" },

@@ -1,6 +1,7 @@
 /**
  * @file uiController.js
- * @description UI 介面控制核心，管理所有樣式設定、語言選單、翻譯模式切換及 localStorage 持久化。
+ * @description UI 制御の中枢。スタイル設定、言語メニュー、翻訳モード切り替え、
+ * localStorage への保存と復元を管理する。
  */
 
 import { updateStatusDisplay } from './uiState.js';
@@ -63,8 +64,8 @@ document.addEventListener('DOMContentLoaded', async function () {
   const isDebugMode = urlParams.get('debug') === 'true';
 
   const savedDebug = localStorage.getItem('log-system-debug-enabled');
-  // 如果 localStorage 已經有設定，則維持現狀；否則看 isDebugMode。
-  // 這樣即便網址帶有 ?debug=true，第二次以後若在 UI 關閉，它也會遵循 localStorage 的設定。
+  // localStorage に設定がある場合はそれを優先し、なければ URL の debug パラメータを見る。
+  // ?debug=true で開いた後も、UI 側で無効化した設定を次回以降そのまま使えるようにする。
   if (savedDebug === null) {
     setLogLevel(isDebugMode);
   }
@@ -76,8 +77,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     if (statusDisplay) statusDisplay.textContent = '';
   }, 7000);
 
-  // #region [UI 配置定義]
-  /** @type {Object} 系統統一設定配置表 */
+  // #region [UI 設定定義]
+  /** @type {Object} UI 設定をまとめて扱うための共通定義。 */
   const CONFIG = {
     styles: [
       { id: 'source-font-color', target: 'source-text', css: '--text-color', type: 'color' },
@@ -152,7 +153,7 @@ document.addEventListener('DOMContentLoaded', async function () {
           const dlBtn = document.getElementById('download-language-pack');
           const dlRow = dlBtn?.closest('.settings-row');
           if (dlRow && browserInfo.isChrome) {
-            // 離線語言包僅在 on-device (Web Speech) 引擎時有意義，雲端 (Soniox) 引擎時隱藏
+            // オフライン言語パックは on-device (Web Speech) 使用時だけ必要なので、Soniox では隠す。
             dlRow.style.display = isCloud ? 'none' : '';
           }
 
@@ -178,7 +179,7 @@ document.addEventListener('DOMContentLoaded', async function () {
   };
   // #endregion
 
-  // #region [瀏覽器功能限制檢查]
+  // #region [ブラウザ機能の制限確認]
   if (!browserInfo.isChrome) {
     if (isDebugEnabled()) console.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
 
@@ -188,7 +189,7 @@ document.addEventListener('DOMContentLoaded', async function () {
   }
   // #endregion
 
-  // #region [數據持久化處理器 (Storage)]
+  // #region [設定保存処理]
   const Storage = {
     save: (key, value) => {
       localStorage.setItem(key, value);
@@ -202,11 +203,11 @@ document.addEventListener('DOMContentLoaded', async function () {
   };
   // #endregion
 
-  // #region [工廠函式：設定處理器生成]
+  // #region [設定ハンドラ生成]
 
   /**
-   * 生成標準輸入/樣式處理器
-   * @param {Object} config - 設定項物件
+   * 標準の入力項目とスタイル項目を扱うハンドラを生成する。
+   * @param {Object} config - 設定項目の定義
    */
   const createSettingHandler = (config) => ({
     applyLanguage(value) {
@@ -271,8 +272,8 @@ document.addEventListener('DOMContentLoaded', async function () {
   });
 
   /**
-   * 生成 Radio 單選按鈕處理器
-   * @param {Object} config 
+   * ラジオボタン用の設定ハンドラを生成する。
+   * @param {Object} config
    */
   const createRadioHandler = (config) => ({
     load() {
@@ -283,7 +284,7 @@ document.addEventListener('DOMContentLoaded', async function () {
       const radio = document.querySelector(`input[name="${config.name}"][value="${saved}"]`);
       if (radio) {
         radio.checked = true;
-        this.save(saved, false); // false = 載入時不再次觸發 onApply，避免重複執行
+        this.save(saved, false); // 読み込み時は onApply を再実行せず、重複処理を避ける。
       }
     },
     setupListener() {
@@ -317,8 +318,8 @@ document.addEventListener('DOMContentLoaded', async function () {
   });
 
   /**
-   * 生成特殊元件（Checkbox, Select, Body Color）處理器
-   * @param {Object} config 
+   * チェックボックス、セレクト、背景色などの特殊項目用ハンドラを生成する。
+   * @param {Object} config
    */
   const createSpecialHandler = (config) => {
     const handlers = {
@@ -416,12 +417,12 @@ document.addEventListener('DOMContentLoaded', async function () {
   };
   // #endregion
 
-  // #region [介面操作與面板管理]
+  // #region [画面操作とパネル管理]
 
-  /** 面板切換與按鈕狀態管理 */
+  /** パネル切り替えとメニューボタンの状態を管理する。 */
   const setupPanelSwitching = () => {
     const switchPanel = (buttonId) => {
-      // 対応する panel を持たないボタン（OBS連携モーダル等）はタブ切替の対象外
+      // 対応するパネルを持たないボタン（OBS 連携モーダルなど）は、タブ切り替えの対象外にする。
       if (!CONFIG.panels[buttonId]) return;
       document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
       document.getElementById(buttonId)?.classList.add('active');
@@ -440,7 +441,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
   };
 
-  /** 翻譯模式切換邏輯（現行 UI 開放 gtx / link） */
+  /** 翻訳モードの切り替えを管理する。現在の UI では gtx / link を扱う。 */
   const setupTranslationModeHandler = () => {
     const modeSelect = document.getElementById('translation-mode');
     const linkWrapper = document.getElementById('link-input-wrapper');
@@ -547,7 +548,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
   };
 
-  /** 字幕面板點擊切換最小化 (擴大字幕區) */
+  /** 字幕パネルのクリックで操作パネルを畳み、字幕領域を広げる。 */
   const setupDisplayPanelInteraction = () => {
     const dPanel = document.getElementById('display-panel');
     const cPanel = document.getElementById('control-panel');
@@ -564,7 +565,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
   };
 
-  /** 全域重置按鈕邏輯 */
+  /** 全体リセットボタンの処理。 */
   const setupResetButton = (handlers, syncColorPickers) => {
     const rBtn = document.getElementById('reset-settings');
     if (rBtn) rBtn.addEventListener('click', (e) => {
@@ -575,7 +576,7 @@ document.addEventListener('DOMContentLoaded', async function () {
   };
   // #endregion
 
-  // #region [主初始化流程]
+  // #region [メイン初期化]
   await loadLanguageConfig();
 
   const handlers = {
@@ -594,7 +595,7 @@ document.addEventListener('DOMContentLoaded', async function () {
   setupTranslationTestTool();
   setupToggleVisibility('toggle-obs-pwd-visibility', 'obs-ws-password');
 
-  // OBS連携モーダルの開閉（ボタンで開く・✕／Esc で閉じる・背景クリックでは閉じない）
+  // OBS 連携モーダルの開閉。ボタンで開き、閉じるボタンまたは Esc で閉じる。背景クリックでは閉じない。
   (() => {
     const overlay = document.getElementById('obs-modal-overlay');
     const openBtn = document.getElementById('obs-settings');
@@ -607,7 +608,7 @@ document.addEventListener('DOMContentLoaded', async function () {
       if (e.key === 'Escape' && overlay.style.display !== 'none') close();
     });
 
-    // 接続テスト：一時接続で OBS まで到達できたら「接続完了」を表示
+    // 一時接続で OBS まで到達できたら、接続テストを成功として表示する。
     const testBtn = document.getElementById('obs-test-btn');
     const testStatus = document.getElementById('obs-test-status');
     testBtn?.addEventListener('click', async () => {
@@ -622,7 +623,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
   })();
 
-  // その他設定モーダルの開閉（齒輪ボタンで開く・✕／Esc で閉じる・背景クリックでは閉じない）
+  // その他設定モーダルの開閉。歯車ボタンで開き、閉じるボタンまたは Esc で閉じる。背景クリックでは閉じない。
   (() => {
     const overlay = document.getElementById('settings-modal-overlay');
     const openBtn = document.getElementById('settings-gear');
@@ -636,7 +637,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
   })();
 
-  // 翻訳クラウド接続（カスタム URL）ヘルプモーダルの開閉＋範本コピー
+  // 翻訳クラウド接続（カスタム URL）ヘルプモーダルの開閉とサンプルコードのコピー。
   (() => {
     const overlay = document.getElementById('link-help-modal-overlay');
     const openBtn = document.getElementById('link-help-btn');
@@ -657,21 +658,21 @@ document.addEventListener('DOMContentLoaded', async function () {
         const orig = copyBtn.textContent;
         copyBtn.textContent = '✓ コピーしました';
         setTimeout(() => { copyBtn.textContent = orig; }, 1500);
-      } catch (_) { /* clipboard 不可時は無視 */ }
+      } catch (_) { /* クリップボードが使えない場合は何もしない。 */ }
     });
   })();
 
-  // Soniox 説明モーダル（設定モーダル内の ? から開き、その上に重ねる）
+  // Soniox 説明モーダルは、設定モーダルの上に重ねて表示する。
   (() => {
     const overlay = document.getElementById('soniox-help-modal-overlay');
     const openBtn = document.getElementById('engine-help-link');
     const closeBtn = document.getElementById('soniox-help-close');
     if (!overlay || !openBtn) return;
-    overlay.style.zIndex = '1001'; // 設定モーダル(1000)より前面へ
+    overlay.style.zIndex = '1001'; // 設定モーダルより前面に出す。
     const close = () => { overlay.style.display = 'none'; };
     openBtn.addEventListener('click', () => { overlay.style.display = 'flex'; });
     closeBtn?.addEventListener('click', close);
-    // capture で先に処理し、設定モーダルの Esc ハンドラまで伝播させない（重ねている方だけ閉じる）
+    // 重なっているモーダルだけを閉じるため、capture で先に処理して Esc イベントの伝播を止める。
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && overlay.style.display !== 'none') {
         close();
@@ -680,13 +681,13 @@ document.addEventListener('DOMContentLoaded', async function () {
     }, true);
   })();
 
-  // OBS WebSocket 説明モーダル（OBS連携モーダル内の ? から開き、その上に重ねる）
+  // OBS WebSocket 説明モーダルは OBS 連携モーダルの上に重ねて表示する。
   (() => {
     const overlay = document.getElementById('obs-help-modal-overlay');
     const openBtn = document.getElementById('obs-help-btn');
     const closeBtn = document.getElementById('obs-help-close');
     if (!overlay || !openBtn) return;
-    overlay.style.zIndex = '1001'; // OBS連携モーダル(1000)より前面へ
+    overlay.style.zIndex = '1001'; // OBS 連携モーダルより前面に出す。
     const close = () => { overlay.style.display = 'none'; };
     openBtn.addEventListener('click', () => { overlay.style.display = 'flex'; });
     closeBtn?.addEventListener('click', close);
@@ -711,12 +712,11 @@ document.addEventListener('DOMContentLoaded', async function () {
   }
   // #endregion
 
-// #region [Source Text 即時捲動]
+  // #region [Source Text の即時スクロール]
 
   /**
-   * Source Text 專用滾動邏輯
-   * 特性：即時響應、標準平滑滾動 (Native Smooth Scroll)
-   * 適用於：Soniox 或 Web Speech API 的即時語音轉錄顯示
+   * Source Text 専用のスクロール処理。
+   * Soniox や Web Speech API のリアルタイム文字起こしを、標準の smooth scroll で追従表示する。
    */
   const setupSourceScrollBehavior = (elementId) => {
     const el = document.getElementById(elementId);

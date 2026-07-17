@@ -1,7 +1,8 @@
 /**
  * @file translationController.js
- * @description 翻譯請求中心。負責處理請求佇列、路由分流(AI/本地/遠端)以及字幕顯示緩衝控制。
- * 全面採用統一語系物件 (getLang) 模式。
+ * @description 翻訳リクエストの中枢。リクエストキュー、翻訳ルートの振り分け(AI/ローカル/リモート)、
+ * 字幕表示用バッファの制御を担当する。
+ * 言語情報は getLang による共通の言語オブジェクトで扱う。
  */
 
 import { getLang, isRayModeActive } from './config.js';
@@ -12,7 +13,7 @@ import { isDebugEnabled } from './logger.js';
 import { publishTranslationsToObs } from './obsBridge.js';
 import { updateStatusDisplay } from './uiState.js';
 
-// #region [狀態與快取]
+// #region [状態とキャッシュ]
 let sequenceCounter = 0;
 let bufferCheckInterval = null;
 let _cachedTargetSpans  = null;
@@ -21,7 +22,7 @@ const displayBuffers = { target1: [], target2: [], target3: [] };
 const currentDisplays = { target1: null, target2: null, target3: null };
 // #endregion
 
-// #region [併發控制]
+// #region [同時実行制御]
 const queue = [];
 let inFlight = 0;
 const MAX = 5;
@@ -55,7 +56,7 @@ function pump() {
 }
 // #endregion
 
-// #region [翻譯請求共用核心]
+// #region [翻訳リクエストの共通処理]
 
 function getConfiguredTargetLangIds() {
   return [
@@ -138,10 +139,9 @@ async function requestTranslationData(text, previousText, sourceLangId, rawTarge
 
 // #endregion
 
-// #region [緩衝顯示控制 (Subtitle Timing)]
+// #region [字幕表示バッファ制御]
 /**
- * 取得字幕顯示元素 (含快取機制)
- * 
+ * 字幕表示用の DOM 要素を取得する。初回取得後はキャッシュを使う。
  */
 function getTargetSpans() {
   if (!_cachedTargetSpans) {
@@ -155,8 +155,8 @@ function getTargetSpans() {
 }
 
 /**
- * 更新翻譯 UI 的緩衝邏輯
- * @param {Array<string>} targetLangIds - 目標語言 ID 列表
+ * 翻訳結果を表示バッファへ追加し、字幕の表示タイミングを更新する。
+ * @param {Array<string>} targetLangIds - 翻訳先言語 ID の一覧
  */
 async function updateTranslationUI(data, targetLangIds, minDisplayTime, sequenceId) {
   const stopbutton = document.getElementById('stop-recording');
@@ -211,7 +211,7 @@ function processDisplayBuffers() {
       if (buffer.length > 10 ) { buffer.splice(0, buffer.length - 10); }
       if (buffer.length === 0) return;
 
-      // --- 顯示判斷邏輯 ---
+      // 最低表示時間が残っている字幕は、次の字幕で上書きしない。
       if (currentDisplays[key] && now - currentDisplays[key].startTime < currentDisplays[key].minDisplayTime * 1000) {
         return;
       }
@@ -229,7 +229,6 @@ function processDisplayBuffers() {
           sequenceId: next.sequenceId
         };
         
-        // 更新 DOM
         span.textContent = next.text;
         hasVisualUpdate = true;
         latestSequenceId = next.sequenceId;
@@ -255,12 +254,12 @@ function processDisplayBuffers() {
 }
 // #endregion
 
-// #region [翻譯請求核心 (路由分流)]
+// #region [翻訳リクエストのルート振り分け]
 
 /**
- * 發送翻譯請求的主進入點
+ * 翻訳リクエストを送信するための主な入口。
  * @async
- * @param {string} sourceLangId - 來源語言 ID (如 'ja-JP')
+ * @param {string} sourceLangId - 翻訳元言語 ID (例: 'ja-JP')
  */
 async function sendTranslationRequest(text, previousText = null, sourceLangId) {
   if (text === null || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') return;
@@ -269,7 +268,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
     const sequenceId = sequenceCounter++;
 
     try {
-      // 獲取目標語言 ID 列表 (包含 'none' 以保持索引位置，稍後過濾)
+      // 表示スロットとの対応を保つため、ここでは 'none' も含めて取得する。
       const rawTargetLangIds = getConfiguredTargetLangIds();
       
       const activeLangIds = getActiveTargetLangIds(rawTargetLangIds);
@@ -282,14 +281,14 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       const sourceLangObj = getLang(sourceLangId);
       const rules = sourceLangObj?.displayTimeRules || [];
 
-      // サーバーサイド処理 (Link) のみ表示時間を計算。その他 (gtx/Fast/Prompt) は即時更新のため 0
+      // Link 経由の翻訳だけ表示時間を計算する。gtx/Fast/Prompt は即時更新なので 0 にする。
       const minDisplayTime = currentMode !== 'link'
                            ? 0
                            : (rules.find(rule => text.length <= rule.maxLength)?.time ?? 3);
       let data = await requestTranslationData(text, previousText, sourceLangId, rawTargetLangIds, sequenceId);
 
-      // 後端緊急停止訊號（預算保護用）。等同於使用者按下停止按鍵。
-      // 觸發條件：後端設定環境變數 FORCE_STOP_CLIENTS=true 時，回應會帶 stop:true。
+      // バックエンドからの緊急停止信号。予算保護用で、ユーザーが停止ボタンを押した場合と同じ扱いにする。
+      // FORCE_STOP_CLIENTS=true が設定されていると、レスポンスに stop:true が付く。
       if (data?.stop) {
         document.getElementById('stop-recording')?.click();
         return;
@@ -314,8 +313,8 @@ async function translateTestText(text) {
 
   return enqueue(async () => {
     const sequenceId = sequenceCounter++;
-    // テキスト翻訳は入力テキストの言語を自動判定する（gtx は source=auto）。
-    // 字幕の音声認識言語は使わない（入力言語と一致しないと原文返し・誤訳になるため）。
+    // テキスト翻訳では入力テキストの言語を自動判定する（gtx は source=auto）。
+    // 字幕用の音声認識言語は使わない。入力言語と一致しない場合、原文返しや誤訳になりやすいため。
     const sourceLangId = null;
     const targetLangId = document.getElementById('text-translate-target')?.value || 'ja-JP';
     const rawTargetLangIds = [targetLangId];
