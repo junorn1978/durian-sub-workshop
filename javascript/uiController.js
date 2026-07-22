@@ -6,7 +6,10 @@
 
 import { updateStatusDisplay } from './uiState.js';
 import { setupLanguagePackButton } from './languagePackManager.js';
-import { browserInfo, loadLanguageConfig, setAlignment, setForceSingleLineStatus, setSpeechEngine } from './config.js';
+import {
+  browserInfo, loadLanguageConfig, setAlignment, setForceSingleLineStatus, setSpeechEngine,
+  setSonioxEndpointSetting, getSonioxEndpointDefaults
+} from './config.js';
 import { isDebugEnabled, setLogLevel } from './logger.js';
 import { handleObsBridgeSettingsChanged, triggerAutoSetup, testObsConnection } from './obsBridge.js';
 import { translateTestText } from './translationController.js';
@@ -161,7 +164,32 @@ document.addEventListener('DOMContentLoaded', async function () {
           if (helpLink) {
             helpLink.style.display = isCloud ? 'inline-flex' : 'none';
           }
+
+          // エンドポイント検出の調整は Soniox 専用の機能。
+          const endpointRows = document.getElementById('soniox-endpoint-rows');
+          if (endpointRows) {
+            endpointRows.style.display = isCloud ? '' : 'none';
+          }
         }
+      },
+      {
+        id: 'soniox-latency-level-opt', type: 'select', key: 'soniox-latency-level',
+        default: String(getSonioxEndpointDefaults().latencyLevel),
+        onApply: (val) => setSonioxEndpointSetting('latencyLevel', val)
+      },
+      {
+        id: 'soniox-sensitivity-opt', type: 'range-value', key: 'soniox-sensitivity',
+        valueId: 'soniox-sensitivity-value',
+        default: String(getSonioxEndpointDefaults().sensitivity),
+        format: (v) => Number(v).toFixed(1),
+        onApply: (val) => setSonioxEndpointSetting('sensitivity', val)
+      },
+      {
+        id: 'soniox-max-delay-opt', type: 'range-value', key: 'soniox-max-delay-ms',
+        valueId: 'soniox-max-delay-value',
+        default: String(getSonioxEndpointDefaults().maxDelayMs),
+        format: (v) => `${v}ms`,
+        onApply: (val) => setSonioxEndpointSetting('maxDelayMs', val)
       },
       {
         id: 'log-level-opt', type: 'select', key: 'log-level-preference', default: 'false',
@@ -395,6 +423,33 @@ document.addEventListener('DOMContentLoaded', async function () {
           el.value = def;
           Storage.save(config.key, def);
           if (config.onApply) config.onApply(def);
+        }
+      },
+      // 数値スライダー + 現在値のテキスト表示。config.format で表示文字列を組み立てる。
+      'range-value': {
+        _render(el) {
+          const label = document.getElementById(config.valueId);
+          if (label) label.textContent = config.format ? config.format(el.value) : el.value;
+        },
+        load(el) {
+          const saved = Storage.load(config.key);
+          el.value = saved !== null ? saved : config.default;
+          this._render(el);
+          if (config.onApply) config.onApply(el.value);
+        },
+        setupListener(el) {
+          el.addEventListener('input', (e) => {
+            const val = e.target.value;
+            Storage.save(config.key, val);
+            this._render(e.target);
+            if (config.onApply) config.onApply(val);
+          });
+        },
+        reset(el) {
+          el.value = config.default;
+          Storage.save(config.key, config.default);
+          this._render(el);
+          if (config.onApply) config.onApply(config.default);
         }
       },
     };

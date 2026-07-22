@@ -249,7 +249,7 @@
   <div id="status-panel">
     <div id="default-mic" class="status-mic" title="現在使用中のマイク"></div>
     <div class="status-info" id="status-display">音声認識が反応しない場合は、一度停止して数秒待ってから、もう一度開始ボタンを押してください。</div>
-    <span id="version-display">v3.1.15</span>
+    <span id="version-display">v3.1.16</span>
   </div>
 
   <!-- OBS連携 設定モーダル（選單列「OBS連携」ボタンで開閉。✕／Esc で閉じる・背景クリックでは閉じない） -->
@@ -350,6 +350,39 @@
               <option value="soniox" selected>Soniox（高精度・有料）</option>
               <option value="webspeech">ブラウザ内蔵（無料）</option>
             </select>
+          </div>
+
+          <!-- Soniox のエンドポイント検出調整。Soniox 選択時のみ表示する。 -->
+          <div id="soniox-endpoint-rows">
+            <div class="settings-row">
+              <span class="settings-row-label">応答の早さ</span>
+              <select id="soniox-latency-level-opt" class="card-select" title="値を上げるほど早く字幕が確定しますが、認識精度がわずかに落ちます。変更は次回の「開始」から反映されます">
+                <option value="0" selected>0（標準）</option>
+                <option value="1">1（やや早い）</option>
+                <option value="2">2（早い）</option>
+                <option value="3">3（最速）</option>
+              </select>
+            </div>
+
+            <div class="settings-row">
+              <span class="settings-row-label">区切りやすさ</span>
+              <div class="settings-row-control settings-row-control-range">
+                <span id="soniox-sensitivity-value" class="settings-range-value">-0.2</span>
+                <input type="range" id="soniox-sensitivity-opt" class="settings-range"
+                       min="-1" max="1" step="0.1" value="-0.2"
+                       title="マイナスほど区切りにくく、字幕が長めになります。プラスほど細かく区切ります。変更は次回の「開始」から反映されます">
+              </div>
+            </div>
+
+            <div class="settings-row">
+              <span class="settings-row-label">最大待ち時間</span>
+              <div class="settings-row-control settings-row-control-range">
+                <span id="soniox-max-delay-value" class="settings-range-value">1500ms</span>
+                <input type="range" id="soniox-max-delay-opt" class="settings-range"
+                       min="500" max="3000" step="100" value="1500"
+                       title="発話が終わってから必ず区切るまでの上限です。文末は通常これより早く区切られます。変更は次回の「開始」から反映されます">
+              </div>
+            </div>
           </div>
 
           <div class="settings-row">

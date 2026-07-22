@@ -92,6 +92,37 @@ export function setSpeechEngine(engine) {
   _currentSpeechEngine = valid ? engine : 'webspeech';
 }
 
+// Soniox エンドポイント検出のチューニング値。
+// 設定は接続時 (socket.onopen) に一度だけ送るため、変更は次回の「開始」から反映される。
+const SONIOX_ENDPOINT_DEFAULTS = {
+  latencyLevel: 0,      // 0-3。高いほど早く確定するが認識精度が落ちる
+  sensitivity: 0,       // -1.0~1.0。負値ほど区切りにくい (翻訳の文脈を長く保つ)
+  maxDelayMs: 1000      // 500-3000。発話終了後に必ず区切るまでの上限
+};
+
+let _sonioxEndpoint = { ...SONIOX_ENDPOINT_DEFAULTS };
+
+function clampNumber(value, min, max, fallback) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(max, Math.max(min, num));
+}
+
+export function getSonioxEndpointDefaults() { return { ...SONIOX_ENDPOINT_DEFAULTS }; }
+export function getSonioxEndpointSettings() { return { ..._sonioxEndpoint }; }
+
+export function setSonioxEndpointSetting(key, value) {
+  if (!(key in SONIOX_ENDPOINT_DEFAULTS)) return;
+  const fallback = SONIOX_ENDPOINT_DEFAULTS[key];
+  if (key === 'latencyLevel') {
+    _sonioxEndpoint.latencyLevel = Math.round(clampNumber(value, 0, 3, fallback));
+  } else if (key === 'sensitivity') {
+    _sonioxEndpoint.sensitivity = clampNumber(value, -1, 1, fallback);
+  } else {
+    _sonioxEndpoint.maxDelayMs = Math.round(clampNumber(value, 500, 3000, fallback));
+  }
+}
+
 export function getAlignment() { return _currentAlignment; }
 export function setAlignment(align) { _currentAlignment = align; }
 

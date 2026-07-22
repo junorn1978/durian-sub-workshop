@@ -8,7 +8,7 @@
  * - エンドポイント検出は <end> トークンとして配信される。
  */
 
-import { getLang } from "./config.js";
+import { getLang, getSonioxEndpointSettings } from "./config.js";
 import { isDebugEnabled } from "./logger.js";
 
 const DEFAULT_LIFECYCLE_HANDLERS = {
@@ -357,6 +357,9 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
     socket = new WebSocket(SONIOX_WS_URL);
 
     socket.onopen = () => {
+      // エンドポイント検出の調整値は設定 UI から取得する (接続時に確定)。
+      const endpoint = getSonioxEndpointSettings();
+
       // Soniox は接続直後に JSON で初期設定を送る必要がある。
       const config = {
         api_key: authInfo.value,
@@ -364,10 +367,12 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         audio_format: "pcm_s16le",
         sample_rate: finalSampleRate,
         num_channels: 1,
-        language_hints: langObj.deepgramCode === "en" ? ["en", "ja"] : [langObj.deepgramCode, "en"],
+        language_hints: langObj.deepgramCode === "en" ? ["en", "ja"] : [langObj.deepgramCode, "en", "id"],
         language_hints_strict: true,
         enable_endpoint_detection: true,
-        max_endpoint_delay_ms: 1000
+        endpoint_latency_adjustment_level: endpoint.latencyLevel,
+        endpoint_sensitivity: endpoint.sensitivity,
+        max_endpoint_delay_ms: endpoint.maxDelayMs
       };
 
       // 辨識詞調整 (context) は語系非依存。空なら送らない。
