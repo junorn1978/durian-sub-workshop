@@ -367,7 +367,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         audio_format: "pcm_s16le",
         sample_rate: finalSampleRate,
         num_channels: 1,
-        language_hints: langObj.deepgramCode === "en" ? ["en", "ja"] : [langObj.deepgramCode, "en", "id"],
+        language_hints: langObj.deepgramCode === "en" ? ["en", "ja"] : [langObj.deepgramCode, "en"],
         language_hints_strict: true,
         enable_endpoint_detection: true,
         endpoint_latency_adjustment_level: endpoint.latencyLevel,
