@@ -161,6 +161,9 @@ function getTargetSpans() {
 async function updateTranslationUI(data, targetLangIds, minDisplayTime, sequenceId) {
   const stopbutton = document.getElementById('stop-recording');
   if (stopbutton.disabled) return;
+  // 一時停止中は停止ボタンを押せる状態にしてあるため、上の判定だけでは弾けない。
+  // 停止直前に投げたリクエストの返りが残り時間表示を上書きしないようにする。
+  if (document.getElementById('pause-recording')?.classList.contains('is-paused')) return;
 
   const spans = getTargetSpans();
 
@@ -250,6 +253,20 @@ function processDisplayBuffers() {
       spans.target2?.textContent || '',
       spans.target3?.textContent || ''
     ], latestSequenceId);
+  }
+}
+/**
+ * 表示バッファを空にする。停止・一時停止のあとに、バッファに残っていた字幕が
+ * 500ms ごとの処理で遅れて出てくるのを防ぐ。
+ */
+function resetTranslationDisplay() {
+  ['target1', 'target2', 'target3'].forEach(key => {
+    displayBuffers[key].length = 0;
+    currentDisplays[key] = null;
+  });
+  if (bufferCheckInterval) {
+    clearInterval(bufferCheckInterval);
+    bufferCheckInterval = null;
   }
 }
 // #endregion
@@ -352,4 +369,4 @@ window.addEventListener('beforeunload', () => {
   queue.length = 0;
 });
 
-export { sendTranslationRequest, translateTestText };
+export { sendTranslationRequest, translateTestText, resetTranslationDisplay };

@@ -20,6 +20,7 @@ const DEFAULT_LIFECYCLE_HANDLERS = {
 let socket = null;
 let isRunning = false;
 let watchdogInterval = null;
+let reconnectTimer = null;
 let lastSpeechTime = 0;
 
 // Soniox token-based 累積バッファ
@@ -44,7 +45,11 @@ const MAX_RETRIES = 10;
 // #region [設定與配置]
 const SONIOX_WS_URL = "wss://stt-rt.soniox.com/transcribe-websocket";
 const SONIOX_MODEL = "stt-rt-v5";
-const AUTO_STOP_TIMEOUT = 5 * 60 * 1000;
+// 無音による自動切断のしきい値。
+// 計測しているのは「マイクが無音」ではなく「Soniox が1文字も返さない」時間。BGM やキーボード音
+// では更新されないため、コメントを読む・ゲームに集中するなどで長く話さない場面でも進んでしまう。
+// 意図した休憩には一時停止（ロゴのクリック）を使う想定で、ここは離席し忘れ向けの保険として長め。
+const AUTO_STOP_TIMEOUT = 30 * 60 * 1000;
 const ENDPOINT_TOKEN = "<end>";
 const FINISHED_TOKEN = "<fin>";
 
@@ -228,6 +233,17 @@ function flushSentenceBuffer(onTranscriptUpdate, reason) {
   return true;
 }
 
+/**
+ * 予約済みの再接続を取り消す。停止・一時停止の直後に再接続が走って、
+ * UI 上は止まっているのに接続だけ復活する（=課金が続く）のを防ぐ。
+ */
+function clearReconnectTimer() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+}
+
 function cleanupAudioResources(options = {}) {
   const keepStream = options.keepStream === true;
 
@@ -395,7 +411,8 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
 
         watchdogInterval = setInterval(() => {
           if (Date.now() - lastSpeechTime > AUTO_STOP_TIMEOUT) {
-            notifyStatusChange("長時間音声が検出されなかったため、自動的に切断しました。");
+            if (isDebugEnabled()) console.warn("[WARN]", "[SonioxService]", `${AUTO_STOP_TIMEOUT / 60000}分間認識結果がなかったため自動切断`);
+            notifyStatusChange(`${AUTO_STOP_TIMEOUT / 60000}分以上音声が検出されなかったため、自動的に切断しました。`);
             stopSoniox({ intentional: false, reason: 'auto-timeout' });
           }
         }, 10000);
@@ -485,7 +502,11 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
           notifyStatusChange(`接続が切断されました。再接続しています...`);
           cleanupAudioResources({ keepStream: true });
           isRunning = false;
-          setTimeout(() => {
+          clearReconnectTimer();
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            // 待機中に停止・一時停止された場合は復活させない。
+            if (isIntentionalStop) return;
             startSoniox(langId, onTranscriptUpdate, lifecycleHandlers);
           }, delay);
         } else {
@@ -528,6 +549,7 @@ export function stopSoniox(options = {}) {
   isRunning = false;
   isIntentionalStop = intentional;
   retryCount = 0;
+  clearReconnectTimer();
   resetTranscriptBuffers();
   lastSpeechTime = 0;
   globalOnTranscriptUpdate = null;

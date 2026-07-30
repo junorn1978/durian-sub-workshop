@@ -202,6 +202,10 @@ document.addEventListener('DOMContentLoaded', async function () {
           if (badge) badge.style.display = val === 'false' ? 'inline-block' : 'none';
         }
       },
+      // 一時停止の長さ。speechCapture.js が一時停止のたびに localStorage から読むため onApply は不要。
+      {
+        id: 'pause-duration-opt', type: 'select', key: 'pause-duration-min', default: '3'
+      },
     ],
     panels: { 'Subtitle': 'source-styles-panel', 'options': 'options-panel' }
   };

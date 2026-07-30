@@ -10,7 +10,7 @@
   --body-background: #00FF00;
   --display-panel-height: 55%;
   /* 詳細設定モーダルの固定高さ。行を増減したらここだけ調整する。 */
-  --settings-modal-height: 700px;
+  --settings-modal-height: 754px;
   /* UI アニメーション共通イージング（標準の ease-out より立ち上がりが強い） */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   /* 操作パネルのラベル色（#8B4513 を一段濃くしてコントラストを確保） */
@@ -227,7 +227,79 @@ body {
   background-color: #F8B8C4;
 }
 
-#logo { height: 130px; object-fit: contain; }
+/* ロゴ＝一時停止ボタン。録音中のみ押せる（待機中・一時停止中は disabled）。
+   ロゴは背景が透明な PNG なので、暗い矩形を被せると「粉色パネルに灰色の板」に見えてしまう。
+   そのためロゴ自体を減光し、中央にカプセル型のバッジだけを出す作りにしている。 */
+.logo-pause-btn {
+  position: relative;
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.logo-pause-btn:disabled { cursor: default; }
+
+#logo {
+  height: 130px;
+  object-fit: contain;
+  transition: filter 160ms var(--ease-out);
+}
+
+.logo-pause-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms var(--ease-out);
+}
+
+.logo-pause-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background-color: var(--ui-label-color);
+  color: #FFF7EC;
+  font-size: 13px;
+  line-height: 1.25;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.logo-pause-time { font-size: 16px; font-weight: bold; }
+/* 録音中（残り時間なし）はカプセルを1行に保つ */
+.logo-pause-time:empty { display: none; }
+
+/* 一時停止中にホバーしたときだけ出す説明。押すと残り時間が設定値に戻ることを伝える。 */
+.logo-pause-hint { display: none; font-size: 11px; opacity: 0.9; }
+
+/* 録音中のみホバー／キーボードフォーカスでバッジを出す（一時停止中は下の is-paused 側で扱う） */
+.logo-pause-btn:not(:disabled):focus-visible .logo-pause-overlay { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .logo-pause-btn:not(:disabled):hover .logo-pause-overlay { opacity: 1; }
+  .logo-pause-btn:not(:disabled):not(.is-paused):hover #logo { filter: brightness(0.92) opacity(0.55); }
+}
+/* ホバーできない環境では、録音中は出しっぱなしにしないと存在に気付けない */
+@media (hover: none), (pointer: coarse) {
+  .logo-pause-btn:not(:disabled) .logo-pause-overlay { opacity: 1; }
+  .logo-pause-btn:not(:disabled):not(.is-paused) #logo { filter: brightness(0.92) opacity(0.55); }
+}
+
+/* 一時停止中：停止状態が分かるようロゴをグレーアウトし、残り時間を出し続ける */
+.logo-pause-btn.is-paused .logo-pause-overlay { opacity: 1; }
+.logo-pause-btn.is-paused #logo { filter: grayscale(0.6) opacity(0.45); }
+@media (hover: hover) and (pointer: fine) {
+  /* 押せることを示すため、ホバー中だけ少し明るくして説明を差し替える */
+  .logo-pause-btn.is-paused:hover #logo { filter: grayscale(0.6) opacity(0.6); }
+  .logo-pause-btn.is-paused:hover .logo-pause-hint { display: block; }
+}
 
 .record-button {
   width: 150px;
@@ -458,6 +530,7 @@ body {
 
 /* キーボード操作時のフォーカスリング（.card-select と同系統） */
 .record-button:focus-visible,
+.logo-pause-btn:focus-visible,
 .menu-button:focus-visible, .menu3-button:focus-visible, .options-button:focus-visible,
 .capsule-checkbox-label:focus-visible,
 .link-help-btn:focus-visible, .visibility-btn:focus-visible,

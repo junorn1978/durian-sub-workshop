@@ -29,7 +29,19 @@
       <button type="button" id="settings-gear" class="settings-gear-btn" title="詳細設定" aria-label="詳細設定">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
       </button>
-      <img id="logo" src="images/logo.png" alt="Logo">
+      <!-- ロゴ自体が一時停止ボタン。録音中は一時停止、一時停止中は残り時間のリセット（待機中は disabled）。
+           専用ボタンを増やすと操作パネルの最小高さを超えてしまうため、ロゴを流用している。 -->
+      <button type="button" id="pause-recording" class="logo-pause-btn" disabled
+              aria-label="一時停止" title="クリックで一時停止（設定した時間が過ぎると自動で再開します）">
+        <img id="logo" src="images/logo.png" alt="Logo">
+        <span class="logo-pause-overlay" aria-hidden="true">
+          <span class="logo-pause-badge">
+            <span id="logo-pause-title" class="logo-pause-title">⏸ 一時停止</span>
+            <span id="logo-pause-time" class="logo-pause-time"></span>
+            <span class="logo-pause-hint">クリックでリセット</span>
+          </span>
+        </span>
+      </button>
       <button class="record-button" id="start-recording" disabled>開始</button>
       <button class="record-button" id="stop-recording" disabled>停止</button>
     </div>
@@ -249,7 +261,7 @@
   <div id="status-panel">
     <div id="default-mic" class="status-mic" title="現在使用中のマイク"></div>
     <div class="status-info" id="status-display">音声認識が反応しない場合は、一度停止して数秒待ってから、もう一度開始ボタンを押してください。</div>
-    <span id="version-display">v3.1.16</span>
+    <span id="version-display">v3.1.17</span>
   </div>
 
   <!-- OBS連携 設定モーダル（選單列「OBS連携」ボタンで開閉。✕／Esc で閉じる・背景クリックでは閉じない） -->
@@ -337,6 +349,16 @@
               </select>
               <span id="auto-stop-warning-badge" class="auto-stop-warning-badge" style="display: none;" title="自動停止が無効です">⚠️ OFF</span>
             </div>
+          </div>
+
+          <div class="settings-row">
+            <span class="settings-row-label">一時停止の長さ</span>
+            <select id="pause-duration-opt" class="card-select" title="ロゴをクリックして一時停止したあと、自動で再開するまでの時間です。変更は次回の一時停止（または一時停止中のリセット）から反映されます">
+              <option value="1">1分</option>
+              <option value="3" selected>3分</option>
+              <option value="5">5分</option>
+              <option value="10">10分</option>
+            </select>
           </div>
 
           <div class="settings-row">
