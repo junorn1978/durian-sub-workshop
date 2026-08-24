@@ -11,6 +11,7 @@ import { isDebugEnabled } from './logger.js';
 import { publishSourceTextToObs, publishTranslationsToObs } from './obsBridge.js';
 import { loadKeywordRules, filterRayModeText, processRayModeTranscript } from './rayModeFilter.js';
 import { updateStatusDisplay, setRecognitionControlsState, clearAllTextElements, setPauseOverlayState } from './uiState.js';
+import { normalizeRecognised } from './normalizeJa.js';
 
 // #region [狀態變數與快取]
 
@@ -371,27 +372,30 @@ async function configureRecognition(recognition, sourceLanguage) {
 
   recognition.interimResults = true;
   recognition.lang = sourceLanguage;
-  /* 
+  /*
    * [關於 continuous 參數]
-   * Chrome: 強制 true 時，穩定運作時間可能較短。
-   *   - On-Device 模式 (Chrome 144+): 建議 true。
-   *   - Cloud 模式: 若設為 true，建議將 SILENCE_THRESHOLD 調低 (如 1000ms)，否則可能無法運作超過 10 分鐘。
-   * Edge: 建議 true，無上述問題。
+   * 只在「沒有連線可以掉」的情況下才開 continuous，也就是 On-Device 模式。
+   *
+   * 雲端辨識的 socket 大約一分鐘就會自己斷掉。在 Edge 上觀察到的狀況是：
+   * 早就停止回傳結果了，好幾秒後才丟出 network error，中間講的話全部消失，
+   * 而且沒有任何事件可以反應。改成每句一個 session (continuous = false) 之後，
+   * 收尾交還給引擎自己的斷句判斷——它是在剛偵測到的停頓處關閉，
+   * 重啟成本約 200ms 也落在同一個停頓裡。
+   * On-Device 模型沒有連線可掉，整場不中斷。
    */
   recognition.continuous = processLocallyStatus;
   recognition.maxAlternatives = 1;
 
-  if (browserInfo.isChrome && recognition.processLocally && 'phrases' in recognition) {
-    const selectedPhrases = getPhrasesForLang(sourceLanguage);
+  if ('phrases' in recognition) {
+    const usePhrases = browserInfo.isChrome && recognition.processLocally;
+    const selectedPhrases = usePhrases ? getPhrasesForLang(sourceLanguage) : [];
     recognition.phrases = selectedPhrases.length > 0 ? selectedPhrases : [];
-  } else {
-    recognition.phrases = [];
   }
 
   if (isDebugEnabled()) console.debug('[DEBUG] [SpeechRecognition] 辨識參數已就緒:', {
     lang: recognition.lang,
     processLocally: recognition.processLocally,
-    phrasesCount: recognition.phrases.length,
+    phrasesCount: recognition.phrases?.length ?? 0,
     continuous: recognition.continuous
   });
 }
@@ -462,9 +466,13 @@ function getPhrasesForLang(sourceLang) {
   return cachedPhrases.get(sourceLang) || cachedPhrases.get('default') || [];
 }
 
-/** 偵測瀏覽器是否支援本地辨識模式 */
+/**
+ * 偵測瀏覽器是否支援本地辨識模式。
+ * On-Device (SODA) 只有 Chrome 有，Edge 一律走雲端辨識。
+ * 回傳值同時決定 recognition.continuous，詳見 configureRecognition()。
+ */
 async function decideProcessLocally(lang) {
-  if (browserInfo.browser === 'Edge') return true; //Edge因為運作方式的關係直接true回傳比較不會有問題
+  if (!browserInfo.isChrome) return false;
   if (!('SpeechRecognition' in window) || !SpeechRecognition.available) return false;
   try {
     const status = await SpeechRecognition.available({ langs: [lang], processLocally: true });
@@ -547,11 +555,14 @@ function setupSpeechRecognition() {
   let finalTranscript = '';
   let interimTranscript = '';
 
-  // 斷句計時器
+  // 斷句計時器。
+  // 這是「session 不會自己結束」時的最後保險，所以只有 continuous 才需要。
+  // 每句一個 session 的情況下，引擎自己的斷句已經會關閉 session，
+  // 這裡再加一道只會跟它互相搶——Edge 與 Chrome 的雲端辨識現在都屬於後者。
+  // 舊的判斷式寫的是 isChrome，那是 Chrome 還一律 continuous 時代的寫法，
+  // 它真正想描述的條件其實是 continuous。
   const resetSilenceTimer = () => {
-    // Edge 重新啟動速度較慢，若使用計時器強制斷句，容易陷入「斷句 -> 重啟 -> 漏字 -> 錯亂」的循環。
-    // 因此 Edge 環境下不啟用此計時器。
-    if (!browserInfo.isChrome) return;
+    if (!newRecognition.continuous) return;
 
     if (silenceTimer) clearTimeout(silenceTimer);
 
@@ -560,7 +571,8 @@ function setupSpeechRecognition() {
       if (isDebugEnabled()) console.debug(`[DEBUG] [SpeechRecognition] 偵測到靜音超過 ${SILENCE_THRESHOLD}ms，強制重啟`);
 
       if (interimTranscript.trim().length > 0) {
-        let forcedFinalText = interimTranscript.replace(/[、。？\s]+/g, ' ').trim();
+        let forcedFinalText = normalizeRecognised(
+          interimTranscript.replace(/[、。？\s]+/g, ' ').trim(), newRecognition.lang);
         
         if (isRayModeActive()) {
            forcedFinalText = processRayModeTranscript(forcedFinalText, newRecognition.lang);
@@ -587,8 +599,7 @@ function setupSpeechRecognition() {
   };
 
   newRecognition.onresult = async (event) => {
-    SILENCE_THRESHOLD = newRecognition.continuous ? 10000: 3000;
-    if (interimTranscript.trim().length > 0) { resetSilenceTimer(); }
+    SILENCE_THRESHOLD = 10000;
     let hasFinalResult = false;
     interimTranscript = '';
     finalTranscript = '';
@@ -603,8 +614,14 @@ function setupSpeechRecognition() {
       }
     }
 
+    // 用「本次事件實際帶進來的 interim」來決定要不要重新計時。
+    // 寫在解析迴圈之前的話，判斷依據會是上一輪殘留的值，
+    // 結果一場辨識的第一筆結果永遠不會啟動計時器。
+    if (interimTranscript.trim().length > 0) { resetSilenceTimer(); }
+
     if (hasFinalResult && finalTranscript.trim().length > 0) {
-      let sendTranslationRequestText = finalTranscript.replace(/[、。？\s]+/g, ' ').trim();
+      let sendTranslationRequestText = normalizeRecognised(
+        finalTranscript.replace(/[、。？\s]+/g, ' ').trim(), newRecognition.lang);
       if (isRayModeActive()) { sendTranslationRequestText = filterRayModeText(sendTranslationRequestText, newRecognition.lang); }
 
       if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition] 發送翻譯請求文字:', sendTranslationRequestText);
@@ -612,7 +629,8 @@ function setupSpeechRecognition() {
       previousText = sendTranslationRequestText;
     }
 
-    const fullTextRaw = `${finalTranscript} ${interimTranscript}`.replace(/[、。？\s]+/g, ' ').trim();
+    const fullTextRaw = normalizeRecognised(
+      `${finalTranscript} ${interimTranscript}`.replace(/[、。？\s]+/g, ' ').trim(), newRecognition.lang);
     let processedText = isRayModeActive() ? processRayModeTranscript(fullTextRaw, newRecognition.lang) : fullTextRaw;
 
     if (!hasFinalResult && processedText.trim() !== '') { processedText = wrapWithNoteByAlignment(processedText, 'webspeech'); }
@@ -649,8 +667,10 @@ async function autoRestartRecognition(options = { delay: 0 }) {
       recognition.start();
       options.delay = 0;
     } catch (error) {
+      // 前一個實體還在收尾時 start() 會丟例外。延遲以 200ms 遞增 (上限 1000ms) 後重試，
+      // 等待交給外層的 setTimeout，這裡直接遞迴才不會疊出兩層計時器。
       if (options.delay < 1000) options.delay += 200;
-      setTimeout(() => autoRestartRecognition(options), options.delay);
+      autoRestartRecognition(options);
     }
   }, options.delay);
 }
