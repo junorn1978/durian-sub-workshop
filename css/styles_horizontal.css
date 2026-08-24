@@ -641,6 +641,11 @@ body {
   white-space: nowrap !important;
   border: 0 !important;
 }
+/* input とトリガーを束ねるラッパー。display:contents なので、
+   ボタンはそのまま親（.control-group / .settings-row）の flex アイテムになり、
+   ラッパーを挟んでもレイアウトは変わらない。 */
+.color-cell { display: contents; }
+
 .color-picker-trigger {
   --selected-color: #FFFFFF;
   width: 30px;

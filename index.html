@@ -95,8 +95,14 @@
               <option value="en-US">英語</option>
             </select>
             <div class="control-group">
-              <input type="color" id="source-font-color" list="color-list" title="文字色">
-              <input type="color" id="source-font-stroke-color" list="color-list" value="#000000" title="縁取り色">
+              <span class="color-cell">
+                <input type="color" id="source-font-color" list="color-list" title="文字色" class="native-color-input">
+                <button type="button" class="color-picker-trigger" data-color-trigger aria-haspopup="dialog" aria-expanded="false" title="文字色"></button>
+              </span>
+              <span class="color-cell">
+                <input type="color" id="source-font-stroke-color" list="color-list" value="#000000" title="縁取り色" class="native-color-input">
+                <button type="button" class="color-picker-trigger" data-color-trigger aria-haspopup="dialog" aria-expanded="false" title="縁取り色"></button>
+              </span>
             </div>
             <div class="slider-group">
               <span class="tiny-label">サイズ</span>
@@ -123,8 +129,14 @@
               <option value="vi-VN">ベトナム語</option>
             </select>
             <div class="control-group">
-              <input type="color" id="target1-font-color" list="color-list" value="#FFFFFF" title="文字色">
-              <input type="color" id="target1-font-stroke-color" list="color-list" value="#000000" title="縁取り色">
+              <span class="color-cell">
+                <input type="color" id="target1-font-color" list="color-list" value="#FFFFFF" title="文字色" class="native-color-input">
+                <button type="button" class="color-picker-trigger" data-color-trigger aria-haspopup="dialog" aria-expanded="false" title="文字色"></button>
+              </span>
+              <span class="color-cell">
+                <input type="color" id="target1-font-stroke-color" list="color-list" value="#000000" title="縁取り色" class="native-color-input">
+                <button type="button" class="color-picker-trigger" data-color-trigger aria-haspopup="dialog" aria-expanded="false" title="縁取り色"></button>
+              </span>
             </div>
             <div class="slider-group">
               <span class="tiny-label">サイズ</span>
@@ -151,8 +163,14 @@
               <option value="vi-VN">ベトナム語</option>
             </select>
             <div class="control-group">
-              <input type="color" id="target2-font-color" list="color-list" value="#FFFFFF" title="文字色">
-              <input type="color" id="target2-font-stroke-color" list="color-list" value="#000000" title="縁取り色">
+              <span class="color-cell">
+                <input type="color" id="target2-font-color" list="color-list" value="#FFFFFF" title="文字色" class="native-color-input">
+                <button type="button" class="color-picker-trigger" data-color-trigger aria-haspopup="dialog" aria-expanded="false" title="文字色"></button>
+              </span>
+              <span class="color-cell">
+                <input type="color" id="target2-font-stroke-color" list="color-list" value="#000000" title="縁取り色" class="native-color-input">
+                <button type="button" class="color-picker-trigger" data-color-trigger aria-haspopup="dialog" aria-expanded="false" title="縁取り色"></button>
+              </span>
             </div>
             <div class="slider-group">
               <span class="tiny-label">サイズ</span>
@@ -179,8 +197,14 @@
               <option value="vi-VN">ベトナム語</option>
             </select>
             <div class="control-group">
-              <input type="color" id="target3-font-color" list="color-list" value="#FFFFFF" title="文字色">
-              <input type="color" id="target3-font-stroke-color" list="color-list" value="#000000" title="縁取り色">
+              <span class="color-cell">
+                <input type="color" id="target3-font-color" list="color-list" value="#FFFFFF" title="文字色" class="native-color-input">
+                <button type="button" class="color-picker-trigger" data-color-trigger aria-haspopup="dialog" aria-expanded="false" title="文字色"></button>
+              </span>
+              <span class="color-cell">
+                <input type="color" id="target3-font-stroke-color" list="color-list" value="#000000" title="縁取り色" class="native-color-input">
+                <button type="button" class="color-picker-trigger" data-color-trigger aria-haspopup="dialog" aria-expanded="false" title="縁取り色"></button>
+              </span>
             </div>
             <div class="slider-group">
               <span class="tiny-label">サイズ</span>
@@ -205,8 +229,11 @@
             </div>
 
             <div class="settings-row">
-              <label for="display-panel-color" class="settings-row-label">背景色</label>
-              <input type="color" id="display-panel-color" list="display-color-list" value="#00FF00" class="option-color-picker" title="背景色">
+              <span class="settings-row-label">背景色</span>
+              <span class="color-cell">
+                <input type="color" id="display-panel-color" list="display-color-list" value="#00FF00" title="背景色" class="native-color-input">
+                <button type="button" class="color-picker-trigger-text menu3-button settings-row-button" data-color-trigger aria-haspopup="dialog" aria-expanded="false" title="背景色">色を選ぶ</button>
+              </span>
             </div>
 
             <div class="settings-row">

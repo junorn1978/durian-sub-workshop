@@ -1,6 +1,26 @@
 /**
  * @file colorPicker.js
  * @description 可重複使用的自訂調色盤，讓完整選色與快捷色顯示在同一個浮動面板。
+ *
+ * 原生的色彩對話框是獨立的 OS 視窗，一來無法套用樣式（直播時在深色面板上
+ * 跳出一個亮色系統視窗），二來它在頁面之外，做視窗擷取時會拍到奇怪的狀態。
+ * 這個面板一律留在頁面內。
+ *
+ * input[type="color"] 本身留在 DOM 裡當作值的載體，uiController.js 的設定
+ * 綁定就是掛在它上面。本模組只負責隱藏與驅動：每次變更都寫回 input 並派送
+ * 一個會冒泡的 'input' 事件，因此上層完全不需要知道有這個面板存在。
+ *
+ * 【markup contract】觸發按鈕寫在 HTML 裡，不由 JS 注入——按鈕是版面
+ * （.control-group / .settings-row）的 flex 項目，注入會打亂排版：
+ *
+ *   <span class="color-cell">
+ *     <input type="color" class="native-color-input" id="…" list="…" title="…">
+ *     <button type="button" class="color-picker-trigger" data-color-trigger …></button>
+ *   </span>
+ *
+ * 按鈕在自己的父元素裡找對應的 input；快捷色來自該 input 的 list 所指的
+ * <datalist>。背景色那顆改用 .color-picker-trigger-text，顯示文字而不是色塊
+ * （頁面背景本來就一直看得到，再放一個色塊是重複的）。
  */
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -66,8 +86,11 @@ const createElement = (tag, className, attributes = {}) => {
  * @returns {{ sync: Function, close: Function }}
  */
 export const setupColorPickers = () => {
-  const inputs = [...document.querySelectorAll('input[type="color"]')];
-  if (!inputs.length) return { sync() {}, close() {} };
+  /* markup contract（見檔頭）：按鈕已經寫在 HTML 裡，成對的 input 就在同一個父元素中。 */
+  const pairs = [...document.querySelectorAll('[data-color-trigger]')]
+    .map(trigger => ({ trigger, input: trigger.parentElement?.querySelector('input[type="color"]') }))
+    .filter(pair => pair.input);
+  if (!pairs.length) return { sync() {}, close() {} };
 
   const popover = createElement('div', 'color-picker-popover', {
     role: 'dialog',
@@ -112,9 +135,12 @@ export const setupColorPickers = () => {
   let activeTrigger = null;
   let hsv = { h: 0, s: 0, v: 1 };
 
+  /** input → 対応するトリガー。markup contract で決まる対応関係をここに持つ。 */
+  const triggerOf = new WeakMap();
+
   const syncTrigger = (input) => {
-    const trigger = input.nextElementSibling;
-    if (!trigger?.dataset.colorTrigger) return;
+    const trigger = triggerOf.get(input);
+    if (!trigger) return;
     const color = normalizeHex(input.value) || '#FFFFFF';
     trigger.style.setProperty('--selected-color', color);
     const label = `${input.title || 'カラー'}: ${color}`;
@@ -263,20 +289,8 @@ export const setupColorPickers = () => {
     }
   });
 
-  inputs.forEach(input => {
-    input.classList.add('native-color-input');
-    // 背景色（.option-color-picker）はページ背景そのものが常に見えているため、
-    // 色見本を出さずテキストボタンにする。
-    const isTextTrigger = input.classList.contains('option-color-picker');
-    const trigger = createElement('button', isTextTrigger
-      ? 'color-picker-trigger-text menu3-button settings-row-button'
-      : 'color-picker-trigger', {
-      type: 'button', title: input.title || 'カラーパレットを開く',
-      'aria-haspopup': 'dialog', 'aria-expanded': 'false',
-      'data-color-trigger': 'true'
-    });
-    if (isTextTrigger) trigger.textContent = '色を選ぶ';
-    input.insertAdjacentElement('afterend', trigger);
+  pairs.forEach(({ input, trigger }) => {
+    triggerOf.set(input, trigger);
     syncTrigger(input);
     trigger.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -298,7 +312,7 @@ export const setupColorPickers = () => {
   window.addEventListener('scroll', () => activeInput && positionPopover(), true);
 
   return {
-    sync: () => inputs.forEach(syncTrigger),
+    sync: () => pairs.forEach(({ input }) => syncTrigger(input)),
     close
   };
 };
