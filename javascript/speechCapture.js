@@ -549,11 +549,30 @@ function setupSpeechRecognition() {
 
 
 
-  let SILENCE_THRESHOLD = 1000;
+  const SILENCE_THRESHOLD = 10000;
   let silenceTimer = null;
 
   let finalTranscript = '';
   let interimTranscript = '';
+
+  /* 啟動看門狗。聲音已經進到辨識端，但一直沒有任何結果回來，就重啟一次賭下一場正常。
+     這不是「模型可能比較慢」的寬限時間——健康的 On-Device 模型在 onsoundstart 之後
+     約 1ms 就會給出第一筆結果。它存在的理由是：剛裝完語言包的那一場幾乎必定是死的，
+     available() 說就緒、實際上完全不吐東西，靠這裡的重啟才會開始動。
+     所以時間要短：對健康模型的餘裕本來就大得誇張，多等的每一秒都是使用者
+     裝完語言包之後乾等的空白。
+     跨越多次重啟仍然沉默的模型不是這裡救得了的，那種要把語言包刪掉重裝
+     （而且要先關掉瀏覽器的行程，否則檔案是鎖住的）。
+     觸發時不送任何東西：還沒有結果就沒有東西可以送，送半個詞去翻譯只會更糟。
+     continuous 就代表 On-Device，也就代表 Chrome（見 decideProcessLocally），
+     所以判斷 continuous 一個條件就夠。 */
+  const STARTUP_TIMEOUT = 3000;
+  let startupTimer = null;
+  let resultCount = 0;
+
+  const clearStartupTimer = () => {
+    if (startupTimer) { clearTimeout(startupTimer); startupTimer = null; }
+  };
 
   // 斷句計時器。
   // 這是「session 不會自己結束」時的最後保險，所以只有 continuous 才需要。
@@ -590,16 +609,24 @@ function setupSpeechRecognition() {
     }, SILENCE_THRESHOLD);
   };
 
+  newRecognition.onstart = () => {
+    resultCount = 0;
+    clearStartupTimer();
+  };
+
   newRecognition.onsoundstart = () => {
     if (isDebugEnabled()) console.debug('[DEBUG] [SpeechRecognition] soundstart事件觸發');
-    if (newRecognition.continuous) { 
-      SILENCE_THRESHOLD = 2000;
-      resetSilenceTimer();
-    }
+    if (!newRecognition.continuous || resultCount > 0) return;
+    clearStartupTimer();
+    startupTimer = setTimeout(() => {
+      if (isDebugEnabled()) console.warn(`[WARN] [SpeechRecognition] 啟動看門狗觸發：${STARTUP_TIMEOUT}ms 內沒有任何辨識結果，重新啟動`);
+      newRecognition.abort();
+    }, STARTUP_TIMEOUT);
   };
 
   newRecognition.onresult = async (event) => {
-    SILENCE_THRESHOLD = 10000;
+    resultCount++;
+    clearStartupTimer();
     let hasFinalResult = false;
     interimTranscript = '';
     finalTranscript = '';
@@ -639,6 +666,7 @@ function setupSpeechRecognition() {
 
   newRecognition.onnomatch = () => { if (isDebugEnabled()) console.warn('[WARN] [SpeechRecognition] 無匹配辨識結果'); };
   newRecognition.onend = () => {
+    clearStartupTimer();
     if (silenceTimer) clearTimeout(silenceTimer);
     if (isDebugEnabled()) console.debug('[DEBUG] [SpeechRecognition] onend事件觸發');
     
@@ -647,6 +675,7 @@ function setupSpeechRecognition() {
     autoRestartRecognition();
   }
   newRecognition.onerror = (event) => {
+    clearStartupTimer();
     if (silenceTimer) clearTimeout(silenceTimer);
     if (event.error !== 'aborted') if (isDebugEnabled()) console.error('[ERROR] [SpeechRecognition] 辨識錯誤:', event.error);
   };
