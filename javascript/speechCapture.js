@@ -231,6 +231,64 @@ function extendPause() {
 }
 // #endregion
 
+// #region [無音時の字幕クリア]
+/**
+ * 確定した文が出たあと、次の発話が来ないまま一定時間たったら字幕を全部消す。
+ *
+ * 確定した文はその文について最後に描かれるものなので、これが無いと
+ * 休憩中も配信画面にも OBS の overlay にも、誰かがまた喋るまで残り続ける。
+ *
+ * 計時は「確定」から始める。認識イベント全般ではない。確定しない interim は
+ * 結局どこかで強制的に区切られて表示が描き直されるので、interim でクリアすると
+ * 消した数秒後に同じ文がまた出てくるだけになる。確定を待てば、
+ * まだ飛んでくるものが無い状態でクリアできる。
+ *
+ * 翻訳の遅延とは意図的に連動させない。この時間より遅い翻訳はどのみち手遅れで、
+ * 字幕を開けたまま待ってもその事実を隠すだけ。
+ *
+ * final の基準は認識エンジンで違う：
+ *   - Web Speech: onresult の isFinal（と静音タイマーによる強制区切り）
+ *   - Soniox: endpoint 検出による flush（shouldTranslate = true）
+ * どちらも「翻訳を投げた瞬間」なので、そこで arm する。
+ */
+const CLEAR_IDLE_DEFAULT_SEC = 7;
+
+let idleClearTimer = null;
+
+/** 設定された無音クリアまでの秒数。0 なら最後の字幕を残したままにする。 */
+function getClearIdleSec() {
+  const saved = Number(localStorage.getItem('subtitle-clear-idle-sec'));
+  return Number.isFinite(saved) && saved >= 0 ? saved : CLEAR_IDLE_DEFAULT_SEC;
+}
+
+function cancelIdleClear() {
+  if (idleClearTimer) { clearTimeout(idleClearTimer); idleClearTimer = null; }
+}
+
+function armIdleClear() {
+  cancelIdleClear();
+  const seconds = getClearIdleSec();
+  if (seconds <= 0) return;
+  idleClearTimer = setTimeout(() => {
+    idleClearTimer = null;
+    clearSubtitlesForIdle();
+  }, seconds * 1000);
+}
+
+/**
+ * 字幕欄をまとめて消す。previousText も一緒に捨てる：これだけ間が空いたあとの
+ * 次の文はもう別の話題で、前の文を翻訳の文脈として引き継ぐほうが害になる。
+ */
+function clearSubtitlesForIdle() {
+  if (!isRecognitionActive || isPaused()) return;
+  if (isDebugEnabled()) console.debug(`[DEBUG] [SpeechRecognition] ${getClearIdleSec()}秒無音のため字幕をクリア`);
+  resetTranslationDisplay();
+  clearAllTextElements();
+  updateSourceText.reset();
+  previousText = '';
+}
+// #endregion
+
 // #region [硬體檢測與 UI 控制]
 
 /**
@@ -338,6 +396,7 @@ function isWebSpeechRecognitionRunning() {
 }
 
 function resetRecognitionState({ clearText = false } = {}) {
+  cancelIdleClear();
   setRecognitionControlsState('idle');
   isRecognitionActive = false;
   activeRecognitionEngine = null;
@@ -416,6 +475,10 @@ async function handleCloudTranscript(text, isFinal, shouldTranslate, currentLang
   if (!isFinal) { processedText = wrapWithNoteByAlignment(processedText, symbolType); }
   if (processedText.trim() !== '') { updateSourceText(processedText.replace(/[、。？\s]+/g, ' ').trim()); }
 
+  // まだ喋っている間はクリアしない。Soniox の final 基準は endpoint 検出による
+  // flush なので、それ以外のメッセージはすべて途中経過として扱う。
+  if (!shouldTranslate && processedText.trim() !== '') { cancelIdleClear(); }
+
   if (shouldTranslate && processedText.trim() !== '') {
     if (textToTranslate) {
       if (isDebugEnabled()) console.info(`[INFO] [${symbolType}] 收到 Service 指令，執行翻譯:`, textToTranslate);
@@ -423,6 +486,7 @@ async function handleCloudTranscript(text, isFinal, shouldTranslate, currentLang
       sendTranslationRequest(textToTranslate, previousText, currentLang);
       previousText = textToTranslate;
       updateSourceText(textToTranslate.replace(/[、。？\s]+/g, ' ').trim());
+      armIdleClear();
       return;
     }
   }
@@ -602,6 +666,9 @@ function setupSpeechRecognition() {
           sendTranslationRequest(forcedFinalText, previousText, newRecognition.lang);
           previousText = forcedFinalText;
           updateSourceText(forcedFinalText);
+          // この強制区切りがこの文の final。onresult を通らないのでここで arm しないと
+          // 流し込んだ字幕が消えないまま残る。
+          armIdleClear();
         }
       }
       newRecognition.abort(); 
@@ -662,6 +729,12 @@ function setupSpeechRecognition() {
 
     if (!hasFinalResult && processedText.trim() !== '') { processedText = wrapWithNoteByAlignment(processedText, 'webspeech'); }
     if (processedText.trim() !== '') { updateSourceText(processedText); }
+
+    // interim 優先。1つのイベントが final（今閉じた文）と interim（次の文がもう流れている）
+    // の両方を運ぶことがあり、喋っている最中のほうが常に強い。判定は過濾後ではなく
+    // 生の transcript で行う：キーワードで消えた語は表示が空になるだけで、人はまだ喋っている。
+    if (interimTranscript.trim().length > 0) cancelIdleClear();
+    else if (hasFinalResult) armIdleClear();
   };
 
   newRecognition.onnomatch = () => { if (isDebugEnabled()) console.warn('[WARN] [SpeechRecognition] 無匹配辨識結果'); };

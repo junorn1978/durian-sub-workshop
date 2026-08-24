@@ -362,6 +362,18 @@
           </div>
 
           <div class="settings-row">
+            <span class="settings-row-label">字幕の自動クリア</span>
+            <select id="subtitle-clear-idle-opt" class="card-select" title="文が確定したあと、次の発話が来ないまま指定した時間がたつと字幕を消します（OBS の overlay も同時に消えます）">
+              <option value="0">クリアしない</option>
+              <option value="5">5秒</option>
+              <option value="7" selected>7秒</option>
+              <option value="10">10秒</option>
+              <option value="15">15秒</option>
+              <option value="30">30秒</option>
+            </select>
+          </div>
+
+          <div class="settings-row">
             <span class="settings-row-label">
               音声認識エンジン
               <button id="engine-help-link" type="button" class="link-help-btn link-help-inline" title="Soniox の使い方">

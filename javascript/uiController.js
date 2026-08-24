@@ -206,6 +206,10 @@ document.addEventListener('DOMContentLoaded', async function () {
       {
         id: 'pause-duration-opt', type: 'select', key: 'pause-duration-min', default: '3'
       },
+      // 無音で字幕を消すまでの秒数。speechCapture.js が区切りのたびに localStorage から読む。
+      {
+        id: 'subtitle-clear-idle-opt', type: 'select', key: 'subtitle-clear-idle-sec', default: '7'
+      },
     ],
     panels: { 'Subtitle': 'source-styles-panel', 'options': 'options-panel' }
   };
