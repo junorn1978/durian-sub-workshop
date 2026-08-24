@@ -114,10 +114,14 @@ export const setupColorPickers = () => {
 
   const syncTrigger = (input) => {
     const trigger = input.nextElementSibling;
-    if (!trigger?.classList.contains('color-picker-trigger')) return;
+    if (!trigger?.dataset.colorTrigger) return;
     const color = normalizeHex(input.value) || '#FFFFFF';
     trigger.style.setProperty('--selected-color', color);
-    trigger.setAttribute('aria-label', `${input.title || 'カラー'}: ${color}`);
+    const label = `${input.title || 'カラー'}: ${color}`;
+    // テキストボタンは表示文言がそのままアクセシブル名になるので、
+    // aria-label で上書きせず現在の色は title にのせる。
+    if (trigger.classList.contains('color-picker-trigger-text')) trigger.title = label;
+    else trigger.setAttribute('aria-label', label);
   };
 
   const render = () => {
@@ -261,11 +265,17 @@ export const setupColorPickers = () => {
 
   inputs.forEach(input => {
     input.classList.add('native-color-input');
-    const trigger = createElement('button', 'color-picker-trigger', {
+    // 背景色（.option-color-picker）はページ背景そのものが常に見えているため、
+    // 色見本を出さずテキストボタンにする。
+    const isTextTrigger = input.classList.contains('option-color-picker');
+    const trigger = createElement('button', isTextTrigger
+      ? 'color-picker-trigger-text menu3-button settings-row-button'
+      : 'color-picker-trigger', {
       type: 'button', title: input.title || 'カラーパレットを開く',
-      'aria-haspopup': 'dialog', 'aria-expanded': 'false'
+      'aria-haspopup': 'dialog', 'aria-expanded': 'false',
+      'data-color-trigger': 'true'
     });
-    if (input.classList.contains('option-color-picker')) trigger.classList.add('color-picker-trigger-wide');
+    if (isTextTrigger) trigger.textContent = '色を選ぶ';
     input.insertAdjacentElement('afterend', trigger);
     syncTrigger(input);
     trigger.addEventListener('click', (event) => {

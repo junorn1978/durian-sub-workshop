@@ -668,10 +668,9 @@ body {
   outline: 2px solid #8B4513;
   outline-offset: 2px;
 }
-.color-picker-trigger-wide {
-  width: 50px;
-  flex-basis: 160px;
-}
+/* 背景色はページ背景そのものが常に見えているので、トリガーに色見本を出さず
+   テキストボタンとして描画する（.menu3-button + .settings-row-button を併用）。
+   現在の色はパレットを開いたときに .color-picker-preview が表示する。 */
 .color-picker-popover {
   position: fixed;
   z-index: 3000;
@@ -871,7 +870,6 @@ body {
 
 .alignment-group       { display: flex; gap: 10px; background-color: #FFF9E6; padding: 5px 10px; border-radius: 20px; border: 1px solid #FFE4B5; }
 .alignment-group label { font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 3px; }
-.option-color-picker { width: 50px; height: 30px; border: none; background: none; cursor: pointer; }
 
 .card-select {
   padding: 4px 8px;
@@ -1148,18 +1146,9 @@ body {
   border-bottom: none;
 }
 
-/* 設定行內的 select 與調色盤統一寬度，視覺對齊 */
+/* 設定行內的 select 統一寬度，視覺對齊 */
 .settings-section .settings-row > select.card-select {
   width: 160px;
-  box-sizing: border-box;
-}
-.settings-section .settings-row > .option-color-picker {
-  width: 160px;
-  height: 28px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 2px;
-  background-color: #FAFAFA;
   box-sizing: border-box;
 }
 
