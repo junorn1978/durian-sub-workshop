@@ -255,9 +255,18 @@ const CLEAR_IDLE_DEFAULT_SEC = 7;
 
 let idleClearTimer = null;
 
-/** 設定された無音クリアまでの秒数。0 なら最後の字幕を残したままにする。 */
+/**
+ * 設定された無音クリアまでの秒数。0 なら最後の字幕を残したままにする。
+ *
+ * 未設定を先に弾くこと。Number(null) は NaN ではなく 0 なので、そのまま
+ * Number() に通すと「クリアしない」と同じ値になり、機能ごと無効になる。
+ * 設定 UI（uiController.js の select）は既定値を localStorage に書かないため、
+ * ユーザーが一度もこの項目に触っていなければ必ず未設定の側を通る。
+ */
 function getClearIdleSec() {
-  const saved = Number(localStorage.getItem('subtitle-clear-idle-sec'));
+  const raw = localStorage.getItem('subtitle-clear-idle-sec');
+  if (raw === null || raw === '') return CLEAR_IDLE_DEFAULT_SEC;
+  const saved = Number(raw);
   return Number.isFinite(saved) && saved >= 0 ? saved : CLEAR_IDLE_DEFAULT_SEC;
 }
 
@@ -269,6 +278,7 @@ function armIdleClear() {
   cancelIdleClear();
   const seconds = getClearIdleSec();
   if (seconds <= 0) return;
+  if (isDebugEnabled()) console.debug(`[DEBUG] [SpeechRecognition] 字幕の自動クリアを ${seconds}秒後に予約`);
   idleClearTimer = setTimeout(() => {
     idleClearTimer = null;
     clearSubtitlesForIdle();
