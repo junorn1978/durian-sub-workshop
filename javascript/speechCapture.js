@@ -7,11 +7,14 @@
 import { isRayModeActive, getSpeechEngine, browserInfo, getSourceLanguage, getLang, getAlignment } from './config.js';
 import { sendTranslationRequest, resetTranslationDisplay } from './translationController.js';
 import { startSoniox, stopSoniox } from './sonioxService.js';
-import { isDebugEnabled } from './logger.js';
+import { createLogger } from './logger.js';
 import { publishSourceTextToObs, publishTranslationsToObs } from './obsBridge.js';
 import { loadKeywordRules, filterRayModeText, processRayModeTranscript } from './rayModeFilter.js';
 import { updateStatusDisplay, setRecognitionControlsState, clearAllTextElements, setPauseOverlayState } from './uiState.js';
 import { normalizeRecognised } from './normalizeJa.js';
+import { getSettingBool, getSettingNumber } from './settingsStore.js';
+
+const log = createLogger('SpeechRecognition');
 
 // #region [狀態變數與快取]
 
@@ -36,7 +39,7 @@ let previousText = '';
 
 // #endregion
 
-// #region [連続使用上限ウォッチドッグ]
+// #region [連續使用上限看門狗]
 /**
  * 開始按鍵起算的硬性最大連續使用時長。
  * 防止使用者忘記停止導致雲端 STT 帳單持續累積。
@@ -58,7 +61,7 @@ let sessionStartTime = 0;
 let sessionWatchdogInterval = null;
 
 function isAutoStopEnabled() {
-  return localStorage.getItem('auto-stop-enabled') !== 'false';
+  return getSettingBool('auto-stop-enabled');
 }
 
 function startSessionWatchdog() {
@@ -108,7 +111,7 @@ function displaySessionTimeoutMessages() {
 }
 
 function triggerSessionTimeout() {
-  if (isDebugEnabled()) console.warn('[WARN] [SpeechRecognition] 連続使用 5 時間に達したため自動停止');
+  log.warn('連続使用 5 時間に達したため自動停止');
   const engine = activeRecognitionEngine;
   stopSessionWatchdog();
   resetRecognitionState({ clearText: true });
@@ -118,18 +121,17 @@ function triggerSessionTimeout() {
 }
 // #endregion
 
-// #region [一時停止（自動再開つき）]
+// #region [暫停（附自動恢復）]
 /**
- * 一時停止は「停止 → 一定時間後に開始」を自動化したもの。停止と同じ経路を通るので
- * マイクも Soniox の接続も完全に解放され、5時間ウォッチドッグも停止時と同じ扱いになる。
- * 再開は「開始」ボタン（即再開）か時間切れの2通り。一時停止中にロゴを押した場合は再開ではなく、
- * 残り時間を設定値に戻す（休憩が長引いたときに押し直せるように）。
+ * 暫停是將「停止 → 經過一段時間後開始」自動化。由於會經過與停止相同的流程，
+ * 麥克風與 Soniox 連線都會完全釋放，5 小時看門狗也會比照停止處理。
+ * 恢復方式有兩種：「開始」按鈕（立即恢復）或等待時間結束。暫停期間按下標誌不會恢復，
+ * 而是將剩餘時間重設為設定值（休息時間延長時可再次按下）。
  */
-const PAUSE_DURATION_DEFAULT_MIN = 3;
 const PAUSE_DURATION_ALLOWED_MIN = [1, 3, 5, 10];
 const PAUSE_TICK_INTERVAL_MS = 1000;
 
-/** @type {number} 自動再開する時刻 (epoch ms)。0 なら一時停止中ではない。 */
+/** @type {number} 自動恢復的時間（epoch ms）。若為 0，表示目前並非暫停狀態。 */
 let pauseResumeAt = 0;
 let pauseResumeTimer = null;
 let pauseTickInterval = null;
@@ -138,11 +140,9 @@ function isPaused() {
   return pauseResumeAt > 0;
 }
 
-/** 設定された一時停止の長さ (ms)。未設定や不正値なら既定の3分を使う。 */
+/** 設定的暫停時長（ms）。若未設定或數值無效，settingsStore 會回傳預設值。 */
 function getPauseDurationMs() {
-  const saved = Number(localStorage.getItem('pause-duration-min'));
-  const minutes = PAUSE_DURATION_ALLOWED_MIN.includes(saved) ? saved : PAUSE_DURATION_DEFAULT_MIN;
-  return minutes * 60 * 1000;
+  return getSettingNumber('pause-duration-min', { allowed: PAUSE_DURATION_ALLOWED_MIN }) * 60 * 1000;
 }
 
 function formatRemaining(remainingMs) {
@@ -152,7 +152,7 @@ function formatRemaining(remainingMs) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
-/** 残り時間をロゴのバッジと字幕欄 (OBS 側も同じ内容) に反映する。 */
+/** 將剩餘時間反映至標誌徽章與字幕欄（OBS 端也顯示相同內容）。 */
 function renderPauseCountdown() {
   const remainingText = formatRemaining(pauseResumeAt - Date.now());
   setPauseOverlayState(true, remainingText);
@@ -164,8 +164,8 @@ function renderPauseCountdown() {
 }
 
 /**
- * 一時停止を解除して待機状態へ戻す。タイマー・バッジ・残り時間の表示 (OBS 側も) を片付ける。
- * 再開する場合も、まずこれを呼んでから startRecognition() を通す。
+ * 解除暫停並返回待機狀態。清除計時器、徽章與剩餘時間顯示（包括 OBS 端）。
+ * 恢復時也要先呼叫此函式，再執行 startRecognition()。
  */
 function clearPauseState() {
   if (pauseResumeTimer) { clearTimeout(pauseResumeTimer); pauseResumeTimer = null; }
@@ -183,10 +183,10 @@ function clearPauseState() {
 }
 
 /**
- * 期限を過ぎていれば再開し、まだなら残り時間を描画するだけ。
- * タブが背面や他ウィンドウの裏に回ると timer は分単位まで間引かれるため、期限判定は必ず
- * Date.now() で行い、setTimeout・setInterval・visibilitychange のどれが先に起きても
- * 再開できるようにしている。
+ * 若已超過期限則恢復，否則只更新剩餘時間。
+ * 分頁移至背景或被其他視窗遮住時，timer 可能會被節流至數分鐘一次，因此期限判斷一律使用
+ * Date.now()，確保無論 setTimeout、setInterval 或 visibilitychange 何者先發生，
+ * 都能恢復。
  */
 function checkPauseExpiry() {
   if (!isPaused()) return;
@@ -194,12 +194,12 @@ function checkPauseExpiry() {
     renderPauseCountdown();
     return;
   }
-  if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition] 一時停止の時間が終わったため自動で再開します');
+  log.info('一時停止の時間が終わったため自動で再開します');
   clearPauseState();
   startRecognition();
 }
 
-/** 自動再開の期限を今から durationMs 後に張り直す。 */
+/** 將自動恢復期限重新設定為從現在起 durationMs 之後。 */
 function schedulePauseResume(durationMs) {
   if (pauseResumeTimer) clearTimeout(pauseResumeTimer);
   pauseResumeAt = Date.now() + durationMs;
@@ -207,12 +207,12 @@ function schedulePauseResume(durationMs) {
   renderPauseCountdown();
 }
 
-/** 認識を止めて、設定時間後に自動で再開する状態へ入る。 */
+/** 停止辨識，並進入設定時間後自動恢復的狀態。 */
 function pauseRecognition() {
   if (!isRecognitionActive || isPaused()) return;
 
   const durationMs = getPauseDurationMs();
-  if (isDebugEnabled()) console.info(`[INFO] [SpeechRecognition] 一時停止しました（${durationMs / 60000}分後に自動再開）`);
+  log.info(`一時停止しました（${durationMs / 60000}分後に自動再開）`);
 
   stopRecognition('pause');
 
@@ -221,53 +221,47 @@ function pauseRecognition() {
   pauseTickInterval = setInterval(checkPauseExpiry, PAUSE_TICK_INTERVAL_MS);
 }
 
-/** 一時停止中にロゴを押したときの動作。残り時間を設定値に戻す（再開はしない）。 */
+/** 暫停期間按下標誌時的動作。將剩餘時間重設為設定值（不恢復）。 */
 function extendPause() {
   if (!isPaused()) return;
 
   const durationMs = getPauseDurationMs();
-  if (isDebugEnabled()) console.info(`[INFO] [SpeechRecognition] 一時停止の残り時間を ${durationMs / 60000}分にリセットしました`);
+  log.info(`一時停止の残り時間を ${durationMs / 60000}分にリセットしました`);
   schedulePauseResume(durationMs);
 }
 // #endregion
 
-// #region [無音時の字幕クリア]
+// #region [無聲時清除字幕]
 /**
- * 確定した文が出たあと、次の発話が来ないまま一定時間たったら字幕を全部消す。
+ * 已確認的句子出現後，若經過一段時間仍沒有下一段語音，則清除所有字幕。
  *
- * 確定した文はその文について最後に描かれるものなので、これが無いと
- * 休憩中も配信画面にも OBS の overlay にも、誰かがまた喋るまで残り続ける。
+ * 已確認的句子是該句最後一次繪製的內容，因此若沒有此機制，
+ * 即使休息中也會持續留在直播畫面與 OBS overlay 上，直到有人再次說話。
  *
- * 計時は「確定」から始める。認識イベント全般ではない。確定しない interim は
- * 結局どこかで強制的に区切られて表示が描き直されるので、interim でクリアすると
- * 消した数秒後に同じ文がまた出てくるだけになる。確定を待てば、
- * まだ飛んでくるものが無い状態でクリアできる。
+ * 計時從「確認」開始，而不是從所有辨識事件開始。未確認的 interim
+ * 最終仍會在某處被強制斷句並重新繪製，因此若在 interim 階段清除，
+ * 只會在清除數秒後再次出現相同句子。等待確認後，
+ * 即可在不會再有內容傳來的狀態下清除。
  *
- * 翻訳の遅延とは意図的に連動させない。この時間より遅い翻訳はどのみち手遅れで、
- * 字幕を開けたまま待ってもその事実を隠すだけ。
+ * 刻意不與翻譯延遲連動。比此時間更晚的翻譯無論如何都已太遲，
+ * 保留字幕繼續等待也只是在掩蓋這個事實。
  *
- * final の基準は認識エンジンで違う：
- *   - Web Speech: onresult の isFinal（と静音タイマーによる強制区切り）
- *   - Soniox: endpoint 検出による flush（shouldTranslate = true）
- * どちらも「翻訳を投げた瞬間」なので、そこで arm する。
+ * final 的判定標準依辨識引擎而異：
+ *   - Web Speech：onresult 的 isFinal（以及靜音計時器的強制斷句）
+ *   - Soniox：偵測到 endpoint 時進行 flush（shouldTranslate = true）
+ * 兩者都是「送出翻譯的瞬間」，因此在該處啟動計時。
  */
-const CLEAR_IDLE_DEFAULT_SEC = 7;
-
 let idleClearTimer = null;
 
 /**
- * 設定された無音クリアまでの秒数。0 なら最後の字幕を残したままにする。
+ * 設定的無聲字幕清除秒數。若為 0，則保留最後一段字幕。
  *
- * 未設定を先に弾くこと。Number(null) は NaN ではなく 0 なので、そのまま
- * Number() に通すと「クリアしない」と同じ値になり、機能ごと無効になる。
- * 設定 UI（uiController.js の select）は既定値を localStorage に書かないため、
- * ユーザーが一度もこの項目に触っていなければ必ず未設定の側を通る。
+ * 「未設定」與「設為 0（不清除）」必須分得清楚——Number(null) 不是 NaN 而是 0，
+ * 只要直接丟給 Number() 就會把沒動過設定的人整個功能關掉。
+ * 這個判斷現在統一由 settingsStore 負責，預設值也只留在那裡一份。
  */
 function getClearIdleSec() {
-  const raw = localStorage.getItem('subtitle-clear-idle-sec');
-  if (raw === null || raw === '') return CLEAR_IDLE_DEFAULT_SEC;
-  const saved = Number(raw);
-  return Number.isFinite(saved) && saved >= 0 ? saved : CLEAR_IDLE_DEFAULT_SEC;
+  return getSettingNumber('subtitle-clear-idle-sec', { min: 0 });
 }
 
 function cancelIdleClear() {
@@ -278,7 +272,7 @@ function armIdleClear() {
   cancelIdleClear();
   const seconds = getClearIdleSec();
   if (seconds <= 0) return;
-  if (isDebugEnabled()) console.debug(`[DEBUG] [SpeechRecognition] 字幕の自動クリアを ${seconds}秒後に予約`);
+  log.debug(`字幕の自動クリアを ${seconds}秒後に予約`);
   idleClearTimer = setTimeout(() => {
     idleClearTimer = null;
     clearSubtitlesForIdle();
@@ -286,12 +280,12 @@ function armIdleClear() {
 }
 
 /**
- * 字幕欄をまとめて消す。previousText も一緒に捨てる：これだけ間が空いたあとの
- * 次の文はもう別の話題で、前の文を翻訳の文脈として引き継ぐほうが害になる。
+ * 一次清除所有字幕欄。previousText 也一併捨棄：經過這麼長的間隔後，
+ * 下一句已是不同話題，沿用上一句作為翻譯上下文反而有害。
  */
 function clearSubtitlesForIdle() {
   if (!isRecognitionActive || isPaused()) return;
-  if (isDebugEnabled()) console.debug(`[DEBUG] [SpeechRecognition] ${getClearIdleSec()}秒無音のため字幕をクリア`);
+  log.debug(`${getClearIdleSec()}秒無音のため字幕をクリア`);
   resetTranslationDisplay();
   clearAllTextElements();
   updateSourceText.reset();
@@ -311,7 +305,7 @@ async function showMicInfoOnce() {
   hasShownMicInfo = true;
 
   if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-    if (isDebugEnabled()) console.warn('[WARN] [SpeechRecognition] 此瀏覽器不支援 mediaDevices.enumerateDevices()');
+    log.warn('此瀏覽器不支援 mediaDevices.enumerateDevices()');
     return;
   }
 
@@ -320,7 +314,7 @@ async function showMicInfoOnce() {
     try {
       tempStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     } catch (err) {
-      if (isDebugEnabled()) console.warn('[WARN] [SpeechRecognition] 取得麥克風權限失敗（名稱可能會顯示為空）:', err);
+      log.warn('取得麥克風權限失敗（名稱可能會顯示為空）:', err);
     }
 
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -329,7 +323,7 @@ async function showMicInfoOnce() {
     const micInfoEl = document.getElementById('default-mic');
     if (!audioInputs.length) {
       const msg = 'マイクが見つかりません';
-      if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition]', msg);
+      log.info(msg);
       if (micInfoEl) setMicLabel(micInfoEl, `🎙️ ${msg}`);
       return;
     }
@@ -337,13 +331,13 @@ async function showMicInfoOnce() {
     const defaultDevice = audioInputs.find(d => d.deviceId === 'default') || audioInputs[0];
     const micName = defaultDevice.label || 'デバイス名を取得できませんでした';
 
-    if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition] 偵測到的裝置列表:', audioInputs);
+    log.info('偵測到的裝置列表:', audioInputs);
     if (micInfoEl) {
       setMicLabel(micInfoEl, `🎙️ ${micName}`);
       micInfoEl.title = micName;
     }
   } catch (err) {
-    if (isDebugEnabled()) console.error('[ERROR] [SpeechRecognition] 取得麥克風資訊失敗:', err);
+    log.error('取得麥克風資訊失敗:', err);
   } finally {
     if (tempStream) {
       tempStream.getTracks().forEach(t => t.stop());
@@ -352,20 +346,20 @@ async function showMicInfoOnce() {
 }
 
 /**
- * 狀態列のマイク名を設定する。幅(205px)に収まらない場合のみニュースティッカー風に
- * シームレスループでスクロールし、収まる場合は静止表示する（CSS は .status-mic 参照）。
- * @param {HTMLElement} el #default-mic 要素
- * @param {string} text 表示テキスト
+ * 設定狀態列的麥克風名稱。僅在無法容納於寬度（205px）時，以新聞跑馬燈形式
+ * 無縫循環捲動；若能容納則靜止顯示（CSS 請參閱 .status-mic）。
+ * @param {HTMLElement} el #default-mic 元素
+ * @param {string} text 顯示文字
  */
 function setMicLabel(el, text) {
   if (!el) return;
   el.classList.remove('is-marquee');
-  el.textContent = text; // 既定は静止表示（収まらなければ下でティッカー化）
+  el.textContent = text; // 預設為靜止顯示（若無法容納，則在下方改為跑馬燈）
 
   const activate = () => {
-    if (el.scrollWidth <= el.clientWidth) return; // 収まるなら静止のまま
+    if (el.scrollWidth <= el.clientWidth) return; // 若能容納則維持靜止
 
-    // 溢位時：同一テキストを2つ並べてシームレスループさせる
+    // 溢位時：並列兩份相同文字，使其無縫循環
     el.textContent = '';
     const track = document.createElement('span');
     track.className = 'mic-track';
@@ -381,15 +375,15 @@ function setMicLabel(el, text) {
     el.classList.add('is-marquee');
 
     requestAnimationFrame(() => {
-      const GAP_PX = 32;     // CSS .mic-track の gap と一致させること
-      const SPEED_PX_S = 45; // スクロール速度 (px/秒)
+      const GAP_PX = 32;     // 必須與 CSS .mic-track 的 gap 一致
+      const SPEED_PX_S = 45; // 捲動速度（px／秒）
       const shift = first.offsetWidth + GAP_PX;
       track.style.setProperty('--mic-shift', `${shift}px`);
       track.style.setProperty('--mic-duration', `${(shift / SPEED_PX_S).toFixed(1)}s`);
     });
   };
 
-  // カスタムフォントの幅ズレを避けるためフォント確定後に計測
+  // 為避免自訂字型造成寬度偏差，待字型確定後再測量
   if (document.fonts?.ready) {
     document.fonts.ready.then(() => requestAnimationFrame(activate));
   } else {
@@ -461,7 +455,7 @@ async function configureRecognition(recognition, sourceLanguage) {
     recognition.phrases = selectedPhrases.length > 0 ? selectedPhrases : [];
   }
 
-  if (isDebugEnabled()) console.debug('[DEBUG] [SpeechRecognition] 辨識參數已就緒:', {
+  log.debug('辨識參數已就緒:', {
     lang: recognition.lang,
     processLocally: recognition.processLocally,
     phrasesCount: recognition.phrases?.length ?? 0,
@@ -485,13 +479,13 @@ async function handleCloudTranscript(text, isFinal, shouldTranslate, currentLang
   if (!isFinal) { processedText = wrapWithNoteByAlignment(processedText, symbolType); }
   if (processedText.trim() !== '') { updateSourceText(processedText.replace(/[、。？\s]+/g, ' ').trim()); }
 
-  // まだ喋っている間はクリアしない。Soniox の final 基準は endpoint 検出による
-  // flush なので、それ以外のメッセージはすべて途中経過として扱う。
+  // 尚在說話時不要清除。Soniox 的 final 標準是偵測到 endpoint 時進行
+  // flush，因此其他訊息一律視為中途結果。
   if (!shouldTranslate && processedText.trim() !== '') { cancelIdleClear(); }
 
   if (shouldTranslate && processedText.trim() !== '') {
     if (textToTranslate) {
-      if (isDebugEnabled()) console.info(`[INFO] [${symbolType}] 收到 Service 指令，執行翻譯:`, textToTranslate);
+      log.info(`收到 ${symbolType} 指令，執行翻譯:`, textToTranslate);
 
       sendTranslationRequest(textToTranslate, previousText, currentLang);
       previousText = textToTranslate;
@@ -530,7 +524,7 @@ async function loadPhrasesConfig() {
       cachedPhrases.set('default', phrasesConfig.defaults.map(p => new SpeechRecognitionPhrase(p.phrase, p.boost)));
     }
   } catch (error) {
-    if (isDebugEnabled()) console.error('[ERROR] [SpeechRecognition] 載入短語配置失敗:', error);
+    log.error('載入短語配置失敗:', error);
     phrasesConfig = { languages: {} };
   }
 }
@@ -580,8 +574,8 @@ const updateSourceText = (() => {
     publishSourceTextToObs(text);
   };
 
-  /* 一時停止の残り時間表示など、この関数を通さず要素を書き換えたあとに呼ぶ。
-     呼ばないと、再開後の最初の認識文が停止前と同じだった場合に重複判定で表示されない。 */
+  /* 顯示暫停剩餘時間等未經此函式直接改寫元素後呼叫。
+     若不呼叫，恢復後的第一句辨識結果與停止前相同時，會因重複判定而不顯示。 */
   render.reset = () => { lastRenderedText = ''; };
 
   return render;
@@ -661,7 +655,7 @@ function setupSpeechRecognition() {
 
     // 設定新的計時器
     silenceTimer = setTimeout(() => {
-      if (isDebugEnabled()) console.debug(`[DEBUG] [SpeechRecognition] 偵測到靜音超過 ${SILENCE_THRESHOLD}ms，強制重啟`);
+      log.debug(`偵測到靜音超過 ${SILENCE_THRESHOLD}ms，強制重啟`);
 
       if (interimTranscript.trim().length > 0) {
         let forcedFinalText = normalizeRecognised(
@@ -672,12 +666,12 @@ function setupSpeechRecognition() {
         }
 
         if (forcedFinalText) {
-          if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition] (強制斷句) 發送翻譯請求文字:', forcedFinalText);
+          log.info('(強制斷句) 發送翻譯請求文字:', forcedFinalText);
           sendTranslationRequest(forcedFinalText, previousText, newRecognition.lang);
           previousText = forcedFinalText;
           updateSourceText(forcedFinalText);
-          // この強制区切りがこの文の final。onresult を通らないのでここで arm しないと
-          // 流し込んだ字幕が消えないまま残る。
+          // 此強制斷句即為本句的 final。由於不會經過 onresult，若不在此處啟動計時，
+          // 傳入的字幕便會持續顯示而不消失。
           armIdleClear();
         }
       }
@@ -692,11 +686,11 @@ function setupSpeechRecognition() {
   };
 
   newRecognition.onsoundstart = () => {
-    if (isDebugEnabled()) console.debug('[DEBUG] [SpeechRecognition] soundstart事件觸發');
+    log.debug('soundstart事件觸發');
     if (!newRecognition.continuous || resultCount > 0) return;
     clearStartupTimer();
     startupTimer = setTimeout(() => {
-      if (isDebugEnabled()) console.warn(`[WARN] [SpeechRecognition] 啟動看門狗觸發：${STARTUP_TIMEOUT}ms 內沒有任何辨識結果，重新啟動`);
+      log.warn(`啟動看門狗觸發：${STARTUP_TIMEOUT}ms 內沒有任何辨識結果，重新啟動`);
       newRecognition.abort();
     }, STARTUP_TIMEOUT);
   };
@@ -728,7 +722,7 @@ function setupSpeechRecognition() {
         finalTranscript.replace(/[、。？\s]+/g, ' ').trim(), newRecognition.lang);
       if (isRayModeActive()) { sendTranslationRequestText = filterRayModeText(sendTranslationRequestText, newRecognition.lang); }
 
-      if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition] 發送翻譯請求文字:', sendTranslationRequestText);
+      log.info('發送翻譯請求文字:', sendTranslationRequestText);
       sendTranslationRequest(sendTranslationRequestText, previousText, newRecognition.lang);
       previousText = sendTranslationRequestText;
     }
@@ -740,18 +734,18 @@ function setupSpeechRecognition() {
     if (!hasFinalResult && processedText.trim() !== '') { processedText = wrapWithNoteByAlignment(processedText, 'webspeech'); }
     if (processedText.trim() !== '') { updateSourceText(processedText); }
 
-    // interim 優先。1つのイベントが final（今閉じた文）と interim（次の文がもう流れている）
-    // の両方を運ぶことがあり、喋っている最中のほうが常に強い。判定は過濾後ではなく
-    // 生の transcript で行う：キーワードで消えた語は表示が空になるだけで、人はまだ喋っている。
+    // interim 優先。一個事件可能同時帶有 final（剛結束的句子）與 interim（下一句已開始傳入），
+    // 而正在說話的狀態永遠優先。判斷應使用原始 transcript，而非過濾後的內容：
+    // 被關鍵字規則移除的詞只會使顯示變空，但人仍在說話。
     if (interimTranscript.trim().length > 0) cancelIdleClear();
     else if (hasFinalResult) armIdleClear();
   };
 
-  newRecognition.onnomatch = () => { if (isDebugEnabled()) console.warn('[WARN] [SpeechRecognition] 無匹配辨識結果'); };
+  newRecognition.onnomatch = () => { log.warn('無匹配辨識結果'); };
   newRecognition.onend = () => {
     clearStartupTimer();
     if (silenceTimer) clearTimeout(silenceTimer);
-    if (isDebugEnabled()) console.debug('[DEBUG] [SpeechRecognition] onend事件觸發');
+    log.debug('onend事件觸發');
     
     finalTranscript = '';
     interimTranscript = '';
@@ -760,7 +754,7 @@ function setupSpeechRecognition() {
   newRecognition.onerror = (event) => {
     clearStartupTimer();
     if (silenceTimer) clearTimeout(silenceTimer);
-    if (event.error !== 'aborted') if (isDebugEnabled()) console.error('[ERROR] [SpeechRecognition] 辨識錯誤:', event.error);
+    if (event.error !== 'aborted') log.error('辨識錯誤:', event.error);
   };
 
   return newRecognition;
@@ -791,7 +785,7 @@ async function autoRestartRecognition(options = { delay: 0 }) {
 
 // #region [事件掛載與生命週期]
 
-/** 開始按鈕的處理內容。一時停止からの再開も同じ経路を通す。 */
+/** 開始按鈕的處理內容。從暫停狀態恢復也會經過相同流程。 */
 async function startRecognition() {
   updateStatusDisplay('');
   const sourceLang = await getSourceLanguage();
@@ -825,7 +819,7 @@ async function startRecognition() {
         return;
       }
     } catch (err) {
-      if (isDebugEnabled()) console.error('[ERROR] [SpeechRecognition] Soniox 啟動失敗:', err);
+      log.error('Soniox 啟動失敗:', err);
     }
   }
 
@@ -843,7 +837,7 @@ async function startRecognition() {
   }
 }
 
-/** 停止按鈕的處理內容。一時停止も同じ経路を通す（マイクと接続を完全に解放する）。 */
+/** 停止按鈕的處理內容。暫停也會經過相同流程（完全釋放麥克風與連線）。 */
 function stopRecognition(reason = 'manual-stop') {
   // resetRecognitionState 會把 activeRecognitionEngine 清成 null，
   // 所以要先抓住目前的引擎再 reset。
@@ -870,16 +864,16 @@ function setupSpeechRecognitionHandlers() {
   });
 
   stopButton.addEventListener('click', () => {
-    // 一時停止中の停止は「自動再開の取り消し」。認識はすでに止まっている。
+    // 暫停期間的停止代表「取消自動恢復」。辨識已經停止。
     if (isPaused()) {
-      if (isDebugEnabled()) console.info('[INFO] [SpeechRecognition] 一時停止を取り消しました（自動再開なし）');
+      log.info('一時停止を取り消しました（自動再開なし）');
       clearPauseState();
       return;
     }
     stopRecognition();
   });
 
-  // 一時停止中のロゴは「残り時間のリセット」。再開は「開始」ボタンだけに任せる。
+  // 暫停期間按下標誌代表「重設剩餘時間」。恢復僅交由「開始」按鈕處理。
   pauseButton?.addEventListener('click', () => {
     if (isPaused()) {
       extendPause();
@@ -901,14 +895,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   showMicInfoOnce().catch(() => { });
 
-  // 間引かれた timer より前に前面へ戻ってきた場合、ここで期限切れを拾って再開する。
+  // 若在受節流的 timer 觸發前回到前景，則在此偵測期限已到並恢復。
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') checkPauseExpiry();
   });
 
   window.addEventListener('beforeunload', () => {
     if (activeRecognitionEngine === 'soniox') stopSoniox();
-    // OBS の overlay は別ページなので、残り時間の表示が消えないまま固まってしまう。
+    // OBS 的 overlay 是另一個頁面，因此剩餘時間顯示可能會停住而不消失。
     if (isPaused()) publishSourceTextToObs('');
   });
 });

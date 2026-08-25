@@ -22,8 +22,10 @@
  * ───────────────────────────────────────────────────────────────────────────
  */
 
-import { isDebugEnabled } from './logger.js';
+import { createLogger } from './logger.js';
 import { getLang } from './config.js';
+
+const log = createLogger('GTX');
 
 // #region [常數]
 
@@ -62,7 +64,7 @@ async function fetchWithRetry(url, options = {}, retries = 3, delay = 1000) {
     clearTimeout(timeoutId);
 
     if (response.status === 429 && retries > 0) {
-      if (isDebugEnabled()) console.warn('[GTX] 偵測到 429 Too Many Requests，將在延遲後重試...', { retries, delay });
+      log.warn('偵測到 429 Too Many Requests，將在延遲後重試...', { retries, delay });
       await new Promise(resolve => setTimeout(resolve, delay));
       return fetchWithRetry(url, options, retries - 1, delay * 2);
     }
@@ -71,7 +73,7 @@ async function fetchWithRetry(url, options = {}, retries = 3, delay = 1000) {
   } catch (error) {
     clearTimeout(timeoutId);
     if (retries > 0 && error.name !== 'AbortError') {
-      if (isDebugEnabled()) console.warn('[GTX] 請求失敗，準備重試...', { error: error.message, retries });
+      log.warn('請求失敗，準備重試...', { error: error.message, retries });
       await new Promise(resolve => setTimeout(resolve, delay));
       return fetchWithRetry(url, options, retries - 1, delay * 2);
     }

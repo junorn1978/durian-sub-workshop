@@ -17,16 +17,32 @@ export function updateStatusDisplay(text, details = null) {
   }
 }
 
-// ロゴ（一時停止ボタン）の説明。録音中と一時停止中で押したときの意味が変わる。
+/**
+ * 把起動時的案內訊息在一段時間後清掉。
+ * 只有在訊息仍然是當初那一則時才清除：這段期間內若有實際的狀態訊息覆蓋上來，
+ * 就不能連它一起吃掉。
+ * @param {number} [delayMs]
+ */
+export function scheduleInitialStatusClear(delayMs = 7000) {
+  const statusDisplay = document.getElementById('status-display');
+  if (!statusDisplay) return;
+
+  const initialText = statusDisplay.textContent;
+  setTimeout(() => {
+    if (statusDisplay.textContent === initialText) statusDisplay.textContent = '';
+  }, delayMs);
+}
+
+// 標誌（暫停按鈕）的說明。錄音中與暫停期間按下時的作用不同。
 const PAUSE_BUTTON_HINTS = {
   recording: { label: '一時停止', title: 'クリックで一時停止（設定した時間が過ぎると自動で再開します）' },
   paused: { label: '一時停止の残り時間をリセット', title: 'クリックで残り時間を設定した長さに戻します' }
 };
 
 /**
- * 録音操作ボタンの活性状態をまとめて切り替える。
- * 'paused' では「開始」で即再開、「停止」で自動再開の取り消し、ロゴで残り時間のリセットができる
- * よう、3つとも押せる状態にする。
+ * 統一切換錄音操作按鈕的啟用狀態。
+ * 在 'paused' 狀態下，可透過「開始」立即恢復、「停止」取消自動恢復，或按標誌重設剩餘時間，
+ * 因此三個按鈕皆設為可按下狀態。
  * @param {'idle'|'recording'|'paused'} state
  */
 export function setRecognitionControlsState(state) {
@@ -41,9 +57,9 @@ export function setRecognitionControlsState(state) {
 }
 
 /**
- * ロゴ上の一時停止バッジを更新する。
- * @param {boolean} paused 一時停止中かどうか
- * @param {string} remainingText 一時停止中に表示する残り時間（例 '2:45'）
+ * 更新標誌上的暫停徽章。
+ * @param {boolean} paused 是否處於暫停狀態
+ * @param {string} remainingText 暫停期間顯示的剩餘時間（例如 '2:45'）
  */
 export function setPauseOverlayState(paused, remainingText = '') {
   const pauseButton = document.getElementById('pause-recording');
@@ -66,7 +82,7 @@ export function clearAllTextElements() {
     try {
       if (el.getAnimations) el.getAnimations().forEach(animation => animation.cancel());
     } catch (_) {
-      // no-op
+      // 動畫取消失敗不影響清除字幕本身，繼續往下清空文字即可。
     }
     el.textContent = '';
   }

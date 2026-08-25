@@ -1,19 +1,21 @@
 /**
  * @file translationController.js
- * @description 翻訳リクエストの中枢。リクエストキュー、翻訳ルートの振り分け(AI/ローカル/リモート)、
- * 字幕表示用バッファの制御を担当する。
- * 言語情報は getLang による共通の言語オブジェクトで扱う。
+ * @description 翻譯請求的核心。負責請求佇列、翻譯路徑分配（AI／本機／遠端），
+ * 以及字幕顯示緩衝區的控制。
+ * 語言資訊透過 getLang 傳回的共用語言物件處理。
  */
 
 import { getLang, isRayModeActive } from './config.js';
 import { filterTextWithKeywords, processRayModeTranscript } from './rayModeFilter.js';
 import { translateWithGTX } from './gtxTranslationService.js';
 import { processTranslationUrl } from './remoteTranslationService.js';
-import { isDebugEnabled } from './logger.js';
+import { createLogger } from './logger.js';
 import { publishTranslationsToObs } from './obsBridge.js';
 import { updateStatusDisplay } from './uiState.js';
 
-// #region [状態とキャッシュ]
+const log = createLogger('TranslationController');
+
+// #region [狀態與快取]
 let sequenceCounter = 0;
 let bufferCheckInterval = null;
 let _cachedTargetSpans  = null;
@@ -22,7 +24,7 @@ const displayBuffers = { target1: [], target2: [], target3: [] };
 const currentDisplays = { target1: null, target2: null, target3: null };
 // #endregion
 
-// #region [同時実行制御]
+// #region [並行執行控制]
 const queue = [];
 let inFlight = 0;
 const MAX = 5;
@@ -40,7 +42,7 @@ async function processTask(next) {
     const result = await next.task();
     next.resolve(result);
   } catch (error) {
-    if (isDebugEnabled()) console.error('[ERROR] [TranslationController] 任務失敗:', { error: error.message });
+    log.error('任務失敗:', { error: error.message });
     next.reject(error);
   } finally {
     inFlight--;
@@ -56,7 +58,7 @@ function pump() {
 }
 // #endregion
 
-// #region [翻訳リクエストの共通処理]
+// #region [翻譯請求的共用處理]
 
 function getConfiguredTargetLangIds() {
   return [
@@ -139,9 +141,9 @@ async function requestTranslationData(text, previousText, sourceLangId, rawTarge
 
 // #endregion
 
-// #region [字幕表示バッファ制御]
+// #region [字幕顯示緩衝區控制]
 /**
- * 字幕表示用の DOM 要素を取得する。初回取得後はキャッシュを使う。
+ * 取得字幕顯示用的 DOM 元素。首次取得後使用快取。
  */
 function getTargetSpans() {
   if (!_cachedTargetSpans) {
@@ -155,14 +157,14 @@ function getTargetSpans() {
 }
 
 /**
- * 翻訳結果を表示バッファへ追加し、字幕の表示タイミングを更新する。
- * @param {Array<string>} targetLangIds - 翻訳先言語 ID の一覧
+ * 將翻譯結果加入顯示緩衝區，並更新字幕的顯示時機。
+ * @param {Array<string>} targetLangIds - 目標語言 ID 清單
  */
 async function updateTranslationUI(data, targetLangIds, minDisplayTime, sequenceId) {
   const stopbutton = document.getElementById('stop-recording');
   if (stopbutton.disabled) return;
-  // 一時停止中は停止ボタンを押せる状態にしてあるため、上の判定だけでは弾けない。
-  // 停止直前に投げたリクエストの返りが残り時間表示を上書きしないようにする。
+  // 暫停期間仍可按下停止按鈕，因此僅靠上述判斷無法排除。
+  // 防止停止前剛送出的請求回傳後覆蓋剩餘時間顯示。
   if (document.getElementById('pause-recording')?.classList.contains('is-paused')) return;
 
   const spans = getTargetSpans();
@@ -214,7 +216,7 @@ function processDisplayBuffers() {
       if (buffer.length > 10 ) { buffer.splice(0, buffer.length - 10); }
       if (buffer.length === 0) return;
 
-      // 最低表示時間が残っている字幕は、次の字幕で上書きしない。
+      // 字幕仍在最低顯示時間內時，不以後續字幕覆蓋。
       if (currentDisplays[key] && now - currentDisplays[key].startTime < currentDisplays[key].minDisplayTime * 1000) {
         return;
       }
@@ -236,14 +238,12 @@ function processDisplayBuffers() {
         hasVisualUpdate = true;
         latestSequenceId = next.sequenceId;
 
+        // 清空字幕（text 為空）屬於例行動作，降到 debug 免得洗版。
         const level = next.text !== '' ? 'info' : 'debug';
-        if (isDebugEnabled()) console[level](`[${level.toUpperCase()}] [TranslationController] 更新翻譯文字:`, { 
-          text: next.text,
-          sequenceId: next.sequenceId
-        });
+        log[level]('更新翻譯文字:', { text: next.text, sequenceId: next.sequenceId });
       }
     } catch (error) {
-      if (isDebugEnabled()) console.error('[ERROR] [TranslationController] processDisplayBuffers 錯誤:', error.message);
+      log.error('processDisplayBuffers 錯誤:', error.message);
     }
   });
 
@@ -256,8 +256,8 @@ function processDisplayBuffers() {
   }
 }
 /**
- * 表示バッファを空にする。停止・一時停止のあとに、バッファに残っていた字幕が
- * 500ms ごとの処理で遅れて出てくるのを防ぐ。
+ * 清空顯示緩衝區。防止停止或暫停後，緩衝區內殘留的字幕
+ * 因每 500ms 執行一次的處理而延遲出現。
  */
 function resetTranslationDisplay() {
   ['target1', 'target2', 'target3'].forEach(key => {
@@ -271,12 +271,12 @@ function resetTranslationDisplay() {
 }
 // #endregion
 
-// #region [翻訳リクエストのルート振り分け]
+// #region [翻譯請求的路徑分配]
 
 /**
- * 翻訳リクエストを送信するための主な入口。
+ * 傳送翻譯請求的主要入口。
  * @async
- * @param {string} sourceLangId - 翻訳元言語 ID (例: 'ja-JP')
+ * @param {string} sourceLangId - 來源語言 ID（例如：'ja-JP'）
  */
 async function sendTranslationRequest(text, previousText = null, sourceLangId) {
   if (text === null || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') return;
@@ -285,7 +285,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
     const sequenceId = sequenceCounter++;
 
     try {
-      // 表示スロットとの対応を保つため、ここでは 'none' も含めて取得する。
+      // 為維持與顯示欄位的對應關係，此處也一併取得 'none'。
       const rawTargetLangIds = getConfiguredTargetLangIds();
       
       const activeLangIds = getActiveTargetLangIds(rawTargetLangIds);
@@ -298,14 +298,14 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       const sourceLangObj = getLang(sourceLangId);
       const rules = sourceLangObj?.displayTimeRules || [];
 
-      // Link 経由の翻訳だけ表示時間を計算する。gtx/Fast/Prompt は即時更新なので 0 にする。
+      // 僅計算透過 Link 翻譯的顯示時間。gtx／Fast／Prompt 會立即更新，因此設為 0。
       const minDisplayTime = currentMode !== 'link'
                            ? 0
                            : (rules.find(rule => text.length <= rule.maxLength)?.time ?? 3);
       let data = await requestTranslationData(text, previousText, sourceLangId, rawTargetLangIds, sequenceId);
 
-      // バックエンドからの緊急停止信号。予算保護用で、ユーザーが停止ボタンを押した場合と同じ扱いにする。
-      // FORCE_STOP_CLIENTS=true が設定されていると、レスポンスに stop:true が付く。
+      // 後端傳來的緊急停止訊號。用於保護預算，比照使用者按下停止按鈕處理。
+      // 設定 FORCE_STOP_CLIENTS=true 時，回應中會附帶 stop:true。
       if (data?.stop) {
         document.getElementById('stop-recording')?.click();
         return;
@@ -317,7 +317,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
         await updateTranslationUI(data, rawTargetLangIds, minDisplayTime, sequenceId);
       }
     } catch (error) {
-      if (isDebugEnabled()) console.error('[ERROR] [translationController] 異常:', error.message);
+      log.error('異常:', error.message);
       updateStatusDisplay(`翻訳中にエラーが発生しました。${error.message}`);
       setTimeout(() => updateStatusDisplay(''), 5000);
       throw error;
@@ -330,8 +330,8 @@ async function translateTestText(text) {
 
   return enqueue(async () => {
     const sequenceId = sequenceCounter++;
-    // テキスト翻訳では入力テキストの言語を自動判定する（gtx は source=auto）。
-    // 字幕用の音声認識言語は使わない。入力言語と一致しない場合、原文返しや誤訳になりやすいため。
+    // 文字翻譯會自動判斷輸入文字的語言（gtx 使用 source=auto）。
+    // 不使用字幕的語音辨識語言，因為若與輸入語言不一致，容易原文照返或產生誤譯。
     const sourceLangId = null;
     const targetLangId = document.getElementById('text-translate-target')?.value || 'ja-JP';
     const rawTargetLangIds = [targetLangId];

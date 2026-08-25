@@ -1,806 +1,324 @@
 /**
  * @file uiController.js
- * @description UI 制御の中枢。スタイル設定、言語メニュー、翻訳モード切り替え、
- * localStorage への保存と復元を管理する。
+ * @description 畫面的組裝點。負責把各個 UI 元件接起來並決定初始化順序。
+ *
+ * 設定項目的定義與存取搬到 settingsBindings.js／settingsStore.js，
+ * 對話框搬到 modals.js。這裡不再放「某個設定要存到哪個 key」這類知識。
  */
 
-import { updateStatusDisplay } from './uiState.js';
+import { updateStatusDisplay, scheduleInitialStatusClear } from './uiState.js';
 import { setupLanguagePackButton } from './languagePackManager.js';
-import {
-  browserInfo, loadLanguageConfig, setAlignment, setForceSingleLineStatus, setSpeechEngine,
-  setSonioxEndpointSetting, getSonioxEndpointDefaults
-} from './config.js';
-import { isDebugEnabled, setLogLevel } from './logger.js';
-import { handleObsBridgeSettingsChanged, triggerAutoSetup, testObsConnection } from './obsBridge.js';
+import { loadLanguageConfig } from './config.js';
+import { createLogger, setLogLevel } from './logger.js';
+import { getSetting, setSetting, hasStoredSetting } from './settingsStore.js';
+import { bindSettings } from './settingsBindings.js';
+import { triggerAutoSetup, testObsConnection, refreshObsDragLinks } from './obsBridge.js';
 import { translateTestText } from './translationController.js';
 import { setupColorPickers } from './colorPicker.js';
+import { setupModal } from './modals.js';
 
-const setupToggleVisibility = (btnId, inputId) => {
-  const btn = document.getElementById(btnId);
+const log = createLogger('UI');
+
+// #region [小型元件]
+
+const EYE_OPEN_ICON = '<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+const EYE_CLOSED_ICON = '<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+
+/**
+ * 密碼、URL 之類欄位的「顯示／隱藏」切換。
+ * 圖示一律由目前的遮蔽狀態算出來，不依賴 HTML 裡寫死的那一份，
+ * 兩邊不同步時（例如改了初始 class）也不會顯示錯誤的眼睛。
+ */
+const setupToggleVisibility = (buttonId, inputId) => {
+  const button = document.getElementById(buttonId);
   const input = document.getElementById(inputId);
-  if (btn && input) {
-    const newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
+  if (!button || !input) return;
 
-    newBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isMasked = input.classList.contains('input-masked');
-      input.classList.toggle('input-masked', !isMasked);
-      input.classList.toggle('input-visible', isMasked);
+  const render = () => {
+    const isMasked = input.classList.contains('input-masked');
+    input.classList.toggle('input-visible', !isMasked);
+    button.innerHTML = isMasked ? EYE_CLOSED_ICON : EYE_OPEN_ICON;
+    button.setAttribute('aria-pressed', String(!isMasked));
+  };
 
-      const eyeOpen = `<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
-      const eyeClosed = `<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
-      newBtn.innerHTML = isMasked ? eyeOpen : eyeClosed;
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    input.classList.toggle('input-masked');
+    render();
+  });
+
+  render();
+};
+
+/** 管理面板切換與選單按鈕狀態。 */
+const setupPanelSwitching = (panels) => {
+  const switchPanel = (buttonId) => {
+    // 沒有對應面板的按鈕（例如 OBS 整合對話框）不列入分頁切換對象。
+    if (!panels[buttonId]) return;
+    document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(buttonId)?.classList.add('active');
+
+    Object.values(panels).forEach(panelId => {
+      const panel = document.getElementById(panelId);
+      if (panel) panel.style.display = 'none';
     });
-  }
+
+    const target = document.getElementById(panels[buttonId]);
+    if (target) target.style.display = 'flex';
+  };
+
+  document.querySelectorAll('.menu-button').forEach(btn => {
+    btn.addEventListener('click', () => switchPanel(btn.id));
+  });
 };
 
-const updateObsDragLink = () => {
-  const linkEl = document.getElementById('obs-drag-link');
-  const linkSourceEl = document.getElementById('obs-drag-link-source');
-  const linkTarget1El = document.getElementById('obs-drag-link-target1');
-  const linkTarget2El = document.getElementById('obs-drag-link-target2');
-  const linkTarget3El = document.getElementById('obs-drag-link-target3');
+/** 管理翻譯模式切換。目前的 UI 支援 gtx／link。 */
+const setupTranslationModeHandler = () => {
+  const modeSelect = document.getElementById('translation-mode');
+  const linkWrapper = document.getElementById('link-input-wrapper');
+  if (!modeSelect) return;
 
-  const ip = (document.getElementById('obs-ws-ip')?.value || '127.0.0.1').trim().replace(/^wss?:\/\//i, '').replace(/\/+$/, '') || '127.0.0.1';
-  const port = (document.getElementById('obs-ws-port')?.value || '4455').trim() || '4455';
-  const url = `ws://${ip}:${port}`;
-  const pwd = document.getElementById('obs-ws-password')?.value || '';
-
-  const baseUrl = window.location.href.split('?')[0].replace(/index\.html$/, '').replace(/\/$/, '');
-
-  const setupLink = (el, fileName, mode) => {
-    if (!el) return;
-    const overlayUrl = `${baseUrl}/${fileName}`;
-    const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : '';
-    el.href = `${overlayUrl}#url=${encodeURIComponent(url)}&pwd=${encodeURIComponent(pwd)}${modeParam}`;
+  const applyMode = (mode) => {
+    if (linkWrapper) linkWrapper.hidden = mode !== 'link';
+    if (mode === 'link') document.getElementById('translation-link')?.focus();
+    setSetting('translation-mode-selection', mode);
   };
 
-  setupLink(linkEl, 'obs_overlay.html');
-  setupLink(linkSourceEl, 'obs_overlay.html', 'source');
-  setupLink(linkTarget1El, 'obs_overlay.html', 'target1');
-  setupLink(linkTarget2El, 'obs_overlay.html', 'target2');
-  setupLink(linkTarget3El, 'obs_overlay.html', 'target3');
+  modeSelect.value = getSetting('translation-mode-selection');
+  applyMode(modeSelect.value);
+
+  modeSelect.addEventListener('change', (event) => applyMode(event.target.value));
 };
-document.addEventListener('DOMContentLoaded', async function () {
-  const urlParams = new URLSearchParams(window.location.search);
-  const isDebugMode = urlParams.get('debug') === 'true';
 
-  const savedDebug = localStorage.getItem('log-system-debug-enabled');
-  // localStorage に設定がある場合はそれを優先し、なければ URL の debug パラメータを見る。
-  // ?debug=true で開いた後も、UI 側で無効化した設定を次回以降そのまま使えるようにする。
-  if (savedDebug === null) {
-    setLogLevel(isDebugMode);
-  }
+/** 點擊字幕面板時收合操作面板，擴大字幕區域。 */
+const setupDisplayPanelInteraction = () => {
+  const displayPanel = document.getElementById('display-panel');
+  const controlPanel = document.getElementById('control-panel');
+  const statusPanel = document.getElementById('status-panel');
+  const minimizeOpt = document.getElementById('click-minimize-opt');
+  if (!displayPanel || !controlPanel || !statusPanel) return;
 
-  if (isDebugEnabled()) console.info('UI', '應用程式初始化開始...');
+  displayPanel.addEventListener('click', () => {
+    if (minimizeOpt?.value === 'false') return;
+    const isHidden = controlPanel.style.display === 'none';
+    controlPanel.style.display = isHidden ? 'flex' : 'none';
+    statusPanel.style.display = isHidden ? 'flex' : 'none';
+    displayPanel.style.setProperty('--display-panel-height', isHidden ? '55%' : '95%');
+  });
+};
 
-  setTimeout(() => {
-    const statusDisplay = document.getElementById('status-display');
-    if (statusDisplay) statusDisplay.textContent = '';
-  }, 7000);
+/** 全部重設按鈕的處理。 */
+const setupResetButton = (resetAll, syncColorPickers) => {
+  document.getElementById('reset-settings')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    resetAll();
+    syncColorPickers();
+  });
+};
 
-  // #region [UI 設定定義]
-  /** @type {Object} UI 設定をまとめて扱うための共通定義。 */
-  const CONFIG = {
-    styles: [
-      { id: 'source-font-color', target: 'source-text', css: '--text-color', type: 'color' },
-      { id: 'target1-font-color', target: 'target-text-1', css: '--text-color', type: 'color' },
-      { id: 'target2-font-color', target: 'target-text-2', css: '--text-color', type: 'color' },
-      { id: 'target3-font-color', target: 'target-text-3', css: '--text-color', type: 'color' },
-      { id: 'source-font-stroke-color', target: 'source-text', css: '--stroke-color', type: 'color' },
-      { id: 'target1-font-stroke-color', target: 'target-text-1', css: '--stroke-color', type: 'color' },
-      { id: 'target2-font-stroke-color', target: 'target-text-2', css: '--stroke-color', type: 'color' },
-      { id: 'target3-font-stroke-color', target: 'target-text-3', css: '--stroke-color', type: 'color' },
-      { id: 'source-font-size', target: 'source-text', css: '--text-font-size', type: 'range' },
-      { id: 'target1-font-size', target: 'target-text-1', css: '--text-font-size', type: 'range' },
-      { id: 'target2-font-size', target: 'target-text-2', css: '--text-font-size', type: 'range' },
-      { id: 'target3-font-size', target: 'target-text-3', css: '--text-font-size', type: 'range' },
-      { id: 'source-font-stroke-size', target: 'source-text', css: '--stroke-width', type: 'range' },
-      { id: 'target1-font-stroke-size', target: 'target-text-1', css: '--stroke-width', type: 'range' },
-      { id: 'target2-font-stroke-size', target: 'target-text-2', css: '--stroke-width', type: 'range' },
-      { id: 'target3-font-stroke-size', target: 'target-text-3', css: '--stroke-width', type: 'range' }
-    ],
-    languages: [
-      { id: 'source-language', type: 'select', langTarget: 'source-text', onApply: () => handleObsBridgeSettingsChanged() },
-      { id: 'target1-language', type: 'select', langTarget: 'target-text-1', clearTarget: 'target-text-1', onApply: () => handleObsBridgeSettingsChanged() },
-      { id: 'target2-language', type: 'select', langTarget: 'target-text-2', clearTarget: 'target-text-2', onApply: () => handleObsBridgeSettingsChanged() },
-      { id: 'target3-language', type: 'select', langTarget: 'target-text-3', clearTarget: 'target-text-3', onApply: () => handleObsBridgeSettingsChanged() }
-    ],
-    radioGroups: [
-      {
-        name: 'alignment', key: 'text-alignment', default: 'center',
-        targets: ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'],
-        css: '--text-align',
-        onApply: (val) => setAlignment(val)
-      }
-    ],
-    special: [
-      { id: 'display-panel-color', type: 'body-color', css: '--body-background' },
-      { id: 'translation-link', type: 'text' },
-      {
-        id: 'obs-ws-enabled', type: 'select', key: 'obs-ws-enabled',
-        default: 'false',
-        onApply: () => handleObsBridgeSettingsChanged()
-      },
-      {
-        id: 'obs-ws-ip', type: 'text',
-        onApply: () => { handleObsBridgeSettingsChanged(); updateObsDragLink(); }
-      },
-      {
-        id: 'obs-ws-port', type: 'text',
-        onApply: () => { handleObsBridgeSettingsChanged(); updateObsDragLink(); }
-      },
-      {
-        id: 'obs-ws-password', type: 'text',
-        onApply: () => { handleObsBridgeSettingsChanged(); updateObsDragLink(); }
-      },
-      {
-        id: 'click-minimize-opt', type: 'select', key: 'click-minimize-enabled', default: 'true'
-      },
-      {
-        id: 'force-single-line-opt', type: 'select', key: 'force-single-line-enabled',
-        default: 'true',
-        onApply: (val) => {
-          const isEnabled = val === 'true';
-          setForceSingleLineStatus(isEnabled);
-          document.getElementById('source-text')?.classList.toggle('visual-single-line', isEnabled);
-        }
-      },
-      {
-        id: 'speech-engine-opt', type: 'select', key: 'speech-recognition-engine', default: 'soniox',
-        onApply: (val) => {
-          setSpeechEngine(val);
-          const isCloud = val === 'soniox';
+/**
+ * Source Text 專用的捲動處理。
+ * 以標準 smooth scroll 追蹤顯示 Soniox 或 Web Speech API 的即時轉錄內容。
+ * 即時轉錄一次更新會產生多個 mutation，因此用 rAF 合併成每幀一次，
+ * 避免 smooth 動畫不斷被自己重新啟動而抖動。
+ */
+const setupSourceScrollBehavior = (elementId) => {
+  const element = document.getElementById(elementId);
+  if (!element) return;
 
-          const dlBtn = document.getElementById('download-language-pack');
-          const dlRow = dlBtn?.closest('.settings-row');
-          if (dlRow && browserInfo.isChrome) {
-            // オフライン言語パックは on-device (Web Speech) 使用時だけ必要なので、Soniox では隠す。
-            dlRow.style.display = isCloud ? 'none' : '';
-          }
-
-          const helpLink = document.getElementById('engine-help-link');
-          if (helpLink) {
-            helpLink.style.display = isCloud ? 'inline-flex' : 'none';
-          }
-
-          // エンドポイント検出の調整は Soniox 専用の機能。
-          const endpointRows = document.getElementById('soniox-endpoint-rows');
-          if (endpointRows) {
-            endpointRows.style.display = isCloud ? '' : 'none';
-          }
-        }
-      },
-      {
-        id: 'soniox-latency-level-opt', type: 'select', key: 'soniox-latency-level',
-        default: String(getSonioxEndpointDefaults().latencyLevel),
-        onApply: (val) => setSonioxEndpointSetting('latencyLevel', val)
-      },
-      {
-        id: 'soniox-sensitivity-opt', type: 'range-value', key: 'soniox-sensitivity',
-        valueId: 'soniox-sensitivity-value',
-        default: String(getSonioxEndpointDefaults().sensitivity),
-        format: (v) => Number(v).toFixed(1),
-        onApply: (val) => setSonioxEndpointSetting('sensitivity', val)
-      },
-      {
-        id: 'soniox-max-delay-opt', type: 'range-value', key: 'soniox-max-delay-ms',
-        valueId: 'soniox-max-delay-value',
-        default: String(getSonioxEndpointDefaults().maxDelayMs),
-        format: (v) => `${v}ms`,
-        onApply: (val) => setSonioxEndpointSetting('maxDelayMs', val)
-      },
-      {
-        id: 'log-level-opt', type: 'select', key: 'log-level-preference', default: 'false',
-        onApply: (val) => setLogLevel(val)
-      },
-      {
-        id: 'auto-stop-enabled-opt', type: 'select', key: 'auto-stop-enabled', default: 'true',
-        onApply: (val) => {
-          const badge = document.getElementById('auto-stop-warning-badge');
-          if (badge) badge.style.display = val === 'false' ? 'inline-block' : 'none';
-        }
-      },
-      // 一時停止の長さ。speechCapture.js が一時停止のたびに localStorage から読むため onApply は不要。
-      {
-        id: 'pause-duration-opt', type: 'select', key: 'pause-duration-min', default: '3'
-      },
-      // 無音で字幕を消すまでの秒数。speechCapture.js が区切りのたびに localStorage から読む。
-      {
-        id: 'subtitle-clear-idle-opt', type: 'select', key: 'subtitle-clear-idle-sec', default: '7'
-      },
-    ],
-    panels: { 'Subtitle': 'source-styles-panel', 'options': 'options-panel' }
-  };
-  // #endregion
-
-  // #region [ブラウザ機能の制限確認]
-  if (!browserInfo.isChrome) {
-    if (isDebugEnabled()) console.debug('[DEBUG] [UIController]', '檢測到 Edge 瀏覽器，限制本地端 API 功能');
-
-    const dlBtn = document.getElementById('download-language-pack');
-    const dlRow = dlBtn?.closest('.settings-row');
-    if (dlRow) dlRow.style.display = 'none';
-  }
-  // #endregion
-
-  // #region [設定保存処理]
-  const Storage = {
-    save: (key, value) => {
-      localStorage.setItem(key, value);
-    },
-    load: (key, defaultValue = null) => {
-      return localStorage.getItem(key) || defaultValue;
-    },
-    getDefaultFromCSS: (cssProperty) => {
-      return getComputedStyle(document.documentElement).getPropertyValue(cssProperty).trim();
+  let scrollScheduled = false;
+  const scrollToBottom = () => {
+    scrollScheduled = false;
+    if (element.scrollHeight > element.clientHeight) {
+      element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' });
+    } else {
+      element.scrollTop = 0;
     }
   };
-  // #endregion
 
-  // #region [設定ハンドラ生成]
-
-  /**
-   * 標準の入力項目とスタイル項目を扱うハンドラを生成する。
-   * @param {Object} config - 設定項目の定義
-   */
-  const createSettingHandler = (config) => ({
-    applyLanguage(value) {
-      if (!config.langTarget) return;
-      const targetEl = document.getElementById(config.langTarget);
-      if (!targetEl) return;
-      const lang = value && value !== 'none' ? value : '';
-      if (lang) {
-        targetEl.lang = lang;
-      } else {
-        targetEl.removeAttribute('lang');
-      }
-    },
-    load() {
-      const element = document.getElementById(config.id);
-      const target = config.target ? document.getElementById(config.target) : null;
-      if (!element) return;
-
-      const saved = Storage.load(config.id);
-      const value = saved || (config.css ? Storage.getDefaultFromCSS(config.css) : null);
-      if (!value) return;
-
-      element.value = config.type === 'range' ? parseFloat(value) : value;
-      this.applyLanguage(value);
-      if (!target || !config.css) return;
-
-      target.style.setProperty(config.css, value);
-    },
-    save(value) {
-      Storage.save(config.id, value);
-      this.applyLanguage(value);
-      const target = config.target ? document.getElementById(config.target) : null;
-      if (!target || !config.css) return;
-
-      target.style.setProperty(config.css, value);
-    },
-    setupListener() {
-      const element = document.getElementById(config.id);
-      if (!element) return;
-
-      element.addEventListener(config.type === 'select' ? 'change' : 'input', (e) => {
-        const value = config.type === 'range' ? `${e.target.value}px` : e.target.value;
-        this.save(value);
-        this.handleSpecialCases(e);
-        if (config.onApply) config.onApply(value);
-      });
-    },
-    handleSpecialCases(e) {
-      if (!config.clearTarget || e.target.value !== 'none') return;
-      const targetEl = document.getElementById(config.clearTarget);
-      if (!targetEl) return;
-      targetEl.textContent = '\u200B';
-    },
-    reset() {
-      if (!config.css) return;
-      const defaultValue = Storage.getDefaultFromCSS(config.css);
-      if (!defaultValue) return;
-      this.save(defaultValue);
-      const element = document.getElementById(config.id);
-      if (element) element.value = config.type === 'range' ? parseFloat(defaultValue) : defaultValue;
-    }
+  const observer = new MutationObserver(() => {
+    if (scrollScheduled) return;
+    scrollScheduled = true;
+    requestAnimationFrame(scrollToBottom);
   });
 
-  /**
-   * ラジオボタン用の設定ハンドラを生成する。
-   * @param {Object} config
-   */
-  const createRadioHandler = (config) => ({
-    load() {
-      const saved = Storage.load(config.key, config.default);
+  observer.observe(element, { childList: true, characterData: true, subtree: true });
+};
 
-      if (config.onApply) config.onApply(saved, config.targets);
+/** 翻訳テストツール（テキスト翻訳ページ）。 */
+const setupTranslationTestTool = () => {
+  const input = document.getElementById('translation-test-input');
+  const runBtn = document.getElementById('translation-test-run');
+  const clearBtn = document.getElementById('translation-test-clear');
+  const status = document.getElementById('translation-test-status');
+  const result = document.getElementById('translation-test-result');
 
-      const radio = document.querySelector(`input[name="${config.name}"][value="${saved}"]`);
-      if (radio) {
-        radio.checked = true;
-        this.save(saved, false); // 読み込み時は onApply を再実行せず、重複処理を避ける。
-      }
-    },
-    setupListener() {
-      document.querySelectorAll(`input[name="${config.name}"]`).forEach(radio => {
-        radio.addEventListener('change', (e) => {
-          if (e.target.checked) this.save(e.target.value, true);
-        });
-      });
-    },
-    save(value, triggerCallback = true) {
-      Storage.save(config.key, value);
+  if (!input || !runBtn || !clearBtn || !status || !result) return;
 
-      if (triggerCallback && config.onApply) config.onApply(value, config.targets);
+  const setStatus = (text) => { status.textContent = text || ''; };
 
-      if (config.css && config.targets) {
-        config.targets.forEach(targetId => {
-          const target = document.getElementById(targetId);
-          if (target) target.style.setProperty(config.css, value);
-        });
-      }
-    },
-    reset() {
-      if (config.onApply) config.onApply(config.default, config.targets);
+  const renderResults = (payload) => {
+    result.replaceChildren();
 
-      const defaultRadio = document.querySelector(`input[name="${config.name}"][value="${config.default}"]`);
-      if (defaultRadio) {
-        defaultRadio.checked = true;
-        this.save(config.default, false);
-      }
+    const activeResults = payload?.results?.filter(item => item.langId && item.langId !== 'none') || [];
+    if (activeResults.length === 0) {
+      setStatus('翻訳先言語が選択されていません');
+      return;
     }
-  });
 
-  /**
-   * チェックボックス、セレクト、背景色などの特殊項目用ハンドラを生成する。
-   * @param {Object} config
-   */
-  const createSpecialHandler = (config) => {
-    const handlers = {
-      'body-color': {
-        load(el) {
-          const value = Storage.load(config.id) || Storage.getDefaultFromCSS(config.css) || '#00FF00';
-          el.value = value;
-          document.body.style.setProperty(config.css, value);
-        },
-        setupListener(el) {
-          el.addEventListener('input', (e) => {
-            document.body.style.setProperty(config.css, e.target.value);
-            Storage.save(config.id, e.target.value);
-          });
-        },
-        reset(el) {
-          const def = Storage.getDefaultFromCSS(config.css) || '#00FF00';
-          el.value = def;
-          document.body.style.setProperty(config.css, def);
-          Storage.save(config.id, def);
-        }
-      },
-      'text': {
-        load(el) {
-          const saved = Storage.load(config.id);
-          if (saved) el.value = saved;
-          if (config.onApply) config.onApply(el.value || '');
-        },
-        setupListener(el) {
-          el.addEventListener('input', (e) => {
-            Storage.save(config.id, e.target.value);
-            if (config.onApply) config.onApply(e.target.value);
-          });
-        },
-        reset() { }
-      },
-      'checkbox': {
-        load(el) {
-          const saved = Storage.load(config.key) === 'true';
-          el.checked = saved;
-          if (config.onApply) config.onApply(saved);
-        },
-        setupListener(el) {
-          el.addEventListener('change', (e) => {
-            const checked = e.target.checked;
-            Storage.save(config.key, checked.toString());
-            if (config.onApply) config.onApply(checked);
-          });
-        },
-        reset(el) {
-          el.checked = false;
-          Storage.save(config.key, 'false');
-          if (config.onApply) config.onApply(false);
-        }
-      },
-      'select': {
-        load(el) {
-          const saved = Storage.load(config.key);
-          const val = saved || config.default || 'false';
-          el.value = val;
+    activeResults.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'translation-test-result-row';
 
-          if (config.onApply) config.onApply(val);
-        },
-        setupListener(el) {
-          el.addEventListener('change', (e) => {
-            const val = e.target.value;
-            Storage.save(config.key, val);
-            if (config.onApply) config.onApply(val);
-          });
-        },
-        reset(el) {
-          const def = config.default || 'false';
-          el.value = def;
-          Storage.save(config.key, def);
-          if (config.onApply) config.onApply(def);
-        }
-      },
-      // 数値スライダー + 現在値のテキスト表示。config.format で表示文字列を組み立てる。
-      'range-value': {
-        _render(el) {
-          const label = document.getElementById(config.valueId);
-          if (label) label.textContent = config.format ? config.format(el.value) : el.value;
-        },
-        load(el) {
-          const saved = Storage.load(config.key);
-          el.value = saved !== null ? saved : config.default;
-          this._render(el);
-          if (config.onApply) config.onApply(el.value);
-        },
-        setupListener(el) {
-          el.addEventListener('input', (e) => {
-            const val = e.target.value;
-            Storage.save(config.key, val);
-            this._render(e.target);
-            if (config.onApply) config.onApply(val);
-          });
-        },
-        reset(el) {
-          el.value = config.default;
-          Storage.save(config.key, config.default);
-          this._render(el);
-          if (config.onApply) config.onApply(config.default);
-        }
-      },
-    };
+      const label = document.createElement('span');
+      label.className = 'translation-test-result-label';
+      label.textContent = `翻訳 ${item.slot}: ${item.label}`;
 
-    const handler = handlers[config.type];
-    return {
-      load() {
-        const el = document.getElementById(config.id);
-        if (el && handler) handler.load(el);
-      },
-      setupListener() {
-        const el = document.getElementById(config.id);
-        if (el && handler) handler.setupListener(el);
-      },
-      reset() {
-        const el = document.getElementById(config.id);
-        if (el && handler) handler.reset(el);
-      }
-    };
-  };
-  // #endregion
+      const text = document.createElement('div');
+      text.className = 'translation-test-result-text';
+      text.textContent = item.text || '';
 
-  // #region [画面操作とパネル管理]
-
-  /** パネル切り替えとメニューボタンの状態を管理する。 */
-  const setupPanelSwitching = () => {
-    const switchPanel = (buttonId) => {
-      // 対応するパネルを持たないボタン（OBS 連携モーダルなど）は、タブ切り替えの対象外にする。
-      if (!CONFIG.panels[buttonId]) return;
-      document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
-      document.getElementById(buttonId)?.classList.add('active');
-
-      Object.values(CONFIG.panels).forEach(pId => {
-        const p = document.getElementById(pId);
-        if (p) p.style.display = 'none';
-      });
-
-      const target = document.getElementById(CONFIG.panels[buttonId]);
-      if (target) target.style.display = 'flex';
-    };
-
-    document.querySelectorAll('.menu-button').forEach(btn => {
-      btn.addEventListener('click', () => switchPanel(btn.id));
+      row.append(label, text);
+      result.append(row);
     });
   };
 
-  /** 翻訳モードの切り替えを管理する。現在の UI では gtx / link を扱う。 */
-  const setupTranslationModeHandler = () => {
-    const modeSelect = document.getElementById('translation-mode');
-    const linkWrapper = document.getElementById('link-input-wrapper');
-
-    setupToggleVisibility('toggle-link-visibility', 'translation-link');
-
-    if (!modeSelect) return;
-
-    const applyMode = (mode) => {
-      if (linkWrapper) linkWrapper.style.display = 'none';
-
-      switch (mode) {
-        case 'link':
-          if (linkWrapper) { linkWrapper.style.display = 'block'; document.getElementById('translation-link')?.focus(); }
-          break;
-      }
-      Storage.save('translation-mode-selection', mode);
-    };
-
-    const savedMode = Storage.load('translation-mode-selection') || 'gtx';
-    modeSelect.value = savedMode;
-    applyMode(modeSelect.value);
-    
-    modeSelect.addEventListener('change', (e) => applyMode(e.target.value));
-  };
-
-  const setupTranslationTestTool = () => {
-    const input = document.getElementById('translation-test-input');
-    const runBtn = document.getElementById('translation-test-run');
-    const clearBtn = document.getElementById('translation-test-clear');
-    const status = document.getElementById('translation-test-status');
-    const result = document.getElementById('translation-test-result');
-
-    if (!input || !runBtn || !clearBtn || !status || !result) return;
-
-    const setStatus = (text) => { status.textContent = text || ''; };
-
-    const renderResults = (payload) => {
+  const run = async () => {
+    const text = input.value.trim();
+    if (!text) {
+      setStatus('テキストを入力してください');
       result.replaceChildren();
+      return;
+    }
 
-      const activeResults = payload?.results?.filter(item => item.langId && item.langId !== 'none') || [];
-      if (activeResults.length === 0) {
-        setStatus('翻訳先言語が選択されていません');
-        return;
-      }
+    runBtn.disabled = true;
+    setStatus('翻訳中...');
 
-      activeResults.forEach(item => {
-        const row = document.createElement('div');
-        row.className = 'translation-test-result-row';
-
-        const label = document.createElement('span');
-        label.className = 'translation-test-result-label';
-        label.textContent = `翻訳 ${item.slot}: ${item.label}`;
-
-        const text = document.createElement('div');
-        text.className = 'translation-test-result-text';
-        text.textContent = item.text || '';
-
-        row.append(label, text);
-        result.append(row);
-      });
-    };
-
-    const run = async () => {
-      const text = input.value.trim();
-      if (!text) {
-        setStatus('テキストを入力してください');
+    try {
+      const payload = await translateTestText(text);
+      if (!payload) {
+        setStatus('翻訳結果がありません');
         result.replaceChildren();
         return;
       }
-
-      runBtn.disabled = true;
-      setStatus('翻訳中...');
-
-      try {
-        const payload = await translateTestText(text);
-        if (!payload) {
-          setStatus('翻訳結果がありません');
-          result.replaceChildren();
-          return;
-        }
-        renderResults(payload);
-        setStatus('');
-      } catch (error) {
-        if (isDebugEnabled()) console.error('[ERROR] [TranslationTest]', error);
-        setStatus(`翻訳エラー: ${error.message}`);
-      } finally {
-        runBtn.disabled = false;
-      }
-    };
-
-    runBtn.addEventListener('click', run);
-    clearBtn.addEventListener('click', () => {
-      input.value = '';
+      renderResults(payload);
       setStatus('');
-      result.replaceChildren();
-      input.focus();
-    });
-    input.addEventListener('keydown', (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-        event.preventDefault();
-        run();
-      }
-    });
+    } catch (error) {
+      log.error('翻訳テストに失敗:', error);
+      setStatus(`翻訳エラー: ${error.message}`);
+    } finally {
+      runBtn.disabled = false;
+    }
   };
 
-  /** 字幕パネルのクリックで操作パネルを畳み、字幕領域を広げる。 */
-  const setupDisplayPanelInteraction = () => {
-    const dPanel = document.getElementById('display-panel');
-    const cPanel = document.getElementById('control-panel');
-    const sPanel = document.getElementById('status-panel');
-    const minOpt = document.getElementById('click-minimize-opt');
-    if (!dPanel || !cPanel || !sPanel) return;
+  runBtn.addEventListener('click', run);
+  clearBtn.addEventListener('click', () => {
+    input.value = '';
+    setStatus('');
+    result.replaceChildren();
+    input.focus();
+  });
+  input.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.preventDefault();
+      run();
+    }
+  });
+};
+// #endregion
 
-    dPanel.addEventListener('click', () => {
-      if (minOpt?.value === 'false') return;
-      const isHidden = cPanel.style.display === 'none';
-      cPanel.style.display = isHidden ? 'flex' : 'none';
-      sPanel.style.display = isHidden ? 'flex' : 'none';
-      dPanel.style.setProperty('--display-panel-height', isHidden ? '55%' : '95%');
-    });
-  };
+// #region [對話框]
 
-  /** 全体リセットボタンの処理。 */
-  const setupResetButton = (handlers, syncColorPickers) => {
-    const rBtn = document.getElementById('reset-settings');
-    if (rBtn) rBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      Object.values(handlers).flat().forEach(h => { if (h.reset) h.reset(); });
-      syncColorPickers();
-    });
-  };
-  // #endregion
+/**
+ * 對話框的清單。說明用的兩個（Soniox／OBS WebSocket）會疊在設定對話框上方，
+ * 疊放順序與 Esc 的處理都由 modals.js 的堆疊負責。
+ */
+const MODALS = [
+  { overlayId: 'obs-modal-overlay', openButtonId: 'obs-settings', closeButtonId: 'obs-modal-close' },
+  { overlayId: 'settings-modal-overlay', openButtonId: 'settings-gear', closeButtonId: 'settings-modal-close' },
+  { overlayId: 'link-help-modal-overlay', openButtonId: 'link-help-btn', closeButtonId: 'link-help-close' },
+  { overlayId: 'soniox-help-modal-overlay', openButtonId: 'engine-help-link', closeButtonId: 'soniox-help-close' },
+  { overlayId: 'obs-help-modal-overlay', openButtonId: 'obs-help-btn', closeButtonId: 'obs-help-close' }
+];
 
-  // #region [メイン初期化]
+/** 翻訳クラウド接続の說明對話框裡的「複製範例程式碼」。 */
+const setupLinkHelpCopy = () => {
+  const copyBtn = document.getElementById('link-help-copy');
+  const codeEl = document.getElementById('link-help-code');
+  if (!copyBtn || !codeEl) return;
+
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(codeEl.textContent);
+      const original = copyBtn.textContent;
+      copyBtn.textContent = '✓ コピーしました';
+      setTimeout(() => { copyBtn.textContent = original; }, 1500);
+    } catch (_) { /* 無法使用剪貼簿時不進行任何處理。 */ }
+  });
+};
+
+/** OBS 整合對話框裡的連線測試與自動設定。 */
+const setupObsModalActions = () => {
+  const testBtn = document.getElementById('obs-test-btn');
+  const testStatus = document.getElementById('obs-test-status');
+
+  testBtn?.addEventListener('click', async () => {
+    if (testStatus) {
+      testStatus.textContent = '接続中…';
+      testStatus.className = 'obs-test-status testing';
+    }
+    testBtn.disabled = true;
+    const ok = await testObsConnection();
+    testBtn.disabled = false;
+    if (testStatus) {
+      testStatus.textContent = ok ? '接続成功' : '接続失敗';
+      testStatus.className = `obs-test-status ${ok ? 'ok' : 'fail'}`;
+    }
+  });
+
+  document.getElementById('obs-auto-setup-btn')?.addEventListener('click', () => triggerAutoSetup());
+};
+// #endregion
+
+// #region [主要初始化]
+
+/**
+ * 日誌等級的開機設定。
+ * 使用者在 UI 明確設定過就以該設定為準，只有在從未設定過時才看 ?debug=true，
+ * 這樣以 ?debug=true 開啟後，仍可沿用之後透過 UI 停用的設定。
+ */
+const bootstrapLogLevel = () => {
+  if (hasStoredSetting('log-system-debug-enabled')) return;
+  const isDebugMode = new URLSearchParams(window.location.search).get('debug') === 'true';
+  setLogLevel(isDebugMode);
+};
+
+document.addEventListener('DOMContentLoaded', async () => {
+  bootstrapLogLevel();
+  log.info('應用程式初始化開始...');
+
+  scheduleInitialStatusClear();
+
   await loadLanguageConfig();
 
-  const handlers = {
-    styleHandlers: CONFIG.styles.map(c => { const h = createSettingHandler(c); h.load(); h.setupListener(); return h; }),
-    languageHandlers: CONFIG.languages.map(c => { const h = createSettingHandler(c); h.load(); h.setupListener(); return h; }),
-    radioHandlers: CONFIG.radioGroups.map(c => { const h = createRadioHandler(c); h.load(); h.setupListener(); return h; }),
-    specialHandlers: CONFIG.special.map(c => { const h = createSpecialHandler(c); h.load(); h.setupListener(); return h; })
-  };
+  const { resetAll } = bindSettings();
   const colorPickers = setupColorPickers();
 
-  setupPanelSwitching();
-  setupResetButton(handlers, colorPickers.sync);
+  setupPanelSwitching({ 'Subtitle': 'source-styles-panel', 'options': 'options-panel' });
+  setupResetButton(resetAll, colorPickers.sync);
   await setupLanguagePackButton('source-language', updateStatusDisplay);
   setupDisplayPanelInteraction();
   setupTranslationModeHandler();
   setupTranslationTestTool();
+  setupToggleVisibility('toggle-link-visibility', 'translation-link');
   setupToggleVisibility('toggle-obs-pwd-visibility', 'obs-ws-password');
 
-  // OBS 連携モーダルの開閉。ボタンで開き、閉じるボタンまたは Esc で閉じる。背景クリックでは閉じない。
-  (() => {
-    const overlay = document.getElementById('obs-modal-overlay');
-    const openBtn = document.getElementById('obs-settings');
-    const closeBtn = document.getElementById('obs-modal-close');
-    if (!overlay || !openBtn) return;
-    const close = () => { overlay.style.display = 'none'; };
-    openBtn.addEventListener('click', () => { overlay.style.display = 'flex'; });
-    closeBtn?.addEventListener('click', close);
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && overlay.style.display !== 'none') close();
-    });
+  MODALS.forEach(setupModal);
+  setupLinkHelpCopy();
+  setupObsModalActions();
 
-    // 一時接続で OBS まで到達できたら、接続テストを成功として表示する。
-    const testBtn = document.getElementById('obs-test-btn');
-    const testStatus = document.getElementById('obs-test-status');
-    testBtn?.addEventListener('click', async () => {
-      if (testStatus) { testStatus.textContent = '接続中…'; testStatus.className = 'obs-test-status testing'; }
-      testBtn.disabled = true;
-      const ok = await testObsConnection();
-      testBtn.disabled = false;
-      if (testStatus) {
-        testStatus.textContent = ok ? '接続成功' : '接続失敗';
-        testStatus.className = `obs-test-status ${ok ? 'ok' : 'fail'}`;
-      }
-    });
-  })();
-
-  // その他設定モーダルの開閉。歯車ボタンで開き、閉じるボタンまたは Esc で閉じる。背景クリックでは閉じない。
-  (() => {
-    const overlay = document.getElementById('settings-modal-overlay');
-    const openBtn = document.getElementById('settings-gear');
-    const closeBtn = document.getElementById('settings-modal-close');
-    if (!overlay || !openBtn) return;
-    const close = () => { overlay.style.display = 'none'; };
-    openBtn.addEventListener('click', () => { overlay.style.display = 'flex'; });
-    closeBtn?.addEventListener('click', close);
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && overlay.style.display !== 'none') close();
-    });
-  })();
-
-  // 翻訳クラウド接続（カスタム URL）ヘルプモーダルの開閉とサンプルコードのコピー。
-  (() => {
-    const overlay = document.getElementById('link-help-modal-overlay');
-    const openBtn = document.getElementById('link-help-btn');
-    const closeBtn = document.getElementById('link-help-close');
-    const copyBtn = document.getElementById('link-help-copy');
-    const codeEl = document.getElementById('link-help-code');
-    if (!overlay || !openBtn) return;
-    const close = () => { overlay.style.display = 'none'; };
-    openBtn.addEventListener('click', () => { overlay.style.display = 'flex'; });
-    closeBtn?.addEventListener('click', close);
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && overlay.style.display !== 'none') close();
-    });
-    copyBtn?.addEventListener('click', async () => {
-      if (!codeEl) return;
-      try {
-        await navigator.clipboard.writeText(codeEl.textContent);
-        const orig = copyBtn.textContent;
-        copyBtn.textContent = '✓ コピーしました';
-        setTimeout(() => { copyBtn.textContent = orig; }, 1500);
-      } catch (_) { /* クリップボードが使えない場合は何もしない。 */ }
-    });
-  })();
-
-  // Soniox 説明モーダルは、設定モーダルの上に重ねて表示する。
-  (() => {
-    const overlay = document.getElementById('soniox-help-modal-overlay');
-    const openBtn = document.getElementById('engine-help-link');
-    const closeBtn = document.getElementById('soniox-help-close');
-    if (!overlay || !openBtn) return;
-    overlay.style.zIndex = '1001'; // 設定モーダルより前面に出す。
-    const close = () => { overlay.style.display = 'none'; };
-    openBtn.addEventListener('click', () => { overlay.style.display = 'flex'; });
-    closeBtn?.addEventListener('click', close);
-    // 重なっているモーダルだけを閉じるため、capture で先に処理して Esc イベントの伝播を止める。
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && overlay.style.display !== 'none') {
-        close();
-        e.stopPropagation();
-      }
-    }, true);
-  })();
-
-  // OBS WebSocket 説明モーダルは OBS 連携モーダルの上に重ねて表示する。
-  (() => {
-    const overlay = document.getElementById('obs-help-modal-overlay');
-    const openBtn = document.getElementById('obs-help-btn');
-    const closeBtn = document.getElementById('obs-help-close');
-    if (!overlay || !openBtn) return;
-    overlay.style.zIndex = '1001'; // OBS 連携モーダルより前面に出す。
-    const close = () => { overlay.style.display = 'none'; };
-    openBtn.addEventListener('click', () => { overlay.style.display = 'flex'; });
-    closeBtn?.addEventListener('click', close);
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && overlay.style.display !== 'none') {
-        close();
-        e.stopPropagation();
-      }
-    }, true);
-  })();
-
-  const defaultTab = document.getElementById('Subtitle');
-  if (defaultTab) defaultTab.click();
-
-  updateObsDragLink();
-  
-  const autoSetupBtn = document.getElementById('obs-auto-setup-btn');
-  if (autoSetupBtn) {
-    autoSetupBtn.addEventListener('click', () => {
-      triggerAutoSetup();
-    });
-  }
-  // #endregion
-
-  // #region [Source Text の即時スクロール]
-
-  /**
-   * Source Text 専用のスクロール処理。
-   * Soniox や Web Speech API のリアルタイム文字起こしを、標準の smooth scroll で追従表示する。
-   */
-  const setupSourceScrollBehavior = (elementId) => {
-    const el = document.getElementById(elementId);
-    if (!el) return;
-
-    const observer = new MutationObserver(() => {
-      if (el.scrollHeight > el.clientHeight) {
-        el.scrollTo({
-          top: el.scrollHeight,
-          behavior: 'smooth'
-        });
-      } else {
-        el.scrollTop = 0;
-      }
-    });
-
-    observer.observe(el, { childList: true, characterData: true, subtree: true });
-  };
-
+  document.getElementById('Subtitle')?.click();
+  refreshObsDragLinks();
   setupSourceScrollBehavior('source-text');
-
-  // #endregion
 });
-
+// #endregion

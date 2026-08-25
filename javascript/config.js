@@ -3,7 +3,9 @@
  * @description 語系管理中心。採用 Map 儲存池模式，將分散的 JSON 配置物件化。
  */
 
-import { isDebugEnabled } from './logger.js';
+import { createLogger } from './logger.js';
+
+const log = createLogger('Config');
 
 // #region [狀態變數]
 /** @type {Map<string, Object>} 語系物件儲存池 (Key 統一為語言 ID) */
@@ -60,7 +62,7 @@ export async function loadLanguageConfig(url = './data/language_config.json') {
     _languages.set(item.id, langObj);
   });
 
-  if (isDebugEnabled()) console.debug(`[DEBUG] [config] 初始化完成，共 ${_languages.size} 個語系物件`);
+  log.debug(`初始化完成，共 ${_languages.size} 個語系物件`);
   return json;
 }
 
@@ -80,7 +82,7 @@ export function getAllLanguages() {
 // #endregion
 
 // #region [狀態管理 API]
-// 特化用ツールのため Ray Mode は常時有効（切替ボタンは廃止）
+// 此為專用工具，因此 Ray Mode 永遠啟用（已移除切換按鈕）
 export function isRayModeActive() { return true; }
 
 export function isForceSingleLine() { return _isForceSingleLine; }
@@ -92,12 +94,12 @@ export function setSpeechEngine(engine) {
   _currentSpeechEngine = valid ? engine : 'webspeech';
 }
 
-// Soniox エンドポイント検出のチューニング値。
-// 設定は接続時 (socket.onopen) に一度だけ送るため、変更は次回の「開始」から反映される。
+// Soniox 端點偵測的調整值。
+// 設定僅在連線時（socket.onopen）傳送一次，因此變更會從下次「開始」起生效。
 const SONIOX_ENDPOINT_DEFAULTS = {
-  latencyLevel: 0,      // 0-3。高いほど早く確定するが認識精度が落ちる
-  sensitivity: 0,       // -1.0~1.0。負値ほど区切りにくい (翻訳の文脈を長く保つ)
-  maxDelayMs: 1000      // 500-3000。発話終了後に必ず区切るまでの上限
+  latencyLevel: 0,      // 0-3。數值越高越早確認，但辨識準確度會降低
+  sensitivity: 0,       // -1.0~1.0。數值越負越不易斷句（使翻譯上下文維持較長）
+  maxDelayMs: 1000      // 500-3000。語音結束後必須斷句的最長等待時間
 };
 
 let _sonioxEndpoint = { ...SONIOX_ENDPOINT_DEFAULTS };

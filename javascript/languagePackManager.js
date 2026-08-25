@@ -17,8 +17,10 @@
  */
 
 import { getLang } from './config.js';
-import { isDebugEnabled } from './logger.js';
+import { createLogger } from './logger.js';
 import { isWebSpeechRecognitionRunning } from './speechCapture.js';
+
+const log = createLogger('LanguagePackManager');
 
 // #region [常數]
 
@@ -61,7 +63,7 @@ async function isLanguageSupportedLocally(langId) {
   for (const quality of QUALITY_PREFERENCE) {
     try {
       const status = await SpeechRecognition.available({ langs: [langObj.id], processLocally: true, quality });
-      if (isDebugEnabled()) console.debug("[DEBUG]", "[languagePackManager]", "檢查語言包支援:", { id: langObj.id, quality, status });
+      log.debug("檢查語言包支援:", { id: langObj.id, quality, status });
       if (status !== 'unavailable') {
         return {
           supported: status === 'available',
@@ -71,7 +73,7 @@ async function isLanguageSupportedLocally(langId) {
         };
       }
     } catch (error) {
-      if (isDebugEnabled()) console.error("[ERROR]", "[languagePackManager]", "檢查語言包狀態失敗:", error);
+      log.error("檢查語言包狀態失敗:", error);
     }
   }
   return unavailable;
@@ -154,7 +156,7 @@ async function downloadLanguagePack(langId, updateCallback) {
   if (!langObj) return false;
 
   if (!navigator.onLine) {
-    if (isDebugEnabled()) console.warn("[WARN]", "[languagePackManager]", "無網路連線:", langId);
+    log.warn("無網路連線:", langId);
     updateCallback('インターネットに接続されていません。ネットワークを確認してください。');
     return false;
   }
@@ -168,24 +170,24 @@ async function downloadLanguagePack(langId, updateCallback) {
 
   let accepted = false;
   try {
-    if (isDebugEnabled()) console.info("[INFO]", "[languagePackManager]", "開始下載語言包:", { langs, quality });
+    log.info("開始下載語言包:", { langs, quality });
     /* 這裡必須是第一個 await，否則 user gesture 會被消耗掉。 */
     accepted = await SpeechRecognition.install({ langs, processLocally: true, quality });
-    if (isDebugEnabled()) console.debug("[DEBUG]", "[languagePackManager]", "install() 回傳:", accepted);
+    log.debug("install() 回傳:", accepted);
   } catch (error) {
-    if (isDebugEnabled()) console.error("[ERROR]", "[languagePackManager]", "下載異常:", { error: error.message });
+    log.error("下載異常:", { error: error.message });
   }
 
   /* available() 才是唯一可信的訊號。曾經因為相信 install() 的回傳值，
      對著辨識端根本拒絕使用的語言包顯示「已下載」，直到重新整理才露餡。
      真的裝好的話第一次輪詢就會通過並立刻返回。 */
   const installed = await waitUntilInstalled(langObj.id);
-  if (isDebugEnabled() && accepted && !installed) {
-    console.warn("[WARN]", "[languagePackManager]", "install() 回傳 true 但模型始終沒有變成 available:", langObj.id);
+  if (accepted && !installed) {
+    log.warn("install() 回傳 true 但模型始終沒有變成 available:", langObj.id);
   }
 
   if (installed) {
-    if (isDebugEnabled()) console.info("[INFO]", "[languagePackManager]", `語言包 ${langObj.id} 安裝成功`);
+    log.info(`語言包 ${langObj.id} 安裝成功`);
     setButtonState('ダウンロード済み', true);
     /* オンラインとオフラインで認識パラメータが異なるため、認識中であれば
        一度停止し、オフライン用パラメータで再スタートしてもらう。 */
@@ -212,7 +214,7 @@ async function setupLanguagePackButton(languageSelectorId, updateCallback) {
   const sourceLanguageSelect = document.getElementById(languageSelectorId);
 
   if (!speechLangPack || !sourceLanguageSelect) {
-    if (isDebugEnabled()) console.error("[ERROR]", "[languagePackManager]", "初始化失敗：元件未找到");
+    log.error("初始化失敗：元件未找到");
     return;
   }
 

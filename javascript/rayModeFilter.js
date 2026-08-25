@@ -5,7 +5,9 @@
  */
 
 import { isRayModeActive } from './config.js';
-import { isDebugEnabled } from './logger.js';
+import { createLogger } from './logger.js';
+
+const log = createLogger('RayModeFilter');
 
 // #region [狀態與快取]
 
@@ -85,7 +87,7 @@ function filterRayModeText(text, sourceLang) {
       return hit ? hit.target : match;
     });
   } catch (e) {
-    if (isDebugEnabled()) console.error('[ERROR] filterRayModeText 替換失敗:', e);
+    log.error('filterRayModeText 替換失敗:', e);
   }
 
   return result;

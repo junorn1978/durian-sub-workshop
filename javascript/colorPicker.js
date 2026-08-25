@@ -6,7 +6,7 @@
  * 跳出一個亮色系統視窗），二來它在頁面之外，做視窗擷取時會拍到奇怪的狀態。
  * 這個面板一律留在頁面內。
  *
- * input[type="color"] 本身留在 DOM 裡當作值的載體，uiController.js 的設定
+ * input[type="color"] 本身留在 DOM 裡當作值的載體，settingsBindings.js 的設定
  * 綁定就是掛在它上面。本模組只負責隱藏與驅動：每次變更都寫回 input 並派送
  * 一個會冒泡的 'input' 事件，因此上層完全不需要知道有這個面板存在。
  *

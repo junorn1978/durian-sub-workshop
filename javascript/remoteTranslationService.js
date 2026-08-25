@@ -4,7 +4,9 @@
  * 此檔用途為發送雲端請求，需搭配後端程式碼使用。
  */
 
-import { isDebugEnabled } from './logger.js';
+import { createLogger } from './logger.js';
+
+const log = createLogger('RemoteTranslation');
 
 // #region [工具函式]
 
@@ -43,7 +45,7 @@ async function fetchWithTimeout(input, init = {}, ms = 10000) {
  */
 async function sendTranslation(text, targetLangs, sourceLang, serviceUrl, sequenceId, previousText = null) {
   if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') {
-    if (isDebugEnabled()) console.debug('[DEBUG]', '[remoteTranslationService.js]', '無效文字，跳過翻譯:', text);
+    log.debug('無效文字，跳過翻譯:', text);
     return null;
   }
 
@@ -118,14 +120,14 @@ async function sendTranslation(text, targetLangs, sourceLang, serviceUrl, sequen
  */
 async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, serviceType, sequenceId, previousText = null) {
   if (!serviceUrl) {
-    if (isDebugEnabled()) console.error('[ERROR]', '[remoteTranslationService.js]', 'URL 為空');
+    log.error('URL 為空');
     throw new Error('有効な翻訳サービスの URL を入力してください。');
   }
 
   if (serviceType === 'link') {
     return await sendTranslation(text, targetLangs, sourceLang, serviceUrl, sequenceId, previousText);
   } else {
-    if (isDebugEnabled()) console.error('[ERROR]', '[remoteTranslationService.js]', '無效的服務類型:', serviceType);
+    log.error('無效的服務類型:', serviceType);
     throw new Error('無效的服務類型');
   }
 }

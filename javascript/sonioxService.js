@@ -2,14 +2,16 @@
  * @file sonioxService.js
  * @description 管理 Soniox WebSocket 連線與音訊串流。
  *
- * 実装上の要点：
- * - 認証は接続後の最初の JSON メッセージで api_key を送る (sub-protocol ではない)。
- * - 結果は token 単位で返る。is_final=true は確定、false は仮 (次のメッセージで置換され得る)。
- * - エンドポイント検出は <end> トークンとして配信される。
+ * 實作要點：
+ * - 驗證是在連線後的第一則 JSON 訊息中傳送 api_key（並非 sub-protocol）。
+ * - 結果以 token 為單位傳回。is_final=true 表示已確認，false 表示暫定（可能被下一則訊息取代）。
+ * - 端點偵測會以 <end> token 的形式傳送。
  */
 
 import { getLang, getSonioxEndpointSettings } from "./config.js";
-import { isDebugEnabled } from "./logger.js";
+import { createLogger } from "./logger.js";
+
+const log = createLogger('Soniox');
 
 const DEFAULT_LIFECYCLE_HANDLERS = {
   onStatusChange: () => {},
@@ -23,9 +25,9 @@ let watchdogInterval = null;
 let reconnectTimer = null;
 let lastSpeechTime = 0;
 
-// Soniox token-based 累積バッファ
-let finalizedText = "";        // is_final=true のトークン連結 (append-only)
-let nonFinalizedText = "";     // 各メッセージごとに置換される interim 部分
+// Soniox token-based 累積緩衝區
+let finalizedText = "";        // is_final=true 的 token 串接（僅附加）
+let nonFinalizedText = "";     // 每則訊息都會被取代的 interim 部分
 
 let globalStream = null;
 let globalOnTranscriptUpdate = null;
@@ -45,10 +47,10 @@ const MAX_RETRIES = 10;
 // #region [設定與配置]
 const SONIOX_WS_URL = "wss://stt-rt.soniox.com/transcribe-websocket";
 const SONIOX_MODEL = "stt-rt-v5";
-// 無音による自動切断のしきい値。
-// 計測しているのは「マイクが無音」ではなく「Soniox が1文字も返さない」時間。BGM やキーボード音
-// では更新されないため、コメントを読む・ゲームに集中するなどで長く話さない場面でも進んでしまう。
-// 意図した休憩には一時停止（ロゴのクリック）を使う想定で、ここは離席し忘れ向けの保険として長め。
+// 因無聲而自動中斷連線的門檻。
+// 計算的不是「麥克風無聲」的時間，而是「Soniox 未傳回任何文字」的時間。背景音樂或鍵盤聲
+// 不會使其更新，因此閱讀留言、專心玩遊戲等長時間不說話的情況也會持續計時。
+// 預期使用暫停（點擊標誌）來處理刻意休息的情況，此處則作為忘記離席時的保險，設定得較長。
 const AUTO_STOP_TIMEOUT = 30 * 60 * 1000;
 const ENDPOINT_TOKEN = "<end>";
 const FINISHED_TOKEN = "<fin>";
@@ -142,16 +144,16 @@ async function fetchSonioxTemporaryToken() {
 
     return { value: tempKey.trim() };
   } catch (error) {
-    if (isDebugEnabled()) console.error("[ERROR]", "[SonioxService]", "取得臨時 Token 失敗", error);
+    log.error("取得臨時 Token 失敗", error);
     return null;
   }
 }
 
-// Soniox context (辨識詞調整)。語系非依存で session 全体に一度だけ送る。
-//   - terms: 専有名詞・術語の認識精度を上げる文字列配列
-//   - general: 配信のドメイン背景を伝える {key, value} 配列
-// 仕様上の上限は約 10,000 文字 (terms + general + text 合算)。
-let sonioxContextCache = null;     // 読み込み済みなら再 fetch しない
+// Soniox context（辨識詞調整）。不依賴語系，整個 session 僅傳送一次。
+//   - terms：提高專有名詞、術語辨識準確度的字串陣列
+//   - general：傳達直播領域背景的 {key, value} 陣列
+// 規格上限約為 10,000 個字元（terms + general + text 合計）。
+let sonioxContextCache = null;     // 若已載入則不再 fetch
 let sonioxContextLoaded = false;
 
 async function loadSonioxContext() {
@@ -177,7 +179,7 @@ async function loadSonioxContext() {
 
     sonioxContextCache = Object.keys(context).length ? context : null;
   } catch (error) {
-    if (isDebugEnabled()) console.warn("[WARN]", "[SonioxService]", "辨識詞 context 載入失敗，將不送 context", error);
+    log.warn("辨識詞 context 載入失敗，將不送 context", error);
     sonioxContextCache = null;
   }
   return sonioxContextCache;
@@ -234,8 +236,8 @@ function flushSentenceBuffer(onTranscriptUpdate, reason) {
 }
 
 /**
- * 予約済みの再接続を取り消す。停止・一時停止の直後に再接続が走って、
- * UI 上は止まっているのに接続だけ復活する（=課金が続く）のを防ぐ。
+ * 取消已排程的重新連線。防止停止或暫停後立即執行重新連線，
+ * 導致 UI 顯示已停止，但只有連線恢復（＝持續計費）。
  */
 function clearReconnectTimer() {
   if (reconnectTimer) {
@@ -261,7 +263,7 @@ function cleanupAudioResources(options = {}) {
   }
 
   if (audioContext) {
-    audioContext.close().catch(err => { if (isDebugEnabled()) console.error("AudioContext 關閉失敗", err); });
+    audioContext.close().catch(err => { log.error("AudioContext 關閉失敗", err); });
     audioContext = null;
   }
 
@@ -289,7 +291,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
   notifyStatusChange('接続しています。しばらくお待ちください...');
   const langObj = getLang(langId);
   if (!langObj) {
-    if (isDebugEnabled()) console.error("[ERROR] [Soniox] 找不到語系定義:", langId);
+    log.error("找不到語系定義:", langId);
     return false;
   }
 
@@ -327,7 +329,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
     try {
       audioContext = new AudioContext({ sampleRate: 16000 });
     } catch (e) {
-      if (isDebugEnabled()) console.warn("[WARN]", "不支援指定採樣率，使用系統預設值", e);
+      log.warn("不支援指定採樣率，使用系統預設值", e);
       audioContext = new AudioContext();
     }
     const finalSampleRate = audioContext.sampleRate;
@@ -362,7 +364,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
     let isConfigured = false;
 
     audioWorkletNode.port.onmessage = (event) => {
-      // 設定 JSON が server に届くまでは音声を送らず、ためておく。
+      // 設定 JSON 傳到 server 前先不傳送音訊，而是暫存起來。
       if (socket?.readyState === 1 && isConfigured) {
         socket.send(event.data);
       } else {
@@ -373,10 +375,10 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
     socket = new WebSocket(SONIOX_WS_URL);
 
     socket.onopen = () => {
-      // エンドポイント検出の調整値は設定 UI から取得する (接続時に確定)。
+      // 從設定 UI 取得端點偵測的調整值（連線時確定）。
       const endpoint = getSonioxEndpointSettings();
 
-      // Soniox は接続直後に JSON で初期設定を送る必要がある。
+      // Soniox 必須在連線後立即透過 JSON 傳送初始設定。
       const config = {
         api_key: authInfo.value,
         model: SONIOX_MODEL,
@@ -391,7 +393,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         max_endpoint_delay_ms: endpoint.maxDelayMs
       };
 
-      // 辨識詞調整 (context) は語系非依存。空なら送らない。
+      // 辨識詞調整（context）不依賴語系。若為空則不傳送。
       if (sonioxContext) {
         config.context = sonioxContext;
       }
@@ -411,13 +413,13 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
 
         watchdogInterval = setInterval(() => {
           if (Date.now() - lastSpeechTime > AUTO_STOP_TIMEOUT) {
-            if (isDebugEnabled()) console.warn("[WARN]", "[SonioxService]", `${AUTO_STOP_TIMEOUT / 60000}分間認識結果がなかったため自動切断`);
+            log.warn(`${AUTO_STOP_TIMEOUT / 60000}分間認識結果がなかったため自動切断`);
             notifyStatusChange(`${AUTO_STOP_TIMEOUT / 60000}分以上音声が検出されなかったため、自動的に切断しました。`);
             stopSoniox({ intentional: false, reason: 'auto-timeout' });
           }
         }, 10000);
       } catch (err) {
-        if (isDebugEnabled()) console.error("[ERROR]", "[SonioxService]", "送出設定失敗", err);
+        log.error("送出設定失敗", err);
         notifyStatusChange("Soniox の設定送信に失敗しました。");
       }
     };
@@ -426,9 +428,9 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
       try {
         const received = JSON.parse(message.data);
 
-        // エラー応答の検出
+        // 偵測錯誤回應
         if (received.error_code || received.error_message) {
-          if (isDebugEnabled()) console.error("[ERROR]", "[SonioxService]", "Soniox 錯誤", received);
+          log.error("Soniox 錯誤", received);
           notifyStatusChange(`Soniox エラー: ${received.error_message || received.error_code}`);
           return;
         }
@@ -444,13 +446,13 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
           const tokenText = typeof token.text === "string" ? token.text : "";
           if (!tokenText) continue;
 
-          // 特殊トークン処理
+          // 處理特殊 token
           if (tokenText === ENDPOINT_TOKEN) {
             endpointDetected = true;
             continue;
           }
           if (tokenText === FINISHED_TOKEN) {
-            // ストリーム終了マーカー、無視
+            // 串流結束標記，忽略
             continue;
           }
 
@@ -462,7 +464,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
           }
         }
 
-        // non-final 部分は毎メッセージ置き換え (Soniox の仕様)
+        // 每則訊息都會取代 non-final 部分（Soniox 規格）
         nonFinalizedText = newNonFinalText;
 
         const hasActivity = addedFinalThisRound.length > 0 || newNonFinalText.length > 0;
@@ -480,13 +482,13 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
           return;
         }
 
-        // 通常の interim 表示
+        // 一般的 interim 顯示
         const display = removeJapaneseSpaces((finalizedText + nonFinalizedText).trim());
         if (display.length > 0 && onTranscriptUpdate) {
           onTranscriptUpdate(display, false, false);
         }
       } catch (e) {
-        if (isDebugEnabled()) console.error("[ERROR]", "[SonioxService]", "解析訊息失敗", e);
+        log.error("解析訊息失敗", e);
       }
     };
 
@@ -494,7 +496,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
       if (isIntentionalStop) {
         notifyStatusChange('');
       } else {
-        if (isDebugEnabled()) console.warn("[WARN] Soniox 意外斷線，準備重連...");
+        log.warn("Soniox 意外斷線，準備重連...");
 
         if (retryCount < MAX_RETRIES) {
           const delay = 800;
@@ -505,7 +507,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
           clearReconnectTimer();
           reconnectTimer = setTimeout(() => {
             reconnectTimer = null;
-            // 待機中に停止・一時停止された場合は復活させない。
+            // 若在等待期間停止或暫停，則不恢復連線。
             if (isIntentionalStop) return;
             startSoniox(langId, onTranscriptUpdate, lifecycleHandlers);
           }, delay);
@@ -517,11 +519,11 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
     };
 
     socket.onerror = (e) => {
-      if (isDebugEnabled()) console.error("[ERROR]", "[SonioxService]", "Socket 錯誤", e);
+      log.error("Socket 錯誤", e);
       notifyStatusChange("Soniox の接続エラーです。バックエンドまたはネットワークを確認してください。");
     };
   } catch (error) {
-    if (isDebugEnabled()) console.error("[ERROR]", "[SonioxService]", "啟動失敗", error);
+    log.error("啟動失敗", error);
     stopSoniox({ intentional: false, reason: 'startup-error' });
     return false;
   }
@@ -540,7 +542,7 @@ export function stopSoniox(options = {}) {
     !!mediaStreamSource ||
     !!audioWorkletNode;
 
-  // 停止前に残留テキストを flush
+  // 停止前 flush 殘留文字
   const remainingText = removeJapaneseSpaces((finalizedText + nonFinalizedText).trim());
   if (remainingText.length > 0 && globalOnTranscriptUpdate) {
     globalOnTranscriptUpdate(remainingText, true, true);
@@ -556,7 +558,7 @@ export function stopSoniox(options = {}) {
 
   cleanupAudioResources();
 
-  if (isDebugEnabled()) console.info("[INFO]", "[SonioxService]", "Soniox 服務已停止");
+  log.info("Soniox 服務已停止");
 
   if (intentional) {
     notifyStatusChange('');

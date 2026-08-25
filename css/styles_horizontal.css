@@ -21,6 +21,13 @@
   box-sizing: border-box;
 }
 
+/* JS 端一律以 hidden 屬性控制顯示與否（element.style.display = '' 那種還原方式
+   在 HTML 本來就有 inline style 時會失效）。瀏覽器預設的 [hidden] 規則權重很低，
+   會被 .settings-row 之類的 display 蓋掉，因此在這裡補強。 */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   height: 100vh;
@@ -388,11 +395,12 @@ body {
   font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
 }
 
+/* 表示・非表示は JS が hidden 属性で切り替える（翻訳モードが link のときだけ表示）。 */
 .link-wrapper {
   position: relative;
   flex: 1;
   height: 30px;
-  display: none; 
+  display: block;
 }
 
 #translation-link {
@@ -862,6 +870,8 @@ body {
 .full-height-card { height: 100%; }
 .card-title { font-size: 14px; font-weight: bold; color: var(--ui-label-color); border-bottom: 2px dashed #F1C6D2; padding-bottom: 5px; margin-bottom: 5px; }
 .auto-stop-warning-badge {
+  /* 上下の padding を効かせるため inline-block を維持する（表示切替は hidden 属性）。 */
+  display: inline-block;
   font-size: 11px;
   font-weight: bold;
   color: #fff;
@@ -1379,7 +1389,8 @@ body {
 .obs-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  /* 疊在其他對話框上方時，modals.js 會設定 --modal-depth。 */
+  z-index: calc(1000 + var(--modal-depth, 0));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1498,7 +1509,8 @@ body {
 .settings-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  /* 疊在其他對話框上方時，modals.js 會設定 --modal-depth。 */
+  z-index: calc(1000 + var(--modal-depth, 0));
   display: flex;
   align-items: center;
   justify-content: center;
