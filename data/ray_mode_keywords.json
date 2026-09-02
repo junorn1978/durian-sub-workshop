@@ -134,6 +134,7 @@
   { "lang": "ja-JP", "note": "【實況術語修正】", "source": "年次案", "target": "ねんじあん" },
   { "lang": "ja-JP", "note": "【實況術語修正】", "source": "ねんちあん", "target": "ねんじあん" },
   { "lang": "ja-JP", "note": "【實況術語修正】", "source": "ネンチアン", "target": "ねんじあん" },
+  { "lang": "ja-JP", "note": "【實況術語修正】", "source": "個人税", "target": "個人勢" },
 
   { "lang": "ja-JP", "note": "【粉絲名】", "source": "ロジあり", "target": "(ロジャーリー)" },
   { "lang": "ja-JP", "note": "【粉絲名】", "source": "ロちゃんねー", "target": "(ロジャーリー)" },
