@@ -5,7 +5,7 @@
  * 實作要點：
  * - 驗證是在連線後的第一則 JSON 訊息中傳送 api_key（並非 sub-protocol）。
  * - 結果以 token 為單位傳回。is_final=true 表示已確認，false 表示暫定（可能被下一則訊息取代）。
- * - 端點偵測會以 <end> token 的形式傳送。
+ * - 端點偵測會以 <end> token 的形式傳送。一則訊息可能夾帶多個 <end>，需逐一就地斷句。
  */
 
 import { getLang, getSonioxEndpointSettings } from "./config.js";
@@ -235,6 +235,13 @@ function flushSentenceBuffer(onTranscriptUpdate, reason) {
   return true;
 }
 
+function emitInterim(onTranscriptUpdate) {
+  const display = removeJapaneseSpaces((finalizedText + nonFinalizedText).trim());
+  if (display.length > 0 && onTranscriptUpdate) {
+    onTranscriptUpdate(display, false, false);
+  }
+}
+
 /**
  * 取消已排程的重新連線。防止停止或暫停後立即執行重新連線，
  * 導致 UI 顯示已停止，但只有連線恢復（＝持續計費）。
@@ -438,7 +445,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         const tokens = Array.isArray(received.tokens) ? received.tokens : [];
         if (tokens.length === 0) return;
 
-        let endpointDetected = false;
+        let flushedByEndpoint = false;
         let newNonFinalText = "";
         let addedFinalThisRound = "";
 
@@ -447,8 +454,15 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
           if (!tokenText) continue;
 
           // 處理特殊 token
+          // 一則訊息可能夾帶多個 <end>（兩人同時說話、搭腔時很常見）。
+          // 若只設旗標、等迴圈跑完才結算一次，後一句會被併進前一句，
+          // 兩位講者的話因此擠成同一行字幕，也會被當成同一句送去翻譯；
+          // 改成遇到就地結算。
           if (tokenText === ENDPOINT_TOKEN) {
-            endpointDetected = true;
+            nonFinalizedText = newNonFinalText;
+            newNonFinalText = "";
+            flushSentenceBuffer(onTranscriptUpdate, "⚡ endpoint");
+            flushedByEndpoint = true;
             continue;
           }
           if (tokenText === FINISHED_TOKEN) {
@@ -464,15 +478,17 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
           }
         }
 
-        // 每則訊息都會取代 non-final 部分（Soniox 規格）
+        // 每則訊息都會取代 non-final 部分（Soniox 規格）。
+        // 若上面已就地結算過，這裡放的是最後一個 <end> 之後的殘留。
         nonFinalizedText = newNonFinalText;
 
         const hasActivity = addedFinalThisRound.length > 0 || newNonFinalText.length > 0;
         if (hasActivity) lastSpeechTime = Date.now();
 
         // 切句完全交給 Soniox endpoint
-        if (endpointDetected) {
-          flushSentenceBuffer(onTranscriptUpdate, "⚡ endpoint");
+        if (flushedByEndpoint) {
+          // <end> 之後還有殘留的 interim（下一句已經開始講）就先顯示出來
+          if (nonFinalizedText) emitInterim(onTranscriptUpdate);
           return;
         }
 
@@ -483,10 +499,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         }
 
         // 一般的 interim 顯示
-        const display = removeJapaneseSpaces((finalizedText + nonFinalizedText).trim());
-        if (display.length > 0 && onTranscriptUpdate) {
-          onTranscriptUpdate(display, false, false);
-        }
+        emitInterim(onTranscriptUpdate);
       } catch (e) {
         log.error("解析訊息失敗", e);
       }
