@@ -279,7 +279,9 @@ function resetTranslationDisplay() {
  * @param {string} sourceLangId - 來源語言 ID（例如：'ja-JP'）
  */
 async function sendTranslationRequest(text, previousText = null, sourceLangId) {
-  if (text === null || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') return;
+  // 單一字元（含空字串）多半是辨識雜訊，翻譯價值低，直接略過不送出。
+  const trimmedText = text?.trim() ?? '';
+  if (trimmedText.length <= 1 || trimmedText === 'っ。') return;
 
   return enqueue(async () => {
     const sequenceId = sequenceCounter++;
