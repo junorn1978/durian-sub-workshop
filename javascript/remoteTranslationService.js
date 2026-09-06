@@ -32,6 +32,28 @@ async function fetchWithTimeout(input, init = {}, ms = 10000) {
 
 // #region [POST 請求核心邏輯]
 
+// 遇到 429 只重試一次。
+//
+// 後端的節流是以「請求之間的最小間隔」為準，所以被擋下來的多半是同一則 Soniox
+// 訊息裡連續發生兩次斷句、兩個請求相隔數毫秒的情況。這種 429 稍微等一下就會通過。
+// 不重試第二次是因為字幕講求即時，太晚出現的字幕不如不要出現。
+const RETRY_DELAY_MS = 150;
+
+async function postWithRetryOn429(url, headers, payload) {
+  const send = () => fetchWithTimeout(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload)
+  }, 10000);
+
+  const response = await send();
+  if (response.status !== 429) return response;
+
+  log.warn('遭到節流，稍後重送一次', { sequenceId: payload.sequenceId });
+  await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+  return send();
+}
+
 /**
  * 發送標準 POST 翻譯請求 (適用於自架後端或 API 轉接層)
  * @async
@@ -90,11 +112,7 @@ async function sendTranslation(text, targetLangs, sourceLang, serviceUrl, sequen
     previousText: previousText || null 
   };
 
-  const response = await fetchWithTimeout(finalUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload)
-  }, 10000);
+  const response = await postWithRetryOn429(finalUrl, headers, payload);
 
   if (!response.ok) {
     throw new Error(`翻譯請求失敗: ${response.status} - ${await response.text()}`);
