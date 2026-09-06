@@ -166,6 +166,8 @@
   { "lang": "zh-TW", "source": "希特勒", "target": "***" },
   { "lang": "zh-TW", "source": "川普", "target": "**" },
   { "lang": "zh-TW", "source": "種付", "target": "**" },
+  { "lang": "zh-TW", "source": "砲友", "target": "**" },
+  { "lang": "zh-TW", "source": "炮友", "target": "**" },
   { "lang": "zh-TW", "source": "哈希標籤", "target": "標籤" },
 
   { "lang": "en-US", "source": "\\bTrump\\b", "target": "***" },
@@ -264,6 +266,7 @@
   { "lang": "en-US", "note": "【minor-safety filter】", "source": "\\bp(?:a)?edophil\\w*", "target": "***" },
   { "lang": "en-US", "note": "【minor-safety filter】", "source": "\\bunderage\\b", "target": "***" },
   { "lang": "en-US", "note": "【minor-safety filter】", "source": "\\bjailbait\\b", "target": "***" },
+  { "lang": "en-US", "note": "【minor-safety filter】", "source": "Canni\\bali\\sm", "target": "***" },
   { "lang": "en-US", "note": "【minor-safety filter】", "source": "\\bchild\\s*porn\\w*", "target": "***" },
 
   { "lang": "id-ID", "source": "MAGA ", "target": "***" },

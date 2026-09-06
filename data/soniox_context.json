@@ -16,6 +16,10 @@
     "マキシ"
   ],
   "general": [
-    { "key": "domain", "value": "VTuberの雑談・歌枠とゲーム配信と料理配信（日本語と英語を混在）" }
+    { "key": "domain",  "value": "VTuberのライブ配信" },
+    { "key": "format",  "value": "雑談・歌枠" },
+    { "key": "topic",   "value": "ゲーム実況・料理配信" },
+    { "key": "speaker", "value": "乙夏れい" },
+    { "key": "style",   "value": "カジュアルな話し言葉、視聴者への呼びかけが多い" }
   ]
 }
