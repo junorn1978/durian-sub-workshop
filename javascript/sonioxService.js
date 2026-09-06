@@ -29,6 +29,16 @@ let lastSpeechTime = 0;
 let finalizedText = "";        // is_final=true 的 token 串接（僅附加）
 let nonFinalizedText = "";     // 每則訊息都會被取代的 interim 部分
 
+// 軟性斷句已經送去翻譯、但仍要留在字幕上的部分。
+// 翻譯需要切成小段（避免整段講完才送出），但字幕不需要——切開反而讓觀眾
+// 看到話講到一半就被抽掉。因此顯示走累積，翻譯走分段，直到 endpoint 才一起歸零。
+let displayCarryText = "";
+
+// 診斷用。評估能不能改用「token 之間的靜音間隔」取代字數來斷句。
+// 只統計已確認的 token：暫定 token 每則訊息都會重送，會重複計算。
+let lastFinalEndMs = null;     // 上一個已確認 token 的結束時刻
+let finalGaps = [];            // { atChar, gapMs }，atChar 是 finalizedText 內的位置
+
 let globalStream = null;
 let globalOnTranscriptUpdate = null;
 
@@ -56,8 +66,11 @@ const ENDPOINT_TOKEN = "<end>";
 const FINISHED_TOKEN = "<fin>";
 
 // 客戶端斷句參數
-//   MAX_BUFFER_LENGTH：累積文字超過此長度強制斷句 (極端情境防呆，正常切句完全交給 Soniox endpoint)
+//   SOFT_SPLIT_LENGTH：累積文字超過此長度時，在最後一個句末標點處切開送去翻譯（字幕不切）
+//   MAX_BUFFER_LENGTH：累積文字超過此長度強制斷句 (極端情境防呆，找不到標點時的最後手段)
+const SOFT_SPLIT_LENGTH = 80;
 const MAX_BUFFER_LENGTH = 250;
+const SENTENCE_END_PATTERN = /[。！？!?]/g;
 
 // AudioWorklet 處理器代碼
 const PCM_PROCESSOR_CODE = `
@@ -218,25 +231,96 @@ function notifyStopped(reason, intentional) {
 function resetTranscriptBuffers() {
   finalizedText = "";
   nonFinalizedText = "";
+  displayCarryText = "";
+  lastFinalEndMs = null;
+  finalGaps = [];
+}
+
+/** 目前應該顯示在字幕上的完整文字（含軟性斷句已送出的部分）。 */
+function buildDisplayText() {
+  return removeJapaneseSpaces((displayCarryText + finalizedText + nonFinalizedText).trim());
+}
+
+/** 診斷用。把這一段裡的靜音間隔整理成一行紀錄。 */
+function logSegmentGaps(reason, length, gaps) {
+  const maxGap = gaps.reduce((max, g) => Math.max(max, g.gapMs), 0);
+  log.debug("斷句診斷", {
+    原因: reason,
+    字數: length,
+    最大間隔: maxGap,
+    間隔數: gaps.length,
+    明細: gaps.map(g => `${g.atChar}字/${g.gapMs}ms`).join(' ') || '（無時間戳或全程無停頓）'
+  });
 }
 
 function flushSentenceBuffer(onTranscriptUpdate, reason) {
+  // merged 是「還沒送去翻譯」的部分，display 是「畫面上該有的全文」。
   const merged = removeJapaneseSpaces((finalizedText + nonFinalizedText).trim());
+  const display = buildDisplayText();
 
   if (merged.length === 0) return false;
 
   const punctuationOnly = merged === '？' || merged === '。' || merged === '、';
 
+  logSegmentGaps(reason, merged.length, finalGaps);
+
   if (onTranscriptUpdate && !punctuationOnly) {
-    onTranscriptUpdate(merged, true, true);
+    onTranscriptUpdate(display, true, true, merged);
   }
 
   resetTranscriptBuffers();
   return true;
 }
 
+/**
+ * 長串發話用的軟性斷句。切的是「送去翻譯的單位」，不是字幕。
+ *
+ * 連續說話的人幾乎不停頓，Soniox 因此長時間不送 <end>。整段講完才送翻譯的話，
+ * 外語觀眾會落後數十秒。超過門檻就在最後一個句末標點處切開，先把前半段送出去
+ * 翻譯，其餘留在緩衝區繼續累積。
+ *
+ * 字幕不跟著切——顯示端走 displayCarryText 累積全文，否則觀眾會看到話講到一半
+ * 被抽掉。原文有單行顯示，長句本來就不太受影響。
+ *
+ * 因為只在標點切，不會像 MAX_BUFFER_LENGTH 那樣把詞剖成兩半。門檻以下完全不
+ * 動作，所以講話會停頓的人不受影響。
+ *
+ * 只切已確認（is_final）的部分。暫定文字之後可能被改寫，先送出去會造成重複。
+ */
+function flushBySoftSplit(onTranscriptUpdate) {
+  if (finalizedText.length < SOFT_SPLIT_LENGTH) return false;
+
+  // 取最後一個標點，讓切出來的一段盡量完整。這個檢查每則訊息都會跑，
+  // finalizedText 是逐步成長的，因此實際切點大多落在門檻附近。
+  SENTENCE_END_PATTERN.lastIndex = 0;
+  let cutIndex = -1;
+  let match;
+  while ((match = SENTENCE_END_PATTERN.exec(finalizedText)) !== null) {
+    cutIndex = match.index;
+  }
+  if (cutIndex < 0) return false;
+
+  const merged = removeJapaneseSpaces(finalizedText.slice(0, cutIndex + 1).trim());
+  if (merged.length === 0) return false;
+
+  // 切點之前的間隔屬於送出的這一段，之後的要跟著殘留一起平移。
+  const cutAt = cutIndex + 1;
+  logSegmentGaps("軟性斷句", merged.length, finalGaps.filter(g => g.atChar < cutAt));
+  finalGaps = finalGaps
+    .filter(g => g.atChar >= cutAt)
+    .map(g => ({ atChar: g.atChar - cutAt, gapMs: g.gapMs }));
+
+  finalizedText = finalizedText.slice(cutIndex + 1);
+
+  // 切出來的一段送去翻譯，但畫面保留累積的全文。
+  displayCarryText += merged;
+  log.debug("軟性斷句", { 送出翻譯: merged, 殘留: finalizedText.length });
+  if (onTranscriptUpdate) onTranscriptUpdate(buildDisplayText(), true, true, merged);
+  return true;
+}
+
 function emitInterim(onTranscriptUpdate) {
-  const display = removeJapaneseSpaces((finalizedText + nonFinalizedText).trim());
+  const display = buildDisplayText();
   if (display.length > 0 && onTranscriptUpdate) {
     onTranscriptUpdate(display, false, false);
   }
@@ -400,6 +484,15 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         max_endpoint_delay_ms: endpoint.maxDelayMs
       };
 
+      // 實際送出的端點偵測值。這三項來自 localStorage，未必等於 config.js 的預設，
+      // 因此把真正生效的數字留在紀錄裡，調參數時才不必猜。
+      log.info("Soniox 設定", {
+        latencyLevel: endpoint.latencyLevel,
+        sensitivity: endpoint.sensitivity,
+        maxDelayMs: endpoint.maxDelayMs,
+        softSplit: SOFT_SPLIT_LENGTH
+      });
+
       // 辨識詞調整（context）不依賴語系。若為空則不傳送。
       if (sonioxContext) {
         config.context = sonioxContext;
@@ -471,6 +564,13 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
           }
 
           if (token.is_final) {
+            // 診斷用。與上一個已確認 token 之間的靜音長度，200ms 以下當成連續發話。
+            if (typeof token.start_ms === "number" && lastFinalEndMs !== null) {
+              const gapMs = token.start_ms - lastFinalEndMs;
+              if (gapMs >= 200) finalGaps.push({ atChar: finalizedText.length, gapMs });
+            }
+            if (typeof token.end_ms === "number") lastFinalEndMs = token.end_ms;
+
             finalizedText += tokenText;
             addedFinalThisRound += tokenText;
           } else {
@@ -492,7 +592,10 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
           return;
         }
 
-        // 長度防呆：累積過長強制斷句 (Soniox 不送 endpoint 的極端情境)
+        // 長串發話的軟性斷句。細節見 flushBySoftSplit。
+        flushBySoftSplit(onTranscriptUpdate);
+
+        // 長度防呆：累積過長強制斷句 (Soniox 不送 endpoint 且找不到標點的極端情境)
         if ((finalizedText + nonFinalizedText).length >= MAX_BUFFER_LENGTH) {
           flushSentenceBuffer(onTranscriptUpdate, "⚡ 最大長度強制斷");
           return;

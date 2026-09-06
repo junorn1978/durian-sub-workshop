@@ -273,15 +273,26 @@ function resetTranslationDisplay() {
 
 // #region [翻譯請求的路徑分配]
 
+// 判斷發話短到不值得翻譯時要忽略的字元。標點不計入字數。
+const IGNORABLE_PATTERN = /[、。，．・…？！?!,.\s]/g;
+
+/**
+ * 去掉標點後只剩一個字（或全空）的發話不送出翻譯。
+ * 相づちや息づかいを拾っただけの断片で、訳しても意味のある字幕にならない。
+ * 標點要先去掉：Soniox 會回傳「今。」「っ。」這種一個字加句點的片段，
+ * 只看長度會被當成兩個字而漏掉。
+ */
+function isTooShortToTranslate(text) {
+  return (text ?? '').replace(IGNORABLE_PATTERN, '').length <= 1;
+}
+
 /**
  * 傳送翻譯請求的主要入口。
  * @async
  * @param {string} sourceLangId - 來源語言 ID（例如：'ja-JP'）
  */
 async function sendTranslationRequest(text, previousText = null, sourceLangId) {
-  // 單一字元（含空字串）多半是辨識雜訊，翻譯價值低，直接略過不送出。
-  const trimmedText = text?.trim() ?? '';
-  if (trimmedText.length <= 1 || trimmedText === 'っ。') return;
+  if (isTooShortToTranslate(text)) return;
 
   return enqueue(async () => {
     const sequenceId = sequenceCounter++;

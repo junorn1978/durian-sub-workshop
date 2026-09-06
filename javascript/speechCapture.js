@@ -470,11 +470,16 @@ async function configureRecognition(recognition, sourceLanguage) {
  * @param {boolean} shouldTranslate - 是否觸發翻譯請求
  * @param {string} currentLang - 當前語言代碼
  * @param {string} symbolType - 'soniox' (用於裝飾符號)
+ * @param {string|null} translateSource - 只送去翻譯的片段。長串發話被軟性斷句切開時，
+ *   字幕仍顯示累積的全文（text），但翻譯只送新的那一段。省略時與 text 相同。
  */
-async function handleCloudTranscript(text, isFinal, shouldTranslate, currentLang, symbolType) {
+async function handleCloudTranscript(text, isFinal, shouldTranslate, currentLang, symbolType, translateSource = null) {
 
   let processedText = isRayModeActive() ? processRayModeTranscript(text, currentLang) : text;
-  const textToTranslate = processedText.trim();
+  const rawTranslateSource = translateSource ?? text;
+  const textToTranslate = (
+    isRayModeActive() ? processRayModeTranscript(rawTranslateSource, currentLang) : rawTranslateSource
+  ).trim();
 
   if (!isFinal) { processedText = wrapWithNoteByAlignment(processedText, symbolType); }
   if (processedText.trim() !== '') { updateSourceText(processedText.replace(/[、。？\s]+/g, ' ').trim()); }
@@ -489,7 +494,8 @@ async function handleCloudTranscript(text, isFinal, shouldTranslate, currentLang
 
       sendTranslationRequest(textToTranslate, previousText, currentLang);
       previousText = textToTranslate;
-      updateSourceText(textToTranslate.replace(/[、。？\s]+/g, ' ').trim());
+      // 顯示文字在上面已經更新過了。這裡再以 textToTranslate 覆蓋的話，
+      // 軟性斷句時畫面會只剩下切出來的那一段。
       armIdleClear();
       return;
     }
@@ -802,8 +808,8 @@ async function startRecognition() {
   const engine = getSpeechEngine();
   if (engine === 'soniox') {
     try {
-      const sonioxStarted = await startSoniox(sourceLang, (text, isFinal, shouldTranslate) => {
-        handleCloudTranscript(text, isFinal, shouldTranslate, sourceLang, 'soniox');
+      const sonioxStarted = await startSoniox(sourceLang, (text, isFinal, shouldTranslate, translateSource) => {
+        handleCloudTranscript(text, isFinal, shouldTranslate, sourceLang, 'soniox', translateSource);
       }, {
         onStatusChange: updateStatusDisplay,
         onStop: () => {
