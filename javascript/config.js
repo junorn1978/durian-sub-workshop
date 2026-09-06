@@ -96,6 +96,11 @@ export function setSpeechEngine(engine) {
 
 // Soniox 端點偵測的調整值。
 // 設定僅在連線時（socket.onopen）傳送一次，因此變更會從下次「開始」起生效。
+// index.html 的滑桿 value 屬性只是載入前的暫時顯示，實際生效的是這裡的值，
+// 因此兩邊的數字必須保持一致。
+// maxDelayMs 只有 Soniox 官方預設（2000）的一半。2000 會讓每句話的字幕都晚
+// 2 秒左右才確定，加上翻譯往返後接近 3 秒，說話者早已講到下一句。
+// 拉長這個值確實能減少詞被切成兩半的情況，但代價會攤到每一句話上。
 const SONIOX_ENDPOINT_DEFAULTS = {
   latencyLevel: 0,      // 0-3。數值越高越早確認，但辨識準確度會降低
   sensitivity: 0,       // -1.0~1.0。數值越負越不易斷句（使翻譯上下文維持較長）
