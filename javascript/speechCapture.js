@@ -34,7 +34,11 @@ let phrasesConfig = {};
 /** @type {Map<string, Array<SpeechRecognitionPhrase>>} 已實例化的短語物件快取 */
 const cachedPhrases = new Map();
 
-/** @type {string} 存儲上一次發送翻譯的文字，用於上下文比對 */
+/**
+ * @type {string} 上一次送出翻譯的文字，作為下一句的上下文。
+ * Web Speech 專用。Soniox 的前文改由 sonioxService 決定（只在軟性斷句時附帶），
+ * 因為 endpoint 之間的前後段未必出自同一個人。
+ */
 let previousText = '';
 
 // #endregion
@@ -470,13 +474,16 @@ async function configureRecognition(recognition, sourceLanguage) {
  * @param {boolean} shouldTranslate - 是否觸發翻譯請求
  * @param {string} currentLang - 當前語言代碼
  * @param {string} symbolType - 'soniox' (用於裝飾符號)
- * @param {string|null} translateSource - 只送去翻譯的片段。長串發話被軟性斷句切開時，
- *   字幕仍顯示累積的全文（text），但翻譯只送新的那一段。省略時與 text 相同。
+ * @param {{translateSource?: string, contextText?: string|null}} [parts] - 顯示與翻譯的拆分。
+ *   translateSource：只送去翻譯的片段。長串發話被軟性斷句切開時，字幕仍顯示累積的
+ *   全文（text），但翻譯只送新的那一段。省略時與 text 相同。
+ *   contextText：同一句話裡已經送出去的前半部。只有軟性斷句時才有值，跨 endpoint
+ *   一律為 null——那是真實的句子邊界，前一句可能是別人的留言，不能當前文。
  */
-async function handleCloudTranscript(text, isFinal, shouldTranslate, currentLang, symbolType, translateSource = null) {
+async function handleCloudTranscript(text, isFinal, shouldTranslate, currentLang, symbolType, parts = {}) {
 
   let processedText = isRayModeActive() ? processRayModeTranscript(text, currentLang) : text;
-  const rawTranslateSource = translateSource ?? text;
+  const rawTranslateSource = parts.translateSource ?? text;
   const textToTranslate = (
     isRayModeActive() ? processRayModeTranscript(rawTranslateSource, currentLang) : rawTranslateSource
   ).trim();
@@ -492,8 +499,9 @@ async function handleCloudTranscript(text, isFinal, shouldTranslate, currentLang
     if (textToTranslate) {
       log.info(`收到 ${symbolType} 指令，執行翻譯:`, textToTranslate);
 
-      sendTranslationRequest(textToTranslate, previousText, currentLang);
-      previousText = textToTranslate;
+      // 前文由 Soniox 端決定（軟性斷句時才有）。這裡不自行累積：
+      // endpoint 之間的前後段未必是同一個人說的話。
+      sendTranslationRequest(textToTranslate, parts.contextText ?? null, currentLang);
       // 顯示文字在上面已經更新過了。這裡再以 textToTranslate 覆蓋的話，
       // 軟性斷句時畫面會只剩下切出來的那一段。
       armIdleClear();
@@ -808,8 +816,8 @@ async function startRecognition() {
   const engine = getSpeechEngine();
   if (engine === 'soniox') {
     try {
-      const sonioxStarted = await startSoniox(sourceLang, (text, isFinal, shouldTranslate, translateSource) => {
-        handleCloudTranscript(text, isFinal, shouldTranslate, sourceLang, 'soniox', translateSource);
+      const sonioxStarted = await startSoniox(sourceLang, (text, isFinal, shouldTranslate, parts) => {
+        handleCloudTranscript(text, isFinal, shouldTranslate, sourceLang, 'soniox', parts);
       }, {
         onStatusChange: updateStatusDisplay,
         onStop: () => {

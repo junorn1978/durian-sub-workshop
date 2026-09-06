@@ -68,8 +68,16 @@ const FINISHED_TOKEN = "<fin>";
 // 客戶端斷句參數
 //   SOFT_SPLIT_LENGTH：累積文字超過此長度時，在最後一個句末標點處切開送去翻譯（字幕不切）
 //   MAX_BUFFER_LENGTH：累積文字超過此長度強制斷句 (極端情境防呆，找不到標點時的最後手段)
-const SOFT_SPLIT_LENGTH = 80;
+//   CONTEXT_MAX_LENGTH：當作前文送出的字數上限
+//
+// 60 是實測算出來的。字幕欄只有一行，OBS 視窗約 1280px 時一行放得下 109 個英文
+// 字元；英譯長度約為日文原文的 1.81 倍，所以原文超過 60 字，英譯就得靠後端的
+// 單字數上限壓縮才塞得進去——那正是譯文掉句尾、掉語氣的原因。
+// 再往下降沒有意義：實測 55 和 50 的結果與 60 完全相同，因為卡住的是「這段話裡
+// 有沒有標點可切」，不是門檻。
+const SOFT_SPLIT_LENGTH = 60;
 const MAX_BUFFER_LENGTH = 250;
+const CONTEXT_MAX_LENGTH = 100;
 const SENTENCE_END_PATTERN = /[。！？!?]/g;
 
 // AudioWorklet 處理器代碼
@@ -241,6 +249,23 @@ function buildDisplayText() {
   return removeJapaneseSpaces((displayCarryText + finalizedText + nonFinalizedText).trim());
 }
 
+/**
+ * 送去翻譯時附帶的前文。只在軟性斷句發生過時才有值。
+ *
+ * displayCarryText 裝的是「同一句話裡已經送出去的前半部」，中間沒有 <end>，
+ * 因此必定是同一個人、同一句話、時間上緊鄰——正是我們自己硬切開的地方，
+ * 補上前文是修補，不是猜測。
+ *
+ * 反過來說跨 endpoint 就不帶。endpoint 是 Soniox 判定的真實句子邊界，前一句
+ * 很可能是別人的留言（主播會念留言）或旁邊的人講的話，拿來當前文會餵錯資訊。
+ * displayCarryText 在 endpoint 時歸零，所以這個規則自動成立，不需要旗標。
+ */
+function buildContextText() {
+  const context = removeJapaneseSpaces(displayCarryText.trim());
+  if (!context) return null;
+  return context.length > CONTEXT_MAX_LENGTH ? context.slice(-CONTEXT_MAX_LENGTH) : context;
+}
+
 /** 診斷用。把這一段裡的靜音間隔整理成一行紀錄。 */
 function logSegmentGaps(reason, length, gaps) {
   const maxGap = gaps.reduce((max, g) => Math.max(max, g.gapMs), 0);
@@ -265,7 +290,7 @@ function flushSentenceBuffer(onTranscriptUpdate, reason) {
   logSegmentGaps(reason, merged.length, finalGaps);
 
   if (onTranscriptUpdate && !punctuationOnly) {
-    onTranscriptUpdate(display, true, true, merged);
+    onTranscriptUpdate(display, true, true, { translateSource: merged, contextText: buildContextText() });
   }
 
   resetTranscriptBuffers();
@@ -312,10 +337,15 @@ function flushBySoftSplit(onTranscriptUpdate) {
 
   finalizedText = finalizedText.slice(cutIndex + 1);
 
+  // 前文是「這一段之前已經送出去的部分」，所以要在併入 merged 之前取。
+  const contextText = buildContextText();
+
   // 切出來的一段送去翻譯，但畫面保留累積的全文。
   displayCarryText += merged;
-  log.debug("軟性斷句", { 送出翻譯: merged, 殘留: finalizedText.length });
-  if (onTranscriptUpdate) onTranscriptUpdate(buildDisplayText(), true, true, merged);
+  log.debug("軟性斷句", { 送出翻譯: merged, 殘留: finalizedText.length, 前文: contextText?.length ?? 0 });
+  if (onTranscriptUpdate) {
+    onTranscriptUpdate(buildDisplayText(), true, true, { translateSource: merged, contextText });
+  }
   return true;
 }
 
