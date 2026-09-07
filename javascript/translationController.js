@@ -22,6 +22,21 @@ let _cachedTargetSpans  = null;
 
 const displayBuffers = { target1: [], target2: [], target3: [] };
 const currentDisplays = { target1: null, target2: null, target3: null };
+
+// 已經拿到序號、但還沒把結果放進顯示緩衝區的請求。
+// 用來判斷「後面的號碼先回來了，前面的是不是還在路上」。
+const pendingSequenceIds = new Set();
+
+// 等待前面的號碼最久等多久（毫秒）。
+//
+// 軟性斷句切出來的長段還在翻譯時，endpoint 收尾的殘句常常只有兩三個字，
+// 送得晚卻回得早。先讓它上畫面的話，長段回來時號碼比畫面上的舊，
+// 會被當成過期而永久丟掉——講了一大堆最後只剩兩個字的字幕就是這樣來的。
+// 因此有更早的請求還在路上時先壓著不顯示。
+//
+// 上限存在的理由是請求可能失敗或逾時（遠端翻譯的逾時是 10 秒），
+// 沒有上限就會整段字幕跟著卡住。等過頭的字幕不如不要出現，取 2 秒。
+const ORDER_HOLD_MS = 2000;
 // #endregion
 
 // #region [並行執行控制]
@@ -199,6 +214,9 @@ function processDisplayBuffers() {
   let hasVisualUpdate = false;
   let latestSequenceId = null;
 
+  // 還在路上的最小號碼。沒有待處理的請求時為 Infinity（不必等任何人）。
+  const oldestPendingId = pendingSequenceIds.size > 0 ? Math.min(...pendingSequenceIds) : Infinity;
+
   ['target1', 'target2', 'target3'].forEach(key => {
     const span = spans[key];
     if (!span || displayBuffers[key].length === 0) return;
@@ -225,6 +243,16 @@ function processDisplayBuffers() {
       const nextIndex = buffer.findIndex(item => item.sequenceId > lastSequenceId);
       
       if (nextIndex !== -1) {
+        // 比自己更早的請求還沒回來就先等。等過 ORDER_HOLD_MS 才放行。
+        if (buffer[nextIndex].sequenceId > oldestPendingId &&
+            now - buffer[nextIndex].timestamp < ORDER_HOLD_MS) {
+          log.debug('等待較早的翻譯', {
+            sequenceId: buffer[nextIndex].sequenceId,
+            等待中: oldestPendingId
+          });
+          return;
+        }
+
         const next = buffer.splice(nextIndex, 1)[0];
         
         currentDisplays[key] = {
@@ -264,6 +292,8 @@ function resetTranslationDisplay() {
     displayBuffers[key].length = 0;
     currentDisplays[key] = null;
   });
+  // 殘留的待處理號碼會讓下一場的字幕白等一輪，這裡一併清掉。
+  pendingSequenceIds.clear();
   if (bufferCheckInterval) {
     clearInterval(bufferCheckInterval);
     bufferCheckInterval = null;
@@ -296,6 +326,9 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
 
   return enqueue(async () => {
     const sequenceId = sequenceCounter++;
+    // 顯示端要靠這個判斷「有沒有更早的翻譯還在路上」，因此不論成功或失敗
+    // 都必須在結束時移除，否則字幕會白等一輪。
+    pendingSequenceIds.add(sequenceId);
 
     try {
       // 為維持與顯示欄位的對應關係，此處也一併取得 'none'。
@@ -334,6 +367,8 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       updateStatusDisplay(`翻訳中にエラーが発生しました。${error.message}`);
       setTimeout(() => updateStatusDisplay(''), 5000);
       throw error;
+    } finally {
+      pendingSequenceIds.delete(sequenceId);
     }
   });
 }
