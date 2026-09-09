@@ -67,7 +67,12 @@ body {
   
   /* 字體設定 */
   color: var(--text-color);
-  font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
+  /* 基底字體是給日文・中文以外的語言用的（英・西・印尼・韓・泰・越・俄）。
+     這裡不能用 Kosugi Maru：它的西里爾字母 advance 是 1.0em（字形本身只有
+     0.43〜0.59em，等於被塞進全形格子置中），俄語會整排散開；拉丁字母則一律
+     0.5em 的半形等寬。M PLUS Rounded 1c 兩者都是正常比例，且同為圓體，
+     與日文・中文字幕的調性一致。 */
+  font-family: "M PLUS Rounded 1c", "Huninn", Arial, sans-serif;
   font-size: var(--text-font-size);
   line-height: 1.3em;
     

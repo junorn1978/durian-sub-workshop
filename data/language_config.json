@@ -98,6 +98,15 @@
       "commentLangCode":       "vi-VN",
       "promptApiCode":         "Vietnamese",
       "languageModelApiCode":  "vi"
+    },
+    {
+      "id":                    "ru-RU",
+      "label":                 "ロシア語",
+      "chunkSize":             80,
+      "displayTimeRules":      [ { "maxLength": 30, "time": 1 }, { "maxLength": 70, "time": 2 }, { "maxLength": 1e9, "time": 3 } ],
+      "commentLangCode":       "ru-RU",
+      "promptApiCode":         "Russian",
+      "languageModelApiCode":  "ru"
     }
   ],
 
@@ -109,7 +118,8 @@
     "id-ID": "id",
     "ko-KR": "ko",
     "th-TH": "th",
-    "vi-VN": "vi"
+    "vi-VN": "vi",
+    "ru-RU": "ru"
   },
 
   "defaults": {
