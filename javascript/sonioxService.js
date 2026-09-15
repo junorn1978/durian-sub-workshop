@@ -10,8 +10,6 @@
 
 import { getLang, getSonioxEndpointSettings } from "./config.js";
 import { createLogger } from "./logger.js";
-// 只觀測用，評估要不要改用手動強制結算。確認完就連同呼叫點一起刪除。
-import { resetVadProbe, feedVadProbe, noteVadEndpoint, reportVadProbe } from "./vadProbe.js";
 
 const log = createLogger('Soniox');
 
@@ -109,18 +107,14 @@ class PCMProcessor extends AudioWorkletProcessor {
 
   flush() {
     const int16Data = new Int16Array(this.bufferSize);
-    let sumSq = 0;
 
     for (let i = 0; i < this.bufferSize; i++) {
       const s = this.buffer[i];
-      sumSq += s * s;
       const clipped = s < -1 ? -1 : s > 1 ? 1 : s;
       int16Data[i] = clipped < 0 ? clipped * 0x8000 : clipped * 0x7FFF;
     }
 
-    // rms 只給 VAD 觀測用，送出的 PCM 內容完全沒變。
-    const rms = Math.sqrt(sumSq / this.bufferSize);
-    this.port.postMessage({ pcm: int16Data.buffer, rms }, [int16Data.buffer]);
+    this.port.postMessage(int16Data.buffer, [int16Data.buffer]);
     this.index = 0;
   }
 }
@@ -444,7 +438,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
       }
       globalStream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          autoGainControl:  false,
+          autoGainControl:  true,
           echoCancellation: true,
           noiseSuppression: true,
           channelCount: 1,
@@ -490,21 +484,12 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
     const pendingAudioChunks = [];
     let isConfigured = false;
 
-    // 一個區塊代表多少毫秒的音訊。VAD 觀測拿它當時間軸，不受訊息抖動影響。
-    const frameMs = (targetBufferSize / finalSampleRate) * 1000;
-    resetVadProbe();
-
     audioWorkletNode.port.onmessage = (event) => {
-      const { pcm, rms } = event.data;
-
-      // 只記錄，不影響下面的送出流程。
-      feedVadProbe(rms, frameMs, (finalizedText + nonFinalizedText).length > 0);
-
       // 設定 JSON 傳到 server 前先不傳送音訊，而是暫存起來。
       if (socket?.readyState === 1 && isConfigured) {
-        socket.send(pcm);
+        socket.send(event.data);
       } else {
-        pendingAudioChunks.push(pcm);
+        pendingAudioChunks.push(event.data);
       }
     };
 
@@ -597,7 +582,6 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
           // 兩位講者的話因此擠成同一行字幕，也會被當成同一句送去翻譯；
           // 改成遇到就地結算。
           if (tokenText === ENDPOINT_TOKEN) {
-            noteVadEndpoint();
             nonFinalizedText = newNonFinalText;
             newNonFinalText = "";
             flushSentenceBuffer(onTranscriptUpdate, "⚡ endpoint");
@@ -719,8 +703,6 @@ export function stopSoniox(options = {}) {
   globalOnTranscriptUpdate = null;
 
   cleanupAudioResources();
-
-  if (hadSession) reportVadProbe();
 
   log.info("Soniox 服務已停止");
 
