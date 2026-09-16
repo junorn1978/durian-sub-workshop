@@ -474,11 +474,13 @@ async function configureRecognition(recognition, sourceLanguage) {
  * @param {boolean} shouldTranslate - 是否觸發翻譯請求
  * @param {string} currentLang - 當前語言代碼
  * @param {string} symbolType - 'soniox' (用於裝飾符號)
- * @param {{translateSource?: string, contextText?: string|null}} [parts] - 顯示與翻譯的拆分。
+ * @param {{translateSource?: string, contextText?: string|null, diag?: Object|null}} [parts]
+ *   顯示與翻譯的拆分。
  *   translateSource：只送去翻譯的片段。長串發話被軟性斷句切開時，字幕仍顯示累積的
  *   全文（text），但翻譯只送新的那一段。省略時與 text 相同。
  *   contextText：同一句話裡已經送出去的前半部。只有軟性斷句時才有值，跨 endpoint
  *   一律為 null——那是真實的句子邊界，前一句可能是別人的留言，不能當前文。
+ *   diag：這一段的斷句時序診斷。只往後端的紀錄走，不影響翻譯結果。
  */
 async function handleCloudTranscript(text, isFinal, shouldTranslate, currentLang, symbolType, parts = {}) {
 
@@ -501,7 +503,7 @@ async function handleCloudTranscript(text, isFinal, shouldTranslate, currentLang
 
       // 前文由 Soniox 端決定（軟性斷句時才有）。這裡不自行累積：
       // endpoint 之間的前後段未必是同一個人說的話。
-      sendTranslationRequest(textToTranslate, parts.contextText ?? null, currentLang);
+      sendTranslationRequest(textToTranslate, parts.contextText ?? null, currentLang, parts.diag ?? null);
       // 顯示文字在上面已經更新過了。這裡再以 textToTranslate 覆蓋的話，
       // 軟性斷句時畫面會只剩下切出來的那一段。
       armIdleClear();

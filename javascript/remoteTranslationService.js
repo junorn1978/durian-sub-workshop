@@ -63,9 +63,10 @@ async function postWithRetryOn429(url, headers, payload) {
  * @param {string} serviceUrl - 服務網址 (可含 key://url 形式，API Key 會自動解析)
  * @param {number} sequenceId - 請求序號
  * @param {string|null} previousText - 上文脈絡 (Context)
+ * @param {Object|null} diag - 斷句時序診斷。後端只拿它寫紀錄，不會進入提示詞。
  * @returns {Promise<Object|null>} 翻譯結果物件
  */
-async function sendTranslation(text, targetLangs, sourceLang, serviceUrl, sequenceId, previousText = null) {
+async function sendTranslation(text, targetLangs, sourceLang, serviceUrl, sequenceId, previousText = null, diag = null) {
   if (!text || text.trim() === '' || text.trim() === 'っ' || text.trim() === 'っ。') {
     log.debug('無效文字，跳過翻譯:', text);
     return null;
@@ -104,12 +105,16 @@ async function sendTranslation(text, targetLangs, sourceLang, serviceUrl, sequen
   const headers = { 'Content-Type': 'application/json' };
   if (serviceKey) headers['X-API-Key'] = serviceKey;
 
-  const payload = { 
-    text, 
+  // diag 是純觀測資料。後端以具名解構取出 text／targetLangs／previousText，
+  // 因此這個欄位在提示詞的路徑上根本不存在——不計 token，也不影響翻譯結果。
+  // 沒有診斷資料時整個欄位省略、不送 null，後端用「有沒有這個鍵」判斷就好。
+  const payload = {
+    text,
     targetLangs,
     sourceLang,
-    sequenceId, 
-    previousText: previousText || null 
+    sequenceId,
+    previousText: previousText || null,
+    ...(diag ? { diag } : {})
   };
 
   const response = await postWithRetryOn429(finalUrl, headers, payload);
@@ -134,16 +139,17 @@ async function sendTranslation(text, targetLangs, sourceLang, serviceUrl, sequen
  * @param {string} serviceType - 翻譯服務類型
  * @param {number} sequenceId  - 序號
  * @param {string|null} previousText - 上文
+ * @param {Object|null} diag - 斷句時序診斷
  * @returns {Promise<Object>}
  */
-async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, serviceType, sequenceId, previousText = null) {
+async function processTranslationUrl(text, targetLangs, sourceLang, serviceUrl, serviceType, sequenceId, previousText = null, diag = null) {
   if (!serviceUrl) {
     log.error('URL 為空');
     throw new Error('有効な翻訳サービスの URL を入力してください。');
   }
 
   if (serviceType === 'link') {
-    return await sendTranslation(text, targetLangs, sourceLang, serviceUrl, sequenceId, previousText);
+    return await sendTranslation(text, targetLangs, sourceLang, serviceUrl, sequenceId, previousText, diag);
   } else {
     log.error('無效的服務類型:', serviceType);
     throw new Error('無效的服務類型');

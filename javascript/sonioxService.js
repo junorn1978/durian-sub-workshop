@@ -34,10 +34,22 @@ let nonFinalizedText = "";     // 每則訊息都會被取代的 interim 部分
 // 看到話講到一半就被抽掉。因此顯示走累積，翻譯走分段，直到 endpoint 才一起歸零。
 let displayCarryText = "";
 
-// 診斷用。評估能不能改用「token 之間的靜音間隔」取代字數來斷句。
-// 只統計已確認的 token：暫定 token 每則訊息都會重送，會重複計算。
-let lastFinalEndMs = null;     // 上一個已確認 token 的結束時刻
-let finalGaps = [];            // { atChar, gapMs }，atChar 是 finalizedText 內的位置
+// 斷句診斷。用來評估能不能改用「token 之間的靜音間隔」取代字數來斷句。
+// 只記已確認的 token：暫定 token 每則訊息都會重送，會重複計算。
+//
+// 存原始時間戳而不是預先算好的間隔，是因為間隔、發聲長度、語速、段落時長全都能從
+// 這一份推導出來，反過來不行。軟性斷句要把資料拆成兩半時，也只要用 atChar 篩選，
+// 不必分別維護好幾個累計值。
+let finalTokens = [];          // { atChar, startMs, endMs }，atChar 是 finalizedText 內的位置
+
+// 這一段的已確認文字是分幾則 WebSocket 訊息湊齊的。
+//
+// 用來判斷「按字數軟斷」這條路走不走得通。實測 25 段裡軟斷只觸發 1 次，連累積到
+// 65 字（門檻是 60）的段落都仍由 endpoint 切走，懷疑 Soniox 的 is_final 是成批在
+// endpoint 附近才確認的——若真是如此，finalizedText 不會慢慢長到門檻，而是一口氣
+// 跳過去，且那則訊息帶著 <end> 會提前 return，根本走不到 flushBySoftSplit。
+// 長段落若回報 1～2 則，推測即成立。
+let finalMsgCount = 0;
 
 let globalStream = null;
 let globalOnTranscriptUpdate = null;
@@ -79,6 +91,11 @@ const SOFT_SPLIT_LENGTH = 60;
 const MAX_BUFFER_LENGTH = 250;
 const CONTEXT_MAX_LENGTH = 100;
 const SENTENCE_END_PATTERN = /[。！？!?]/g;
+
+// 診斷資料最多附上幾組間隔。MAX_BUFFER_LENGTH 是 250 字，極端情況可能累積上百個
+// token，全部附上會讓每一行紀錄長到難以閱讀。被截掉的數量仍可由 toks 推算，
+// 因此這個上限只影響明細，不影響統計。
+const DIAG_GAP_LIMIT = 100;
 
 // AudioWorklet 處理器代碼
 const PCM_PROCESSOR_CODE = `
@@ -240,8 +257,8 @@ function resetTranscriptBuffers() {
   finalizedText = "";
   nonFinalizedText = "";
   displayCarryText = "";
-  lastFinalEndMs = null;
-  finalGaps = [];
+  finalTokens = [];
+  finalMsgCount = 0;
 }
 
 /** 目前應該顯示在字幕上的完整文字（含軟性斷句已送出的部分）。 */
@@ -266,19 +283,75 @@ function buildContextText() {
   return context.length > CONTEXT_MAX_LENGTH ? context.slice(-CONTEXT_MAX_LENGTH) : context;
 }
 
-/** 診斷用。把這一段裡的靜音間隔整理成一行紀錄。 */
-function logSegmentGaps(reason, length, gaps) {
-  const maxGap = gaps.reduce((max, g) => Math.max(max, g.gapMs), 0);
+/**
+ * 把一段話的時序整理成診斷資料，跟著翻譯請求一起送到後端。
+ *
+ * 只放數字與分類，不放任何文字。後端的 [翻譯完成] 那一行已經有原文了，用
+ * sequenceId 就能對上；重複帶一份只會讓紀錄多留一份內容，而前端的 ray mode
+ * 遮蔽也管不到後端的紀錄。
+ *
+ * 一律送原始值、不送算好的比率——語速（chars ÷ voiceMs）和靜音佔比
+ * （1 − voiceMs ÷ durMs）事後都推導得出來。現在還不知道哪個指標才是對的，
+ * 先把公式寫死在前端的話，換算方式一改就得重新收一次資料。
+ *
+ * @param {'soft'|'endpoint'|'maxlen'|'stop'} cut - 這一段是被什麼切出來的
+ * @param {number} chars - 送去翻譯的字數
+ * @param {number} ctxChars - 附帶前文的字數
+ * @param {Array<{atChar:number,startMs:number,endMs:number}>} tokens - 這一段的 token 時間戳
+ * @param {number} msgs - 這一段的已確認文字分幾則訊息湊齊。軟性斷句時涵蓋的是整段
+ *   發話至今，不只送出去的那一半——殘留會繼續累積，無法依 atChar 切分。
+ */
+function buildSegmentDiag(cut, chars, ctxChars, tokens, msgs) {
+  const diag = { cut, chars, ctx: ctxChars, toks: tokens.length, msgs };
+  if (tokens.length === 0) return diag;
+
+  // 只記非零間隔。連續發話時 start_ms 會緊貼前一個 end_ms，間隔為 0 的佔大多數，
+  // 逐一列出只是雜訊；要算分位數時用 toks 減掉 gaps.length 就知道有幾個零。
+  const gaps = [];
+  let voiceMs = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    voiceMs += tokens[i].endMs - tokens[i].startMs;
+    if (i === 0) continue;
+    const gapMs = tokens[i].startMs - tokens[i - 1].endMs;
+    if (gapMs > 0 && gaps.length < DIAG_GAP_LIMIT) gaps.push([tokens[i].atChar, gapMs]);
+  }
+
+  diag.t0 = tokens[0].startMs;                                      // 音訊時間軸上的起點
+  diag.durMs = tokens[tokens.length - 1].endMs - tokens[0].startMs; // 這一段橫跨多久
+
+  // ⚠ 這不是「發聲時間」。實測 25 段全部滿足 voiceMs ≈ toks × 60ms——Soniox 給每個
+  //   token 的時長是固定的 60ms 量化值，與那個字實際唸多久無關（所有 gap 也都是 60
+  //   的倍數）。因此語速要用 chars ÷ durMs 算，用 voiceMs 算出來的是「每個 token 幾
+  //   個字」，會得到 40 字/秒 這種人類做不到的數字。
+  //   保留這個欄位只為了哪天 Soniox 換了量化單位時看得出來。
+  diag.voiceMs = voiceMs;
+
+  // ⚠ 同理，gap 不等於靜音。token 時長被壓成 60ms，那個字實際還在唸的時間會被算進
+  //   後面的 gap 裡（唱歌段落的拉長尾音就是這樣變成 1 秒以上的「間隔」）。
+  //   比相對大小（分位數）仍然有效，但不能拿絕對毫秒數去對照換氣時間。
+  diag.gaps = gaps;                                                 // [atChar, gapMs]
+  return diag;
+}
+
+/** 把診斷資料印成一行。送到後端的是同一份資料，這裡是給本機除錯看的。 */
+function logSegmentDiag(reason, diag) {
+  const gaps = diag.gaps || [];
   log.debug("斷句診斷", {
     原因: reason,
-    字數: length,
-    最大間隔: maxGap,
+    字數: diag.chars,
+    前文: diag.ctx,
+    token數: diag.toks,
+    訊息數: diag.msgs ?? '-',
+    音訊長: diag.durMs ?? '-',
+    發聲長: diag.voiceMs ?? '-',
+    語速: diag.durMs > 0 ? `${(diag.chars / diag.durMs * 1000).toFixed(1)}字/秒` : '-',
+    最大間隔: gaps.reduce((max, g) => Math.max(max, g[1]), 0),
     間隔數: gaps.length,
-    明細: gaps.map(g => `${g.atChar}字/${g.gapMs}ms`).join(' ') || '（無時間戳或全程無停頓）'
+    明細: gaps.map(g => `${g[0]}字/${g[1]}ms`).join(' ') || '（無時間戳或全程無停頓）'
   });
 }
 
-function flushSentenceBuffer(onTranscriptUpdate, reason) {
+function flushSentenceBuffer(onTranscriptUpdate, reason, cut) {
   // merged 是「還沒送去翻譯」的部分，display 是「畫面上該有的全文」。
   const merged = removeJapaneseSpaces((finalizedText + nonFinalizedText).trim());
   const display = buildDisplayText();
@@ -287,10 +360,12 @@ function flushSentenceBuffer(onTranscriptUpdate, reason) {
 
   const punctuationOnly = merged === '？' || merged === '。' || merged === '、';
 
-  logSegmentGaps(reason, merged.length, finalGaps);
+  const contextText = buildContextText();
+  const diag = buildSegmentDiag(cut, merged.length, contextText?.length ?? 0, finalTokens, finalMsgCount);
+  logSegmentDiag(reason, diag);
 
   if (onTranscriptUpdate && !punctuationOnly) {
-    onTranscriptUpdate(display, true, true, { translateSource: merged, contextText: buildContextText() });
+    onTranscriptUpdate(display, true, true, { translateSource: merged, contextText, diag });
   }
 
   resetTranscriptBuffers();
@@ -328,23 +403,26 @@ function flushBySoftSplit(onTranscriptUpdate) {
   const merged = removeJapaneseSpaces(finalizedText.slice(0, cutIndex + 1).trim());
   if (merged.length === 0) return false;
 
-  // 切點之前的間隔屬於送出的這一段，之後的要跟著殘留一起平移。
+  // 切點之前的 token 屬於送出的這一段，之後的要跟著殘留一起平移。
   const cutAt = cutIndex + 1;
-  logSegmentGaps("軟性斷句", merged.length, finalGaps.filter(g => g.atChar < cutAt));
-  finalGaps = finalGaps
-    .filter(g => g.atChar >= cutAt)
-    .map(g => ({ atChar: g.atChar - cutAt, gapMs: g.gapMs }));
+  const sentTokens = finalTokens.filter(t => t.atChar < cutAt);
+  finalTokens = finalTokens
+    .filter(t => t.atChar >= cutAt)
+    .map(t => ({ atChar: t.atChar - cutAt, startMs: t.startMs, endMs: t.endMs }));
 
   finalizedText = finalizedText.slice(cutIndex + 1);
 
   // 前文是「這一段之前已經送出去的部分」，所以要在併入 merged 之前取。
   const contextText = buildContextText();
 
+  const diag = buildSegmentDiag('soft', merged.length, contextText?.length ?? 0, sentTokens, finalMsgCount);
+  logSegmentDiag("軟性斷句", diag);
+
   // 切出來的一段送去翻譯，但畫面保留累積的全文。
   displayCarryText += merged;
   log.debug("軟性斷句", { 送出翻譯: merged, 殘留: finalizedText.length, 前文: contextText?.length ?? 0 });
   if (onTranscriptUpdate) {
-    onTranscriptUpdate(buildDisplayText(), true, true, { translateSource: merged, contextText });
+    onTranscriptUpdate(buildDisplayText(), true, true, { translateSource: merged, contextText, diag });
   }
   return true;
 }
@@ -571,6 +649,9 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         let flushedByEndpoint = false;
         let newNonFinalText = "";
         let addedFinalThisRound = "";
+        // 這則訊息是否已計入 finalMsgCount。endpoint 是在迴圈中途就地結算的，
+        // 因此必須在加入 token 的當下計數，不能等迴圈跑完。
+        let countedThisMessage = false;
 
         for (const token of tokens) {
           const tokenText = typeof token.text === "string" ? token.text : "";
@@ -584,7 +665,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
           if (tokenText === ENDPOINT_TOKEN) {
             nonFinalizedText = newNonFinalText;
             newNonFinalText = "";
-            flushSentenceBuffer(onTranscriptUpdate, "⚡ endpoint");
+            flushSentenceBuffer(onTranscriptUpdate, "⚡ endpoint", 'endpoint');
             flushedByEndpoint = true;
             continue;
           }
@@ -594,12 +675,19 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
           }
 
           if (token.is_final) {
-            // 診斷用。與上一個已確認 token 之間的靜音長度，200ms 以下當成連續發話。
-            if (typeof token.start_ms === "number" && lastFinalEndMs !== null) {
-              const gapMs = token.start_ms - lastFinalEndMs;
-              if (gapMs >= 200) finalGaps.push({ atChar: finalizedText.length, gapMs });
+            // 診斷用。時間戳走的是音訊時間軸，不是封包抵達時間，因此不受網路抖動影響。
+            // 沒帶時間戳的 token 就不記：寧可少一筆，也不要拿錯的時間去算間隔。
+            if (typeof token.start_ms === "number" && typeof token.end_ms === "number") {
+              finalTokens.push({
+                atChar: finalizedText.length,
+                startMs: token.start_ms,
+                endMs: token.end_ms
+              });
             }
-            if (typeof token.end_ms === "number") lastFinalEndMs = token.end_ms;
+            if (!countedThisMessage) {
+              finalMsgCount++;
+              countedThisMessage = true;
+            }
 
             finalizedText += tokenText;
             addedFinalThisRound += tokenText;
@@ -627,7 +715,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
 
         // 長度防呆：累積過長強制斷句 (Soniox 不送 endpoint 且找不到標點的極端情境)
         if ((finalizedText + nonFinalizedText).length >= MAX_BUFFER_LENGTH) {
-          flushSentenceBuffer(onTranscriptUpdate, "⚡ 最大長度強制斷");
+          flushSentenceBuffer(onTranscriptUpdate, "⚡ 最大長度強制斷", 'maxlen');
           return;
         }
 
@@ -691,7 +779,9 @@ export function stopSoniox(options = {}) {
   // 停止前 flush 殘留文字
   const remainingText = removeJapaneseSpaces((finalizedText + nonFinalizedText).trim());
   if (remainingText.length > 0 && globalOnTranscriptUpdate) {
-    globalOnTranscriptUpdate(remainingText, true, true);
+    const diag = buildSegmentDiag('stop', remainingText.length, 0, finalTokens, finalMsgCount);
+    logSegmentDiag("停止前殘留", diag);
+    globalOnTranscriptUpdate(remainingText, true, true, { diag });
   }
 
   isRunning = false;

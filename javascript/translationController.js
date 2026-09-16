@@ -133,7 +133,7 @@ function resolveTranslationConfig(rawTargetLangIds) {
   return { currentMode, serviceUrl, activeLangIds };
 }
 
-async function requestTranslationData(text, previousText, sourceLangId, rawTargetLangIds, sequenceId) {
+async function requestTranslationData(text, previousText, sourceLangId, rawTargetLangIds, sequenceId, diag = null) {
   const config = resolveTranslationConfig(rawTargetLangIds);
   if (!config) return null;
 
@@ -148,7 +148,7 @@ async function requestTranslationData(text, previousText, sourceLangId, rawTarge
   } else {
     if (!serviceUrl) return null;
     const targetCodes = activeLangIds.map(id => getLang(id)?.id || id);
-    data = await processTranslationUrl(text, targetCodes, sourceLangId, serviceUrl, currentMode, sequenceId, previousText);
+    data = await processTranslationUrl(text, targetCodes, sourceLangId, serviceUrl, currentMode, sequenceId, previousText, diag);
   }
 
   return normalizeTranslationData(data, rawTargetLangIds, translatedLangIds);
@@ -321,7 +321,7 @@ function isTooShortToTranslate(text) {
  * @async
  * @param {string} sourceLangId - 來源語言 ID（例如：'ja-JP'）
  */
-async function sendTranslationRequest(text, previousText = null, sourceLangId) {
+async function sendTranslationRequest(text, previousText = null, sourceLangId, diag = null) {
   if (isTooShortToTranslate(text)) return;
 
   return enqueue(async () => {
@@ -348,7 +348,7 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId) {
       const minDisplayTime = currentMode !== 'link'
                            ? 0
                            : (rules.find(rule => text.length <= rule.maxLength)?.time ?? 3);
-      let data = await requestTranslationData(text, previousText, sourceLangId, rawTargetLangIds, sequenceId);
+      let data = await requestTranslationData(text, previousText, sourceLangId, rawTargetLangIds, sequenceId, diag);
 
       // 後端傳來的緊急停止訊號。用於保護預算，比照使用者按下停止按鈕處理。
       // 設定 FORCE_STOP_CLIENTS=true 時，回應中會附帶 stop:true。
