@@ -357,6 +357,20 @@ async function sendTranslationRequest(text, previousText = null, sourceLangId, d
         return;
       }
 
+      // 後端的超短句表判定這句不必顯示（純呼氣、拖長音、笑聲）。
+      // 這裡直接 return，不進顯示緩衝區 —— 畫面上的前一句字幕因此留著，
+      // 觀眾多幾秒可以讀完。
+      //
+      // 不要改成塞空字串：空字串會走到 span.textContent = '' 把字幕清掉，
+      // 正在讀的那句提早消失，連續嘆氣時還會反覆閃。
+      //
+      // 順序邏輯不受影響：sequenceId 由下方的 finally 從 pendingSequenceIds 移除，
+      // 所以後面的號碼不會為了一個永遠不顯示的號碼白等 ORDER_HOLD_MS。
+      if (data?.skip) {
+        log.debug('短句直通，不顯示', { sequenceId });
+        return;
+      }
+
       if (data) {
         data.sequenceId = sequenceId;
         data.translations = filterTranslationsForTargets(data.translations, rawTargetLangIds);
@@ -393,7 +407,11 @@ async function translateTestText(text) {
     const data = await requestTranslationData(sourceText.trim(), null, sourceLangId, rawTargetLangIds, sequenceId);
     if (!data) return null;
 
-    const translations = filterTranslationsForTargets(data.translations, rawTargetLangIds);
+    // 超短句表判定不顯示時後端不回 translations，這裡不能讓
+    // filterTranslationsForTargets 踩到 undefined。測試框是手動工具，顯示空字串即可。
+    const translations = data.skip
+      ? rawTargetLangIds.map(() => '')
+      : filterTranslationsForTargets(data.translations, rawTargetLangIds);
     const results = rawTargetLangIds.map((langId, index) => ({
       slot: index + 1,
       langId,
