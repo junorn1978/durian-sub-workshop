@@ -10,6 +10,7 @@
 
 import { getLang, getSonioxEndpointSettings } from "./config.js";
 import { createLogger } from "./logger.js";
+import { getSelectedMicId } from "./micSelector.js";
 
 const log = createLogger('Soniox');
 
@@ -487,19 +488,75 @@ function cleanupAudioResources() {
 }
 
 /**
- * 開麥克風。之後要能選裝置時，deviceId 從這裡進來。
+ * 開左下角選定的麥克風；裝置不見了（拔掉、改名）就退回既定裝置。權限錯誤直接往上丟。
  * 前處理（AGC・回音消除・降噪）維持開啟：這是麥克風輸入，跟 hamham 的分頁音訊不同。
  */
+const MIC_CONSTRAINTS = {
+  autoGainControl:  true,
+  echoCancellation: true,
+  noiseSuppression: true,
+  channelCount: 1,
+};
+
 async function openMicStream() {
-  return navigator.mediaDevices.getUserMedia({
-    audio: {
-      autoGainControl:  true,
-      echoCancellation: true,
-      noiseSuppression: true,
-      channelCount: 1,
-    },
-    video: false
+  const deviceId = getSelectedMicId();
+  if (deviceId) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: { ...MIC_CONSTRAINTS, deviceId: { exact: deviceId } },
+        video: false
+      });
+    } catch (err) {
+      if (err?.name !== 'OverconstrainedError' && err?.name !== 'NotFoundError') throw err;
+      log.warn("選択したマイクが見つからないため、既定のマイクを使います");
+    }
+  }
+  return navigator.mediaDevices.getUserMedia({ audio: MIC_CONSTRAINTS, video: false });
+}
+
+/* 麥克風被拔掉時：換到目前能開的裝置，連線不斷。 */
+function watchMicEnded(stream, sessionId) {
+  stream.getAudioTracks()[0]?.addEventListener('ended', () => {
+    if (sessionId !== session || stream !== globalStream) return;
+    log.warn("マイクが切断されました。開き直します");
+    switchSonioxMic();
   });
+}
+
+/**
+ * 辨識中換麥克風（左下角選了別的、或裝置被拔掉）。只換音訊來源接到高通濾波器上，
+ * AudioContext、worklet、Soniox 連線都不動，所以不會斷線也不會重新計費。
+ * 一支麥克風都開不了才停止。
+ */
+export async function switchSonioxMic() {
+  if (!isRunning || !audioContext || !highpassNode) return;
+  const sessionId = session;
+
+  let stream;
+  try {
+    stream = await openMicStream();
+  } catch (err) {
+    log.error("マイクを開き直せませんでした", err);
+    if (sessionId !== session) return;
+    notifyStatusChange("マイクが切断されました。接続を確認して、もう一度「開始」を押してください。");
+    stopSoniox({ intentional: false, reason: 'mic-lost' });
+    return;
+  }
+  if (sessionId !== session || !audioContext) {
+    stream.getTracks().forEach(t => t.stop());
+    return;
+  }
+
+  const oldSource = mediaStreamSource;
+  const oldStream = globalStream;
+  mediaStreamSource = audioContext.createMediaStreamSource(stream);
+  mediaStreamSource.connect(highpassNode);
+  globalStream = stream;
+  watchMicEnded(stream, sessionId);
+
+  try { oldSource?.disconnect(); } catch { /* 已經斷開 */ }
+  oldStream?.getTracks().forEach(t => t.stop());
+  log.info("マイクを切り替えました:", stream.getAudioTracks()[0]?.label);
 }
 
 // renderSizeHint 是 Chrome 153+ 才有的成員，萬一實作對數值另有限制而丟例外，逐級退回原本的行為。
@@ -830,6 +887,7 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
     if (sessionId !== session) { cleanupAudioResources(); return false; }
     await buildAudioPipeline(globalStream, sessionId);
     if (sessionId !== session) { cleanupAudioResources(); return false; }
+    watchMicEnded(globalStream, sessionId);
   } catch (error) {
     log.error("啟動失敗", error);
     stopSoniox({ intentional: false, reason: 'startup-error' });

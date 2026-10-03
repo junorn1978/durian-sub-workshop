@@ -38,6 +38,8 @@ export const SETTING_DEFAULTS = Object.freeze({
   'auto-stop-enabled': 'true',
   'pause-duration-min': '3',
   'subtitle-clear-idle-sec': '7',
+  'mic-device-id': '',          // '' = 系統既定（見 micSelector.js）
+  'mic-device-label': '',
 
   // 表示・システム
   'text-alignment': 'center',

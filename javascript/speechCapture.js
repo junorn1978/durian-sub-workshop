@@ -6,7 +6,7 @@
 
 import { isRayModeActive, getSpeechEngine, browserInfo, getSourceLanguage, getLang, getAlignment } from './config.js';
 import { sendTranslationRequest, resetTranslationDisplay } from './translationController.js';
-import { startSoniox, stopSoniox } from './sonioxService.js';
+import { startSoniox, stopSoniox, switchSonioxMic } from './sonioxService.js';
 import { createLogger } from './logger.js';
 import { publishSourceTextToObs, publishTranslationsToObs } from './obsBridge.js';
 import { loadKeywordRules, filterRayModeText, processRayModeTranscript } from './rayModeFilter.js';
@@ -14,13 +14,11 @@ import { updateStatusDisplay, setRecognitionControlsState, clearAllTextElements,
 import { normalizeRecognised } from './normalizeJa.js';
 import { getSettingBool, getSettingNumber } from './settingsStore.js';
 import { openAudioInput } from './audioInput.js';
+import { mountMicSelector, onMicChange, refreshMicList, getSelectedMicId } from './micSelector.js';
 
 const log = createLogger('SpeechRecognition');
 
 // #region [狀態變數與快取]
-
-/** @type {boolean} 是否已顯示過麥克風資訊 */
-let hasShownMicInfo = false;
 
 /** @type {SpeechRecognition|null} Web Speech API 辨識實例 */
 let recognition = null;
@@ -312,103 +310,7 @@ function clearSubtitlesForIdle() {
 }
 // #endregion
 
-// #region [硬體檢測與 UI 控制]
-
-/**
- * 檢測並顯示目前瀏覽器佔用的音訊輸入裝置資訊
- * @async
- * @returns {Promise<void>}
- */
-async function showMicInfoOnce() {
-  if (hasShownMicInfo) return;
-  hasShownMicInfo = true;
-
-  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-    log.warn('此瀏覽器不支援 mediaDevices.enumerateDevices()');
-    return;
-  }
-
-  let tempStream = null;
-  try {
-    try {
-      tempStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    } catch (err) {
-      log.warn('取得麥克風權限失敗（名稱可能會顯示為空）:', err);
-    }
-
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const audioInputs = devices.filter(d => d.kind === 'audioinput');
-
-    const micInfoEl = document.getElementById('default-mic');
-    if (!audioInputs.length) {
-      const msg = 'マイクが見つかりません';
-      log.info(msg);
-      if (micInfoEl) setMicLabel(micInfoEl, `🎙️ ${msg}`);
-      return;
-    }
-
-    const defaultDevice = audioInputs.find(d => d.deviceId === 'default') || audioInputs[0];
-    const micName = defaultDevice.label || 'デバイス名を取得できませんでした';
-
-    log.info('偵測到的裝置列表:', audioInputs);
-    if (micInfoEl) {
-      setMicLabel(micInfoEl, `🎙️ ${micName}`);
-      micInfoEl.title = micName;
-    }
-  } catch (err) {
-    log.error('取得麥克風資訊失敗:', err);
-  } finally {
-    if (tempStream) {
-      tempStream.getTracks().forEach(t => t.stop());
-    }
-  }
-}
-
-/**
- * 設定狀態列的麥克風名稱。僅在無法容納於寬度（205px）時，以新聞跑馬燈形式
- * 無縫循環捲動；若能容納則靜止顯示（CSS 請參閱 .status-mic）。
- * @param {HTMLElement} el #default-mic 元素
- * @param {string} text 顯示文字
- */
-function setMicLabel(el, text) {
-  if (!el) return;
-  el.classList.remove('is-marquee');
-  el.textContent = text; // 預設為靜止顯示（若無法容納，則在下方改為跑馬燈）
-
-  const activate = () => {
-    if (el.scrollWidth <= el.clientWidth) return; // 若能容納則維持靜止
-
-    // 溢位時：並列兩份相同文字，使其無縫循環
-    el.textContent = '';
-    const track = document.createElement('span');
-    track.className = 'mic-track';
-    const first = document.createElement('span');
-    first.className = 'mic-seg';
-    first.textContent = text;
-    const second = document.createElement('span');
-    second.className = 'mic-seg';
-    second.setAttribute('aria-hidden', 'true');
-    second.textContent = text;
-    track.append(first, second);
-    el.appendChild(track);
-    el.classList.add('is-marquee');
-
-    requestAnimationFrame(() => {
-      const GAP_PX = 32;     // 必須與 CSS .mic-track 的 gap 一致
-      const SPEED_PX_S = 45; // 捲動速度（px／秒）
-      const shift = first.offsetWidth + GAP_PX;
-      track.style.setProperty('--mic-shift', `${shift}px`);
-      track.style.setProperty('--mic-duration', `${(shift / SPEED_PX_S).toFixed(1)}s`);
-    });
-  };
-
-  // 為避免自訂字型造成寬度偏差，待字型確定後再測量
-  if (document.fonts?.ready) {
-    document.fonts.ready.then(() => requestAnimationFrame(activate));
-  } else {
-    requestAnimationFrame(activate);
-  }
-}
+// #region [狀態判斷]
 
 /**
  * 是否正在以 Web Speech API 引擎進行辨識
@@ -957,6 +859,7 @@ async function startRecognition() {
         isRecognitionActive = true;
         activeRecognitionEngine = 'soniox';
         startSessionWatchdog();
+        refreshMicList();
         return;
       }
     } catch (err) {
@@ -983,6 +886,8 @@ async function startRecognition() {
     recognition.start(webSpeechInput.track);
     activeRecognitionEngine = 'webspeech';
     startSessionWatchdog();
+    // 第一次開麥克風之後才有權限，清單上的名稱這時才拿得到。
+    refreshMicList();
   } catch (error) {
     log.error('辨識啟動失敗:', error);
     closeWebSpeechInput();
@@ -990,9 +895,15 @@ async function startRecognition() {
   }
 }
 
-/** 之後做麥克風選擇時，deviceId 從這裡傳進去。 */
-function openWebSpeechInput() {
-  return openAudioInput({ ...inputHooks, onEnded: handleWebSpeechInputEnded });
+/** 開左下角選定的麥克風（不在就是既定裝置）。 */
+async function openWebSpeechInput() {
+  const input = await openAudioInput({
+    deviceId: getSelectedMicId(),
+    ...inputHooks,
+    onEnded: () => switchWebSpeechInput('ended'),
+  });
+  if (input.fellBack) log.warn('選択したマイクが見つからないため、既定のマイクを使います:', input.label);
+  return input;
 }
 
 function closeWebSpeechInput() {
@@ -1001,12 +912,14 @@ function closeWebSpeechInput() {
 }
 
 /**
- * 辨識中裝置不見了（拔掉、停用）。改開目前能開的裝置（選定的不在就是預設裝置），
- * 結束目前的 session，讓重啟接到新的音軌上。一支麥克風都開不了才停止。
+ * 辨識中換麥克風：裝置不見了（拔掉、停用），或在左下角選了別的。
+ * 開目前選定的裝置（不在就是既定裝置），結束目前的 session，讓重啟接到新的音軌上。
+ * 一支麥克風都開不了才停止。
+ * @param {'ended'|'picked'} reason
  */
-async function handleWebSpeechInputEnded() {
+async function switchWebSpeechInput(reason) {
   if (!isRecognitionActive || activeRecognitionEngine !== 'webspeech') return;
-  log.warn('マイクが切断されました。開き直します');
+  log.info(reason === 'ended' ? 'マイクが切断されました。開き直します' : '選択したマイクに切り替えます');
   let next;
   try {
     next = await openWebSpeechInput();
@@ -1080,7 +993,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   isRecognitionActive = false;
   activeRecognitionEngine = null;
 
-  showMicInfoOnce().catch(() => { });
+  mountMicSelector();
+  // 辨識中在左下角換了麥克風：立刻切換。
+  onMicChange(() => {
+    if (!isRecognitionActive) return;
+    if (activeRecognitionEngine === 'webspeech') switchWebSpeechInput('picked');
+    else if (activeRecognitionEngine === 'soniox') switchSonioxMic();
+  });
 
   // 若在受節流的 timer 觸發前回到前景，則在此偵測期限已到並恢復。
   document.addEventListener('visibilitychange', () => {
