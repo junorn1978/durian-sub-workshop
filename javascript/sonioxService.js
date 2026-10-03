@@ -10,6 +10,7 @@
 
 import { getLang, getSonioxEndpointSettings } from "./config.js";
 import { createLogger } from "./logger.js";
+import { getSelectedMicId } from "./micSelector.js";
 
 const log = createLogger('Soniox');
 
@@ -55,14 +56,28 @@ let globalStream = null;
 let globalOnTranscriptUpdate = null;
 
 // Audio Context 相關變數
+// 音訊路徑在開始時建一次，直到停止才拆。斷線重連只重接 socket，
+// 這段期間的音訊先存在 pendingAudioChunks，接上後補送，不會掉話。
 let audioContext = null;
 let mediaStreamSource = null;
+let highpassNode = null;
 let audioWorkletNode = null;
+let sinkGainNode = null;
 
-let isIntentionalStop = false;
+let isConfigured = false;          // config JSON 已送出，可以送音訊
+let pendingAudioChunks = [];
+
+// 每次開始 / 停止都 +1。舊連線、舊計時器、舊音訊回呼都靠這個判斷自己已經過期，
+// 不必一個個去拔 handler。
+let session = 0;
+let sessionLangObj = null;
+
 let retryCount = 0;
 let lifecycleHandlers = { ...DEFAULT_LIFECYCLE_HANDLERS };
 const MAX_RETRIES = 10;
+const RETRY_DELAY_MS = 800;
+// 斷線期間最多存多少音訊。一塊約 0.1 秒，200 塊約 20 秒；再多就算接回來也太晚了。
+const PENDING_CHUNK_LIMIT = 200;
 
 // #endregion
 
@@ -97,46 +112,14 @@ const SENTENCE_END_PATTERN = /[。！？!?]/g;
 // 因此這個上限只影響明細，不影響統計。
 const DIAG_GAP_LIMIT = 100;
 
-// AudioWorklet 處理器代碼
-const PCM_PROCESSOR_CODE = `
-class PCMProcessor extends AudioWorkletProcessor {
-  constructor(options) {
-    super();
-    const bs = options?.processorOptions?.bufferSize;
-    this.bufferSize = Number.isFinite(bs) ? bs : 2048;
-    this.buffer = new Float32Array(this.bufferSize);
-    this.index = 0;
-  }
-
-  process(inputs, outputs, parameters) {
-    const input = inputs[0];
-    if (!input || !input.length) return true;
-
-    const inputChannel = input[0];
-    const inputLength = inputChannel.length;
-
-    for (let i = 0; i < inputLength; i++) {
-      this.buffer[this.index++] = inputChannel[i];
-      if (this.index >= this.bufferSize) { this.flush(); }
-    }
-    return true;
-  }
-
-  flush() {
-    const int16Data = new Int16Array(this.bufferSize);
-
-    for (let i = 0; i < this.bufferSize; i++) {
-      const s = this.buffer[i];
-      const clipped = s < -1 ? -1 : s > 1 ? 1 : s;
-      int16Data[i] = clipped < 0 ? clipped * 0x8000 : clipped * 0x7FFF;
-    }
-
-    this.port.postMessage(int16Data.buffer, [int16Data.buffer]);
-    this.index = 0;
-  }
-}
-registerProcessor('pcm-processor', PCMProcessor);
-`;
+// AudioWorklet 處理器（Float32 → pcm_s16le，每約 100ms 送一塊）
+const WORKLET_PROCESSOR_NAME = 'soniox-pcm-processor';
+const WORKLET_MODULE_URL = new URL('./sonioxPcmWorklet.js', import.meta.url).href;
+const PCM_TARGET_CHUNK_MS = 100;
+// Chrome 153+ 起 AudioContext 可指定 render quantum（預設 128 frames）。拉到 512 之後
+// worklet 的 process() 由每秒 125 次降到 31 次，送出的 chunk 大小不變，純粹省 callback。
+// 舊版會忽略不認得的成員。（沿用 hamham即時翻譯 的做法）
+const RENDER_SIZE_HINT = 512;
 // #endregion
 
 // #region [內部工具與輔助函式]
@@ -294,7 +277,7 @@ function buildContextText() {
  * （1 − voiceMs ÷ durMs）事後都推導得出來。現在還不知道哪個指標才是對的，
  * 先把公式寫死在前端的話，換算方式一改就得重新收一次資料。
  *
- * @param {'soft'|'endpoint'|'maxlen'|'stop'} cut - 這一段是被什麼切出來的
+ * @param {'soft'|'endpoint'|'maxlen'|'reconnect'|'stop'} cut - 這一段是被什麼切出來的
  * @param {number} chars - 送去翻譯的字數
  * @param {number} ctxChars - 附帶前文的字數
  * @param {Array<{atChar:number,startMs:number,endMs:number}>} tokens - 這一段的 token 時間戳
@@ -454,47 +437,428 @@ function clearReconnectTimer() {
   }
 }
 
-function cleanupAudioResources(options = {}) {
-  const keepStream = options.keepStream === true;
+function closeSocketSilently() {
+  isConfigured = false;
+  if (!socket) return;
+  const ws = socket;
+  socket = null;
+  ws.onopen = null;
+  ws.onmessage = null;
+  ws.onclose = null;
+  ws.onerror = null;
+  try { ws.close(); } catch { /* 已經關了 */ }
+}
 
+function stopWatchdog() {
   if (watchdogInterval) { clearInterval(watchdogInterval); watchdogInterval = null; }
+}
 
-  if (mediaStreamSource) {
-    mediaStreamSource.disconnect();
-    mediaStreamSource = null;
-  }
+function startWatchdog(sessionId) {
+  stopWatchdog();
+  watchdogInterval = setInterval(() => {
+    if (sessionId !== session) return;
+    if (Date.now() - lastSpeechTime > AUTO_STOP_TIMEOUT) {
+      log.warn(`${AUTO_STOP_TIMEOUT / 60000}分間認識結果がなかったため自動切断`);
+      notifyStatusChange(`${AUTO_STOP_TIMEOUT / 60000}分以上音声が検出されなかったため、自動的に切断しました。`);
+      stopSoniox({ intentional: false, reason: 'auto-timeout' });
+    }
+  }, 10000);
+}
 
-  if (audioWorkletNode) {
-    audioWorkletNode.port.onmessage = null;
-    audioWorkletNode.disconnect();
-    audioWorkletNode = null;
+function cleanupAudioResources() {
+  stopWatchdog();
+  closeSocketSilently();
+  pendingAudioChunks = [];
+
+  for (const node of [mediaStreamSource, highpassNode, audioWorkletNode, sinkGainNode]) {
+    try { node?.disconnect(); } catch { /* 已經斷開 */ }
   }
+  if (audioWorkletNode) audioWorkletNode.port.onmessage = null;
+  mediaStreamSource = highpassNode = audioWorkletNode = sinkGainNode = null;
 
   if (audioContext) {
     audioContext.close().catch(err => { log.error("AudioContext 關閉失敗", err); });
     audioContext = null;
   }
 
-  if (!keepStream && globalStream) {
+  if (globalStream) {
     globalStream.getTracks().forEach(track => track.stop());
     globalStream = null;
   }
+}
 
-  if (socket) {
-    socket.onclose = null;
-    socket.onerror = null;
-    socket.close();
+/**
+ * 開左下角選定的麥克風；裝置不見了（拔掉、改名）就退回既定裝置。權限錯誤直接往上丟。
+ * 前處理（AGC・回音消除・降噪）維持開啟：這是麥克風輸入，跟 hamham 的分頁音訊不同。
+ */
+const MIC_CONSTRAINTS = {
+  autoGainControl:  true,
+  echoCancellation: true,
+  noiseSuppression: true,
+  channelCount: 1,
+};
+
+async function openMicStream() {
+  const deviceId = getSelectedMicId();
+  if (deviceId) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: { ...MIC_CONSTRAINTS, deviceId: { exact: deviceId } },
+        video: false
+      });
+    } catch (err) {
+      if (err?.name !== 'OverconstrainedError' && err?.name !== 'NotFoundError') throw err;
+      log.warn("選択したマイクが見つからないため、既定のマイクを使います");
+    }
+  }
+  return navigator.mediaDevices.getUserMedia({ audio: MIC_CONSTRAINTS, video: false });
+}
+
+/* 麥克風被拔掉時：換到目前能開的裝置，連線不斷。 */
+function watchMicEnded(stream, sessionId) {
+  stream.getAudioTracks()[0]?.addEventListener('ended', () => {
+    if (sessionId !== session || stream !== globalStream) return;
+    log.warn("マイクが切断されました。開き直します");
+    switchSonioxMic();
+  });
+}
+
+/**
+ * 辨識中換麥克風（左下角選了別的、或裝置被拔掉）。只換音訊來源接到高通濾波器上，
+ * AudioContext、worklet、Soniox 連線都不動，所以不會斷線也不會重新計費。
+ * 一支麥克風都開不了才停止。
+ */
+export async function switchSonioxMic() {
+  if (!isRunning || !audioContext || !highpassNode) return;
+  const sessionId = session;
+
+  let stream;
+  try {
+    stream = await openMicStream();
+  } catch (err) {
+    log.error("マイクを開き直せませんでした", err);
+    if (sessionId !== session) return;
+    notifyStatusChange("マイクが切断されました。接続を確認して、もう一度「開始」を押してください。");
+    stopSoniox({ intentional: false, reason: 'mic-lost' });
+    return;
+  }
+  if (sessionId !== session || !audioContext) {
+    stream.getTracks().forEach(t => t.stop());
+    return;
+  }
+
+  const oldSource = mediaStreamSource;
+  const oldStream = globalStream;
+  mediaStreamSource = audioContext.createMediaStreamSource(stream);
+  mediaStreamSource.connect(highpassNode);
+  globalStream = stream;
+  watchMicEnded(stream, sessionId);
+
+  try { oldSource?.disconnect(); } catch { /* 已經斷開 */ }
+  oldStream?.getTracks().forEach(t => t.stop());
+  log.info("マイクを切り替えました:", stream.getAudioTracks()[0]?.label);
+}
+
+// renderSizeHint 是 Chrome 153+ 才有的成員，萬一實作對數值另有限制而丟例外，逐級退回原本的行為。
+function createAudioContext() {
+  const attempts = [
+    { sampleRate: 16000, renderSizeHint: RENDER_SIZE_HINT },
+    { sampleRate: 16000 },
+    { renderSizeHint: RENDER_SIZE_HINT },
+    {},
+  ];
+  let lastError = null;
+  for (const options of attempts) {
+    try {
+      return new AudioContext(options);
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError;
+}
+
+/**
+ * 麥克風 → 90Hz 高通 → PCM worklet。worklet 的輸出接到音量 0 的 GainNode 再進 destination，
+ * 讓整條路徑一定會被拉動（沒有接到 destination 的節點，瀏覽器可以不處理）。
+ *
+ * 音訊塊送不出去時（連線中、斷線重連中）先存起來，config 送出後補送。
+ */
+async function buildAudioPipeline(stream, sessionId) {
+  audioContext = createAudioContext();
+  if (audioContext.state === 'suspended') await audioContext.resume();
+  await audioContext.audioWorklet.addModule(WORKLET_MODULE_URL);
+  if (sessionId !== session) return;
+
+  const sampleRate = audioContext.sampleRate;
+  // renderQuantumSize 在 Chrome 153 之前是 undefined，當成預設的 128。
+  const renderQuantum = Number(audioContext.renderQuantumSize) || 128;
+  // buffer 對齊 render quantum 的整數倍；quantum 為 128 時就是原本的 256 對齊。
+  const alignment = Math.max(256, renderQuantum);
+  const bufferSize = Math.max(
+    alignment,
+    Math.round((sampleRate * PCM_TARGET_CHUNK_MS) / 1000 / alignment) * alignment,
+  );
+
+  mediaStreamSource = audioContext.createMediaStreamSource(stream);
+
+  // 唯一的前處理：90Hz 高通，濾掉低頻隆隆聲與 DC offset。
+  highpassNode = audioContext.createBiquadFilter();
+  highpassNode.type = "highpass";
+  highpassNode.frequency.value = 90;
+  highpassNode.Q.value = 0.707;
+
+  audioWorkletNode = new AudioWorkletNode(audioContext, WORKLET_PROCESSOR_NAME, {
+    numberOfInputs: 1,
+    numberOfOutputs: 1,
+    outputChannelCount: [1],
+    processorOptions: { bufferSize }
+  });
+  audioWorkletNode.port.onmessage = (event) => {
+    if (sessionId !== session) return;
+    if (socket?.readyState === WebSocket.OPEN && isConfigured) {
+      socket.send(event.data);
+    } else if (pendingAudioChunks.length < PENDING_CHUNK_LIMIT) {
+      pendingAudioChunks.push(event.data);
+    }
+  };
+
+  sinkGainNode = audioContext.createGain();
+  sinkGainNode.gain.value = 0;
+
+  mediaStreamSource.connect(highpassNode);
+  highpassNode.connect(audioWorkletNode);
+  audioWorkletNode.connect(sinkGainNode);
+  sinkGainNode.connect(audioContext.destination);
+
+  log.debug("Soniox 音訊路徑", { sampleRate, renderQuantum, bufferSize });
+}
+
+function buildConfig(apiKey, sampleRate) {
+  const endpoint = getSonioxEndpointSettings();
+  const langObj = sessionLangObj;
+
+  const config = {
+    api_key: apiKey,
+    model: SONIOX_MODEL,
+    audio_format: "pcm_s16le",
+    sample_rate: sampleRate,
+    num_channels: 1,
+    language_hints: langObj.deepgramCode === "en" ? ["en", "ja"] : [langObj.deepgramCode, "zh", "en"],
+    language_hints_strict: true,
+    enable_endpoint_detection: true,
+    endpoint_latency_adjustment_level: endpoint.latencyLevel,
+    endpoint_sensitivity: endpoint.sensitivity,
+    max_endpoint_delay_ms: endpoint.maxDelayMs
+  };
+
+  // 實際送出的端點偵測值。這三項來自 localStorage，未必等於 config.js 的預設，
+  // 因此把真正生效的數字留在紀錄裡，調參數時才不必猜。
+  log.info("Soniox 設定", {
+    latencyLevel: endpoint.latencyLevel,
+    sensitivity: endpoint.sensitivity,
+    maxDelayMs: endpoint.maxDelayMs,
+    softSplit: SOFT_SPLIT_LENGTH
+  });
+
+  // 辨識詞調整（context）不依賴語系。若為空則不傳送。
+  if (sonioxContextCache) config.context = sonioxContextCache;
+  return config;
+}
+
+/**
+ * 接上 Soniox。開始時與每次重連都走這裡；音訊路徑不動。
+ * authInfo 省略時重新取臨時 token（臨時 token 有期限，重連時不能沿用開始時那一份）。
+ */
+async function connectSocket(sessionId, authInfo = null) {
+  if (sessionId !== session) return;
+  closeSocketSilently();
+
+  const auth = authInfo ?? await fetchSonioxTemporaryToken();
+  if (sessionId !== session) return;
+  if (!auth?.value) {
+    log.warn("重連時取得臨時 Token 失敗");
+    scheduleReconnect(sessionId);
+    return;
+  }
+
+  const ws = new WebSocket(SONIOX_WS_URL);
+  socket = ws;
+  const isCurrent = () => sessionId === session && socket === ws;
+
+  ws.onopen = () => {
+    if (!isCurrent()) return;
+    try {
+      ws.send(JSON.stringify(buildConfig(auth.value, audioContext?.sampleRate || 16000)));
+      isConfigured = true;
+      notifyStatusChange("Soniox に接続しました。");
+
+      // 連線前（與斷線期間）存下的音訊補送
+      if (pendingAudioChunks.length > 0) {
+        log.debug(`補送 ${pendingAudioChunks.length} 塊音訊`);
+        for (const chunk of pendingAudioChunks) ws.send(chunk);
+        pendingAudioChunks = [];
+      }
+    } catch (err) {
+      log.error("送出設定失敗", err);
+      notifyStatusChange("Soniox の設定送信に失敗しました。");
+    }
+  };
+
+  ws.onmessage = (message) => {
+    if (!isCurrent()) return;
+    handleSonioxMessage(message, globalOnTranscriptUpdate);
+  };
+
+  ws.onclose = () => {
+    if (!isCurrent()) return;
     socket = null;
+    isConfigured = false;
+    log.warn("Soniox 意外斷線，準備重連...");
+
+    // 斷線前還沒送出的部分，這條連線不會再有後續了，當成一句送出（暫定部分一起）。
+    // 不送的話，新連線的第一則訊息會把暫定部分蓋掉，那半句就消失了。
+    flushSentenceBuffer(globalOnTranscriptUpdate, "🔌 斷線前殘留", 'reconnect');
+    scheduleReconnect(sessionId);
+  };
+
+  ws.onerror = (e) => {
+    if (!isCurrent()) return;
+    log.error("Socket 錯誤", e);
+    notifyStatusChange("Soniox の接続エラーです。バックエンドまたはネットワークを確認してください。");
+  };
+}
+
+function scheduleReconnect(sessionId) {
+  if (sessionId !== session) return;
+
+  if (retryCount >= MAX_RETRIES) {
+    notifyStatusChange("再接続に失敗しました。もう一度「開始」を押してください。");
+    stopSoniox({ intentional: false, reason: 'retry-exhausted' });
+    return;
+  }
+
+  retryCount++;
+  notifyStatusChange(`接続が切断されました。再接続しています...`);
+  clearReconnectTimer();
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectSocket(sessionId);
+  }, RETRY_DELAY_MS);
+}
+
+function handleSonioxMessage(message, onTranscriptUpdate) {
+  try {
+    const received = JSON.parse(message.data);
+
+    // 偵測錯誤回應
+    if (received.error_code || received.error_message) {
+      log.error("Soniox 錯誤", received);
+      notifyStatusChange(`Soniox エラー: ${received.error_message || received.error_code}`);
+      return;
+    }
+
+    const tokens = Array.isArray(received.tokens) ? received.tokens : [];
+    if (tokens.length === 0) return;
+
+    // 有結果回來，代表這條連線是活的：重連次數歸零。
+    // 不歸零的話，配信中累計斷線 10 次就會放棄。
+    // 不在 onopen 歸零：設定被拒時 server 會開了又立刻關，那樣會無限重連。
+    retryCount = 0;
+
+    let flushedByEndpoint = false;
+    let newNonFinalText = "";
+    let addedFinalThisRound = "";
+    // 這則訊息是否已計入 finalMsgCount。endpoint 是在迴圈中途就地結算的，
+    // 因此必須在加入 token 的當下計數，不能等迴圈跑完。
+    let countedThisMessage = false;
+
+    for (const token of tokens) {
+      const tokenText = typeof token.text === "string" ? token.text : "";
+      if (!tokenText) continue;
+
+      // 處理特殊 token
+      // 一則訊息可能夾帶多個 <end>（兩人同時說話、搭腔時很常見）。
+      // 若只設旗標、等迴圈跑完才結算一次，後一句會被併進前一句，
+      // 兩位講者的話因此擠成同一行字幕，也會被當成同一句送去翻譯；
+      // 改成遇到就地結算。
+      if (tokenText === ENDPOINT_TOKEN) {
+        nonFinalizedText = newNonFinalText;
+        newNonFinalText = "";
+        flushSentenceBuffer(onTranscriptUpdate, "⚡ endpoint", 'endpoint');
+        flushedByEndpoint = true;
+        continue;
+      }
+      if (tokenText === FINISHED_TOKEN) {
+        // 串流結束標記，忽略
+        continue;
+      }
+
+      if (token.is_final) {
+        // 診斷用。時間戳走的是音訊時間軸，不是封包抵達時間，因此不受網路抖動影響。
+        // 沒帶時間戳的 token 就不記：寧可少一筆，也不要拿錯的時間去算間隔。
+        if (typeof token.start_ms === "number" && typeof token.end_ms === "number") {
+          finalTokens.push({
+            atChar: finalizedText.length,
+            startMs: token.start_ms,
+            endMs: token.end_ms
+          });
+        }
+        if (!countedThisMessage) {
+          finalMsgCount++;
+          countedThisMessage = true;
+        }
+
+        finalizedText += tokenText;
+        addedFinalThisRound += tokenText;
+      } else {
+        newNonFinalText += tokenText;
+      }
+    }
+
+    // 每則訊息都會取代 non-final 部分（Soniox 規格）。
+    // 若上面已就地結算過，這裡放的是最後一個 <end> 之後的殘留。
+    nonFinalizedText = newNonFinalText;
+
+    const hasActivity = addedFinalThisRound.length > 0 || newNonFinalText.length > 0;
+    if (hasActivity) lastSpeechTime = Date.now();
+
+    // 切句完全交給 Soniox endpoint
+    if (flushedByEndpoint) {
+      // <end> 之後還有殘留的 interim（下一句已經開始講）就先顯示出來
+      if (nonFinalizedText) emitInterim(onTranscriptUpdate);
+      return;
+    }
+
+    // 長串發話的軟性斷句。細節見 flushBySoftSplit。
+    flushBySoftSplit(onTranscriptUpdate);
+
+    // 長度防呆：累積過長強制斷句 (Soniox 不送 endpoint 且找不到標點的極端情境)
+    // 只看已確認的長度：暫定部分不會送出，算進去的話可能每則訊息都觸發卻送不出東西。
+    if (finalizedText.length >= MAX_BUFFER_LENGTH) {
+      flushSentenceBuffer(onTranscriptUpdate, "⚡ 最大長度強制斷", 'maxlen', { keepNonFinal: true });
+      if (nonFinalizedText) emitInterim(onTranscriptUpdate);
+      return;
+    }
+
+    // 一般的 interim 顯示
+    emitInterim(onTranscriptUpdate);
+  } catch (e) {
+    log.error("解析訊息失敗", e);
   }
 }
 
 /**
  * 啟動 Soniox 語音辨識服務
+ * 回傳 false 時呼叫端會改用 Web Speech API。
  */
 export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
   setLifecycleHandlers(handlers);
   globalOnTranscriptUpdate = onTranscriptUpdate;
   if (isRunning) return true;
+
+  session += 1;
+  const sessionId = session;
 
   notifyStatusChange('接続しています。しばらくお待ちください...');
   const langObj = getLang(langId);
@@ -503,286 +867,46 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
     return false;
   }
 
-  lastSpeechTime = Date.now();
-
   const authInfo = await fetchSonioxTemporaryToken();
+  if (sessionId !== session) return false;
   if (!authInfo?.value) {
     notifyStatusChange("Soniox の一時トークンを取得できませんでした。Web Speech API に切り替えます...");
     return false;
   }
 
-  const sonioxContext = await loadSonioxContext();
+  await loadSonioxContext();
+  if (sessionId !== session) return false;
 
-  isIntentionalStop = false;
-  if (!retryCount) retryCount = 0;
+  sessionLangObj = langObj;
+  retryCount = 0;
+  pendingAudioChunks = [];
+  resetTranscriptBuffers();
 
   try {
-    const isStreamAlive = globalStream && globalStream.getAudioTracks().some(t => t.readyState === 'live');
-    if (!isStreamAlive) {
-      if (globalStream) {
-        globalStream.getTracks().forEach(t => t.stop());
-        globalStream = null;
-      }
-      globalStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          autoGainControl:  true,
-          echoCancellation: true,
-          noiseSuppression: true,
-          channelCount: 1,
-        },
-        video: false
-      });
-    }
-
-    try {
-      audioContext = new AudioContext({ sampleRate: 16000 });
-    } catch (e) {
-      log.warn("不支援指定採樣率，使用系統預設值", e);
-      audioContext = new AudioContext();
-    }
-    const finalSampleRate = audioContext.sampleRate;
-
-    const TARGET_CHUNK_SEC = 0.1;
-    let targetBufferSize = Math.round(finalSampleRate * TARGET_CHUNK_SEC);
-    targetBufferSize = Math.max(256, Math.round(targetBufferSize / 256) * 256);
-
-    const blob = new Blob([PCM_PROCESSOR_CODE], { type: "application/javascript" });
-    const workletUrl = URL.createObjectURL(blob);
-    await audioContext.audioWorklet.addModule(workletUrl);
-
-    audioWorkletNode = new AudioWorkletNode(audioContext, 'pcm-processor', {
-      processorOptions: { bufferSize: targetBufferSize }
-    });
-
-    mediaStreamSource = audioContext.createMediaStreamSource(globalStream);
-
-    const highpass = audioContext.createBiquadFilter();
-    highpass.type = "highpass";
-    highpass.frequency.value = 90;
-    highpass.Q.value = 0.707;
-
-    const preGainNode = audioContext.createGain();
-    preGainNode.gain.value = 1;
-
-    mediaStreamSource.connect(highpass);
-    highpass.connect(preGainNode);
-    preGainNode.connect(audioWorkletNode);
-
-    const pendingAudioChunks = [];
-    let isConfigured = false;
-
-    audioWorkletNode.port.onmessage = (event) => {
-      // 設定 JSON 傳到 server 前先不傳送音訊，而是暫存起來。
-      if (socket?.readyState === 1 && isConfigured) {
-        socket.send(event.data);
-      } else {
-        pendingAudioChunks.push(event.data);
-      }
-    };
-
-    socket = new WebSocket(SONIOX_WS_URL);
-
-    socket.onopen = () => {
-      // 從設定 UI 取得端點偵測的調整值（連線時確定）。
-      const endpoint = getSonioxEndpointSettings();
-
-      // Soniox 必須在連線後立即透過 JSON 傳送初始設定。
-      const config = {
-        api_key: authInfo.value,
-        model: SONIOX_MODEL,
-        audio_format: "pcm_s16le",
-        sample_rate: finalSampleRate,
-        num_channels: 1,
-        language_hints: langObj.deepgramCode === "en" ? ["en", "ja"] : [langObj.deepgramCode, "zh", "en"],
-        language_hints_strict: true,
-        enable_endpoint_detection: true,
-        endpoint_latency_adjustment_level: endpoint.latencyLevel,
-        endpoint_sensitivity: endpoint.sensitivity,
-        max_endpoint_delay_ms: endpoint.maxDelayMs
-      };
-
-      // 實際送出的端點偵測值。這三項來自 localStorage，未必等於 config.js 的預設，
-      // 因此把真正生效的數字留在紀錄裡，調參數時才不必猜。
-      log.info("Soniox 設定", {
-        latencyLevel: endpoint.latencyLevel,
-        sensitivity: endpoint.sensitivity,
-        maxDelayMs: endpoint.maxDelayMs,
-        softSplit: SOFT_SPLIT_LENGTH
-      });
-
-      // 辨識詞調整（context）不依賴語系。若為空則不傳送。
-      if (sonioxContext) {
-        config.context = sonioxContext;
-      }
-
-      try {
-        socket.send(JSON.stringify(config));
-        isConfigured = true;
-        isRunning = true;
-        notifyStatusChange("Soniox に接続しました。");
-
-        if (pendingAudioChunks.length > 0) {
-          for (const chunk of pendingAudioChunks) {
-            socket.send(chunk);
-          }
-          pendingAudioChunks.length = 0;
-        }
-
-        watchdogInterval = setInterval(() => {
-          if (Date.now() - lastSpeechTime > AUTO_STOP_TIMEOUT) {
-            log.warn(`${AUTO_STOP_TIMEOUT / 60000}分間認識結果がなかったため自動切断`);
-            notifyStatusChange(`${AUTO_STOP_TIMEOUT / 60000}分以上音声が検出されなかったため、自動的に切断しました。`);
-            stopSoniox({ intentional: false, reason: 'auto-timeout' });
-          }
-        }, 10000);
-      } catch (err) {
-        log.error("送出設定失敗", err);
-        notifyStatusChange("Soniox の設定送信に失敗しました。");
-      }
-    };
-
-    socket.onmessage = (message) => {
-      try {
-        const received = JSON.parse(message.data);
-
-        // 偵測錯誤回應
-        if (received.error_code || received.error_message) {
-          log.error("Soniox 錯誤", received);
-          notifyStatusChange(`Soniox エラー: ${received.error_message || received.error_code}`);
-          return;
-        }
-
-        const tokens = Array.isArray(received.tokens) ? received.tokens : [];
-        if (tokens.length === 0) return;
-
-        // 有結果回來，代表這條連線是活的：重連次數歸零。
-        // 不歸零的話，配信中累計斷線 10 次就會放棄。
-        // 不在 onopen 歸零：設定被拒時 server 會開了又立刻關，那樣會無限重連。
-        retryCount = 0;
-
-        let flushedByEndpoint = false;
-        let newNonFinalText = "";
-        let addedFinalThisRound = "";
-        // 這則訊息是否已計入 finalMsgCount。endpoint 是在迴圈中途就地結算的，
-        // 因此必須在加入 token 的當下計數，不能等迴圈跑完。
-        let countedThisMessage = false;
-
-        for (const token of tokens) {
-          const tokenText = typeof token.text === "string" ? token.text : "";
-          if (!tokenText) continue;
-
-          // 處理特殊 token
-          // 一則訊息可能夾帶多個 <end>（兩人同時說話、搭腔時很常見）。
-          // 若只設旗標、等迴圈跑完才結算一次，後一句會被併進前一句，
-          // 兩位講者的話因此擠成同一行字幕，也會被當成同一句送去翻譯；
-          // 改成遇到就地結算。
-          if (tokenText === ENDPOINT_TOKEN) {
-            nonFinalizedText = newNonFinalText;
-            newNonFinalText = "";
-            flushSentenceBuffer(onTranscriptUpdate, "⚡ endpoint", 'endpoint');
-            flushedByEndpoint = true;
-            continue;
-          }
-          if (tokenText === FINISHED_TOKEN) {
-            // 串流結束標記，忽略
-            continue;
-          }
-
-          if (token.is_final) {
-            // 診斷用。時間戳走的是音訊時間軸，不是封包抵達時間，因此不受網路抖動影響。
-            // 沒帶時間戳的 token 就不記：寧可少一筆，也不要拿錯的時間去算間隔。
-            if (typeof token.start_ms === "number" && typeof token.end_ms === "number") {
-              finalTokens.push({
-                atChar: finalizedText.length,
-                startMs: token.start_ms,
-                endMs: token.end_ms
-              });
-            }
-            if (!countedThisMessage) {
-              finalMsgCount++;
-              countedThisMessage = true;
-            }
-
-            finalizedText += tokenText;
-            addedFinalThisRound += tokenText;
-          } else {
-            newNonFinalText += tokenText;
-          }
-        }
-
-        // 每則訊息都會取代 non-final 部分（Soniox 規格）。
-        // 若上面已就地結算過，這裡放的是最後一個 <end> 之後的殘留。
-        nonFinalizedText = newNonFinalText;
-
-        const hasActivity = addedFinalThisRound.length > 0 || newNonFinalText.length > 0;
-        if (hasActivity) lastSpeechTime = Date.now();
-
-        // 切句完全交給 Soniox endpoint
-        if (flushedByEndpoint) {
-          // <end> 之後還有殘留的 interim（下一句已經開始講）就先顯示出來
-          if (nonFinalizedText) emitInterim(onTranscriptUpdate);
-          return;
-        }
-
-        // 長串發話的軟性斷句。細節見 flushBySoftSplit。
-        flushBySoftSplit(onTranscriptUpdate);
-
-        // 長度防呆：累積過長強制斷句 (Soniox 不送 endpoint 且找不到標點的極端情境)
-        // 只看已確認的長度：暫定部分不會送出，算進去的話可能每則訊息都觸發卻送不出東西。
-        if (finalizedText.length >= MAX_BUFFER_LENGTH) {
-          flushSentenceBuffer(onTranscriptUpdate, "⚡ 最大長度強制斷", 'maxlen', { keepNonFinal: true });
-          if (nonFinalizedText) emitInterim(onTranscriptUpdate);
-          return;
-        }
-
-        // 一般的 interim 顯示
-        emitInterim(onTranscriptUpdate);
-      } catch (e) {
-        log.error("解析訊息失敗", e);
-      }
-    };
-
-    socket.onclose = (event) => {
-      if (isIntentionalStop) {
-        notifyStatusChange('');
-      } else {
-        log.warn("Soniox 意外斷線，準備重連...");
-
-        if (retryCount < MAX_RETRIES) {
-          const delay = 800;
-          retryCount++;
-          notifyStatusChange(`接続が切断されました。再接続しています...`);
-          cleanupAudioResources({ keepStream: true });
-          isRunning = false;
-          clearReconnectTimer();
-          reconnectTimer = setTimeout(() => {
-            reconnectTimer = null;
-            // 若在等待期間停止或暫停，則不恢復連線。
-            if (isIntentionalStop) return;
-            startSoniox(langId, onTranscriptUpdate, lifecycleHandlers);
-          }, delay);
-        } else {
-          notifyStatusChange("再接続に失敗しました。もう一度「開始」を押してください。");
-          stopSoniox({ intentional: false, reason: 'retry-exhausted' });
-        }
-      }
-    };
-
-    socket.onerror = (e) => {
-      log.error("Socket 錯誤", e);
-      notifyStatusChange("Soniox の接続エラーです。バックエンドまたはネットワークを確認してください。");
-    };
+    globalStream = await openMicStream();
+    if (sessionId !== session) { cleanupAudioResources(); return false; }
+    await buildAudioPipeline(globalStream, sessionId);
+    if (sessionId !== session) { cleanupAudioResources(); return false; }
+    watchMicEnded(globalStream, sessionId);
   } catch (error) {
     log.error("啟動失敗", error);
     stopSoniox({ intentional: false, reason: 'startup-error' });
     return false;
   }
+
+  isRunning = true;
+  lastSpeechTime = Date.now();
+  startWatchdog(sessionId);
+  connectSocket(sessionId, authInfo);
   return true;
 }
 
 export function stopSoniox(options = {}) {
   const intentional = options.intentional !== false;
   const reason = options.reason || (intentional ? 'manual-stop' : 'service-stop');
+
+  // 先讓所有舊的回呼失效，下面的清理途中就不會有重連或音訊插進來。
+  session += 1;
 
   const hadSession =
     isRunning ||
@@ -801,12 +925,12 @@ export function stopSoniox(options = {}) {
   }
 
   isRunning = false;
-  isIntentionalStop = intentional;
   retryCount = 0;
   clearReconnectTimer();
   resetTranscriptBuffers();
   lastSpeechTime = 0;
   globalOnTranscriptUpdate = null;
+  sessionLangObj = null;
 
   cleanupAudioResources();
 
