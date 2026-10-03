@@ -13,6 +13,7 @@ import { loadKeywordRules, filterRayModeText, processRayModeTranscript } from '.
 import { updateStatusDisplay, setRecognitionControlsState, clearAllTextElements, setPauseOverlayState } from './uiState.js';
 import { normalizeRecognised } from './normalizeJa.js';
 import { getSettingBool, getSettingNumber } from './settingsStore.js';
+import { openAudioInput } from './audioInput.js';
 
 const log = createLogger('SpeechRecognition');
 
@@ -23,6 +24,13 @@ let hasShownMicInfo = false;
 
 /** @type {SpeechRecognition|null} Web Speech API 辨識實例 */
 let recognition = null;
+
+/**
+ * Web Speech API 聽的麥克風輸入（見 audioInput.js）。開始時開啟，停止・暫停時關閉。
+ * 辨識器每次重啟都 start() 在這個音軌上，不自己去開麥克風。
+ * @type {Awaited<ReturnType<typeof openAudioInput>>|null}
+ */
+let webSpeechInput = null;
 
 /** @type {boolean} 全域辨識啟用狀態 */
 let isRecognitionActive = false;
@@ -121,6 +129,7 @@ function triggerSessionTimeout() {
   resetRecognitionState({ clearText: true });
   if (engine === 'soniox') stopSoniox({ reason: 'session-timeout' });
   if (recognition) recognition.abort();
+  closeWebSpeechInput();
   displaySessionTimeoutMessages();
 }
 // #endregion
@@ -785,8 +794,9 @@ async function autoRestartRecognition(options = { delay: 0 }) {
   if (!isRecognitionActive) return;
 
   setTimeout(async () => {
+    if (!isRecognitionActive || !webSpeechInput) return;
     try {
-      recognition.start();
+      recognition.start(webSpeechInput.track);
       options.delay = 0;
     } catch (error) {
       // 前一個實體還在收尾時 start() 會丟例外。延遲以 200ms 遞增 (上限 1000ms) 後重試，
@@ -841,16 +851,61 @@ async function startRecognition() {
 
   setRecognitionControlsState('recording');
   isRecognitionActive = true;
-  await configureRecognition(recognition, sourceLang);
   try {
-    recognition.start();
+    await configureRecognition(recognition, sourceLang);
+    webSpeechInput = await openWebSpeechInput();
+  } catch (error) {
+    log.error('マイクを開けませんでした:', error);
+    updateStatusDisplay('マイクを開けませんでした。マイクの接続と、ブラウザのマイク許可を確認してください。');
+    closeWebSpeechInput();
+    resetRecognitionState();
+    return;
+  }
+  // 開いている間に停止・暫停された
+  if (!isRecognitionActive) { closeWebSpeechInput(); return; }
+
+  try {
+    recognition.start(webSpeechInput.track);
     activeRecognitionEngine = 'webspeech';
     startSessionWatchdog();
   } catch (error) {
-    setRecognitionControlsState('idle');
-    isRecognitionActive = false;
-    activeRecognitionEngine = null;
+    log.error('辨識啟動失敗:', error);
+    closeWebSpeechInput();
+    resetRecognitionState();
   }
+}
+
+/** 之後做麥克風選擇時，deviceId 從這裡傳進去。 */
+function openWebSpeechInput() {
+  return openAudioInput({ onEnded: handleWebSpeechInputEnded });
+}
+
+function closeWebSpeechInput() {
+  webSpeechInput?.close();
+  webSpeechInput = null;
+}
+
+/**
+ * 辨識中裝置不見了（拔掉、停用）。改開目前能開的裝置（選定的不在就是預設裝置），
+ * 結束目前的 session，讓重啟接到新的音軌上。一支麥克風都開不了才停止。
+ */
+async function handleWebSpeechInputEnded() {
+  if (!isRecognitionActive || activeRecognitionEngine !== 'webspeech') return;
+  log.warn('マイクが切断されました。開き直します');
+  let next;
+  try {
+    next = await openWebSpeechInput();
+  } catch (error) {
+    log.error('マイクを開き直せませんでした:', error);
+    updateStatusDisplay('マイクが切断されました。接続を確認して、もう一度「開始」を押してください。');
+    stopRecognition('mic-lost');
+    return;
+  }
+  if (!isRecognitionActive || activeRecognitionEngine !== 'webspeech') { next.close(); return; }
+  const old = webSpeechInput;
+  webSpeechInput = next;
+  old?.close();
+  recognition.abort();   // onend → autoRestartRecognition が新しい音軌で start する
 }
 
 /** 停止按鈕的處理內容。暫停也會經過相同流程（完全釋放麥克風與連線）。 */
@@ -862,6 +917,7 @@ function stopRecognition(reason = 'manual-stop') {
   resetRecognitionState({ clearText: true });
   if (engine === 'soniox') stopSoniox({ reason });
   if (recognition) recognition.abort();
+  closeWebSpeechInput();
 }
 
 /** 綁定 UI 操作按鈕與語音服務啟動邏輯 */
