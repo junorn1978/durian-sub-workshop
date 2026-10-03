@@ -32,6 +32,12 @@ let recognition = null;
  */
 let webSpeechInput = null;
 
+/** 這次開始用的是 On-Device 還是雲端（每次開始時決定，見 configureRecognition）。 */
+let usingLocal = false;
+
+/** 麥克風輸入的停頓通知接到哪裡（setupSpeechRecognition 裡的 session 輪替）。 */
+let inputHooks = null;
+
 /** @type {boolean} 全域辨識啟用狀態 */
 let isRecognitionActive = false;
 let activeRecognitionEngine = null;
@@ -440,9 +446,6 @@ async function configureRecognition(recognition, sourceLanguage) {
   /* 
    * [注意] Web Speech API On-Device 模式目前僅 Chrome 支援。
    * 若 recognition.processLocally 設為 false，則無法使用自訂語句 (phrases)，強制使用會導致錯誤。
-   * 
-   * 目前設定：當 recognition.processLocally = true 且為 Chrome 時，recognition.continuous 設為 true。
-   * 這是為了避免 onend 事件重啟期間若使用者仍在說話導致辨識中斷。
    */
   if (browserInfo.isChrome) { recognition.processLocally = processLocallyStatus; }
 
@@ -450,16 +453,15 @@ async function configureRecognition(recognition, sourceLanguage) {
   recognition.lang = sourceLanguage;
   /*
    * [關於 continuous 參數]
-   * 只在「沒有連線可以掉」的情況下才開 continuous，也就是 On-Device 模式。
-   *
-   * 雲端辨識的 socket 大約一分鐘就會自己斷掉。在 Edge 上觀察到的狀況是：
-   * 早就停止回傳結果了，好幾秒後才丟出 network error，中間講的話全部消失，
-   * 而且沒有任何事件可以反應。改成每句一個 session (continuous = false) 之後，
-   * 收尾交還給引擎自己的斷句判斷——它是在剛偵測到的停頓處關閉，
-   * 重啟成本約 200ms 也落在同一個停頓裡。
-   * On-Device 模型沒有連線可掉，整場不中斷。
+   * 兩種辨識都是 continuous。On-Device 一個 session 跑到底。
+   * 雲端也是 continuous，但不放著不管：雲端的 session 一兩分鐘後會自己安靜下來
+   * （Edge 上看過早就不回結果、好幾秒後才丟 network error），所以由我們在講者停頓處
+   * 結束、重啟（見 setupSpeechRecognition 的 session 輪替）。
+   * 以前雲端是每句一個 session（continuous = false），收尾交給引擎；引擎會在句子中間
+   * 結束 session，下一個 session 起來之前講的話就沒了。
    */
-  recognition.continuous = processLocallyStatus;
+  usingLocal = processLocallyStatus;
+  recognition.continuous = true;
   recognition.maxAlternatives = 1;
 
   if ('phrases' in recognition) {
@@ -562,7 +564,7 @@ function getPhrasesForLang(sourceLang) {
 /**
  * 偵測瀏覽器是否支援本地辨識模式。
  * On-Device (SODA) 只有 Chrome 有，Edge 一律走雲端辨識。
- * 回傳值同時決定 recognition.continuous，詳見 configureRecognition()。
+ * 回傳值同時決定 session 怎麼結束（On-Device 一路跑、雲端在停頓處輪替），詳見 configureRecognition()。
  */
 async function decideProcessLocally(lang) {
   if (!browserInfo.isChrome) return false;
@@ -640,13 +642,144 @@ function setupSpeechRecognition() {
 
   const newRecognition = new SpeechRecognition();
 
+  let finalTranscript = '';
+  let interimTranscript = '';
 
+  /* 我們自己 abort 的 session（要送的已經送出）。abort() 到 onend 之間仍可能有結果進來，
+     放進來的話 interim 會重新填滿，onend 的 flush 會把同一句再送一次（即時翻譯 在直播中看過）。
+     自己結束的 session 之後來的結果一律不理。 */
+  let aborting = false;
+  const abortSession = () => {
+    aborting = true;
+    newRecognition.abort();
+  };
 
+  /* 把畫面上的 interim 當成這句的 final 送出。凡是 session 被結束、而辨識器來不及確定的地方
+     都要先做：abort() 會丟掉還沒確定的部分，畫面上的就是僅存的。 */
+  const flushInterim = () => {
+    const raw = interimTranscript;
+    interimTranscript = '';
+    if (!raw.trim()) return;
+
+    let text = normalizeRecognised(raw.replace(/[、。？\s]+/g, ' ').trim(), newRecognition.lang);
+    if (isRayModeActive()) text = processRayModeTranscript(text, newRecognition.lang);
+    if (!text) return;
+
+    log.info('(強制斷句) 發送翻譯請求文字:', text);
+    sendTranslationRequest(text, previousText, newRecognition.lang);
+    previousText = text;
+    updateSourceText(text);
+    // 此強制斷句即為本句的 final。由於不會經過 onresult，若不在此處啟動計時，
+    // 傳入的字幕便會持續顯示而不消失。
+    armIdleClear();
+  };
+
+  /* ---- 斷句計時器（On-Device 專用）----
+     On-Device 的 session 不會自己結束，這是最後的保險。雲端的 session 由下面的輪替
+     在停頓處結束，已經涵蓋了這裡會做的事。 */
   const SILENCE_THRESHOLD = 10000;
   let silenceTimer = null;
 
-  let finalTranscript = '';
-  let interimTranscript = '';
+  const resetSilenceTimer = () => {
+    if (!usingLocal) return;
+    if (silenceTimer) clearTimeout(silenceTimer);
+    silenceTimer = setTimeout(() => {
+      log.debug(`偵測到靜音超過 ${SILENCE_THRESHOLD}ms，強制重啟`);
+      flushInterim();
+      abortSession();
+    }, SILENCE_THRESHOLD);
+  };
+
+  /* ---- session 輪替（雲端）----
+     雲端的 session 由我們在講者停頓時結束、重啟，不交給引擎。從 即時翻譯 移植，
+     那邊在直播音訊上量到（track-buffer-test, 2026-09-28）：
+
+     - 掉字的原因是 session 在哪裡結束，不是重啟花多久。在講話中途切，舊 session 尾巴
+       0.3〜1 秒會不見（引擎收到了但還沒變成 interim，abort() 直接丟掉）；在停頓處切則
+       什麼都沒掉。
+     - 不得不在講話中途切時，先餵引擎一段無聲讓它講完：interim 在聲音停下後最多還會
+       變動約 750ms（中位數約 300ms）。這段期間真正的音訊先排隊，下一個 session 再補送，
+       所以代價是延遲，不是掉字。
+
+     每次切都把音訊扣住，直到下一個 session 的 onaudiostart，所以重啟的空檔也不掉字。
+     停頓是在「辨識器聽到的聲音」上判斷，不是麥克風（見 speechInputWorklet.js）。
+
+     以前雲端是每句一個 session（continuous = false），收尾交給引擎。引擎在講得慢的時候
+     會在句子中間結束 session，下一個 session 起來前講的話就沒了：同一段 3 分鐘英文直播，
+     那樣只留下 852 字，在停頓處輪替則是 1311 字（即時翻譯 實測）。 */
+  const ROTATE_MIN_AGE_MS   = 3000;    // 停頓時，session 至少要這麼久才切
+  /* 有些人幾乎不停頓，只在句間換一口氣（100〜250ms）。超過這個長度就改在 150ms 的換氣處切，
+     並先 drain，因為 150ms 不夠引擎自己講完。會停頓的人不受影響：他們 90% 的 session 在這之前就結束了。 */
+  const ROTATE_SHORT_AGE_MS = 10000;
+  const ROTATE_CAP_MS       = 20000;   // 完全沒有停頓：照樣切（先 drain）
+  /* 在講話，卻這麼久沒有任何結果：session 已經死了（Edge 上看過 7 秒什麼都沒回）。
+     從 onstart 算起，所以要涵蓋雲端整個啟動時間：onstart → onsoundstart 0.5〜2 秒，
+     onsoundstart → 第一筆結果 99% 在 1.5 秒內，慢的時候約 4.5 秒。 */
+  const STALL_MS            = 6000;
+  const DRAIN_SETTLE_MS     = 500;     // interim 這麼久沒變就結束 drain…
+  const DRAIN_MAX_MS        = 1000;    // …或最多等這麼久
+
+  let sessionStartedAt = 0;
+  let lastResultAt     = 0;
+  let lastInterimAt    = 0;
+  let finalDuringDrain = false;
+  let rotating         = false;
+  let drainTimer       = null;
+
+  const cancelDrain = () => {
+    if (drainTimer) { clearInterval(drainTimer); drainTimer = null; }
+  };
+
+  const cutSession = () => {
+    cancelDrain();
+    // drain 途中按了停止：停止之後什麼都不送（abort 在 stopRecognition 已經做了）
+    if (!isRecognitionActive) return;
+    flushInterim();
+    abortSession();
+  };
+
+  const rotate = (reason) => {
+    if (rotating || !isRecognitionActive || usingLocal || !sessionStartedAt) return;
+    rotating = true;
+    const now = performance.now();
+
+    /* 不論原因都扣住到下一個 session 的 onaudiostart。停頓時引擎聽到的已經是無聲，
+       卡住的 session 也沒有東西在途中，所以直接切；換氣或講話中途則等引擎講完。 */
+    webSpeechInput?.hold();
+    if (reason !== 'cap' && reason !== 'short') {
+      cutSession();
+      return;
+    }
+    finalDuringDrain = false;
+    drainTimer = setInterval(() => {
+      const t = performance.now();
+      if (finalDuringDrain
+          || t - Math.max(lastInterimAt, now) >= DRAIN_SETTLE_MS
+          || t - now >= DRAIN_MAX_MS) cutSession();
+    }, 20);
+  };
+
+  inputHooks = {
+    onPause() {
+      if (sessionStartedAt && performance.now() - sessionStartedAt >= ROTATE_MIN_AGE_MS) rotate('pause');
+    },
+    onShortPause() {
+      if (sessionStartedAt && performance.now() - sessionStartedAt >= ROTATE_SHORT_AGE_MS) rotate('short');
+    },
+    onSpeech() {
+      if (!sessionStartedAt) return;
+      const now = performance.now();
+      if (now - sessionStartedAt >= ROTATE_CAP_MS) rotate('cap');
+      else if (now - lastResultAt >= STALL_MS)     rotate('stall');
+    },
+    /* 輸入換了（麥克風被拔掉後開了別的）：結束這個 session，讓下一個 session 接到新的音軌。
+       兩個 session 之間的話不用做什麼，正在進行的重啟會讀到新的輸入。On-Device 也適用。 */
+    restart() {
+      if (!sessionStartedAt || rotating) return;
+      rotating = true;
+      cutSession();
+    },
+  };
 
   /* 啟動看門狗。聲音已經進到辨識端，但一直沒有任何結果回來，就重啟一次賭下一場正常。
      這不是「模型可能比較慢」的寬限時間——健康的 On-Device 模型在 onsoundstart 之後
@@ -657,8 +790,7 @@ function setupSpeechRecognition() {
      跨越多次重啟仍然沉默的模型不是這裡救得了的，那種要把語言包刪掉重裝
      （而且要先關掉瀏覽器的行程，否則檔案是鎖住的）。
      觸發時不送任何東西：還沒有結果就沒有東西可以送，送半個詞去翻譯只會更糟。
-     continuous 就代表 On-Device，也就代表 Chrome（見 decideProcessLocally），
-     所以判斷 continuous 一個條件就夠。 */
+     On-Device 專用。雲端的第一筆結果本來就可能要好幾秒，死掉的 session 由上面的 stall 處理。 */
   const STARTUP_TIMEOUT = 3000;
   let startupTimer = null;
   let resultCount = 0;
@@ -667,52 +799,20 @@ function setupSpeechRecognition() {
     if (startupTimer) { clearTimeout(startupTimer); startupTimer = null; }
   };
 
-  // 斷句計時器。
-  // 這是「session 不會自己結束」時的最後保險，所以只有 continuous 才需要。
-  // 每句一個 session 的情況下，引擎自己的斷句已經會關閉 session，
-  // 這裡再加一道只會跟它互相搶——Edge 與 Chrome 的雲端辨識現在都屬於後者。
-  // 舊的判斷式寫的是 isChrome，那是 Chrome 還一律 continuous 時代的寫法，
-  // 它真正想描述的條件其實是 continuous。
-  const resetSilenceTimer = () => {
-    if (!newRecognition.continuous) return;
-
-    if (silenceTimer) clearTimeout(silenceTimer);
-
-    // 設定新的計時器
-    silenceTimer = setTimeout(() => {
-      log.debug(`偵測到靜音超過 ${SILENCE_THRESHOLD}ms，強制重啟`);
-
-      if (interimTranscript.trim().length > 0) {
-        let forcedFinalText = normalizeRecognised(
-          interimTranscript.replace(/[、。？\s]+/g, ' ').trim(), newRecognition.lang);
-        
-        if (isRayModeActive()) {
-           forcedFinalText = processRayModeTranscript(forcedFinalText, newRecognition.lang);
-        }
-
-        if (forcedFinalText) {
-          log.info('(強制斷句) 發送翻譯請求文字:', forcedFinalText);
-          sendTranslationRequest(forcedFinalText, previousText, newRecognition.lang);
-          previousText = forcedFinalText;
-          updateSourceText(forcedFinalText);
-          // 此強制斷句即為本句的 final。由於不會經過 onresult，若不在此處啟動計時，
-          // 傳入的字幕便會持續顯示而不消失。
-          armIdleClear();
-        }
-      }
-      newRecognition.abort(); 
-
-    }, SILENCE_THRESHOLD);
-  };
-
   newRecognition.onstart = () => {
     resultCount = 0;
     clearStartupTimer();
+    sessionStartedAt = lastResultAt = performance.now();
+  };
+
+  // 下一個 session 已經在聽了：切 session 時扣住的音訊放出去。
+  newRecognition.onaudiostart = () => {
+    webSpeechInput?.release();
   };
 
   newRecognition.onsoundstart = () => {
     log.debug('soundstart事件觸發');
-    if (!newRecognition.continuous || resultCount > 0) return;
+    if (!usingLocal || resultCount > 0) return;
     clearStartupTimer();
     startupTimer = setTimeout(() => {
       log.warn(`啟動看門狗觸發：${STARTUP_TIMEOUT}ms 內沒有任何辨識結果，重新啟動`);
@@ -721,8 +821,12 @@ function setupSpeechRecognition() {
   };
 
   newRecognition.onresult = async (event) => {
+    if (aborting) return;
     resultCount++;
     clearStartupTimer();
+    lastResultAt = performance.now();
+
+    const previousInterim = interimTranscript;
     let hasFinalResult = false;
     interimTranscript = '';
     finalTranscript = '';
@@ -736,6 +840,8 @@ function setupSpeechRecognition() {
         interimTranscript += transcript;
       }
     }
+    if (interimTranscript !== previousInterim) lastInterimAt = lastResultAt;
+    if (hasFinalResult) finalDuringDrain = true;
 
     // 用「本次事件實際帶進來的 interim」來決定要不要重新計時。
     // 寫在解析迴圈之前的話，判斷依據會是上一輪殘留的值，
@@ -769,9 +875,18 @@ function setupSpeechRecognition() {
   newRecognition.onnomatch = () => { log.warn('無匹配辨識結果'); };
   newRecognition.onend = () => {
     clearStartupTimer();
+    cancelDrain();
     if (silenceTimer) clearTimeout(silenceTimer);
     log.debug('onend事件觸發');
-    
+
+    /* session 結束時還有 interim：是引擎自己結束的（網路錯誤、no-speech），不是我們。
+       那段 interim 不會再變成 final，丟掉就是丟掉使用者在畫面上看到的話（即時翻譯 在
+       3 分鐘英文直播上量到 4 行）。我們自己切的已經 flush 過；按下停止之後則什麼都不送。 */
+    if (isRecognitionActive) flushInterim();
+
+    aborting = false;
+    sessionStartedAt = 0;
+    rotating = false;
     finalTranscript = '';
     interimTranscript = '';
     autoRestartRecognition();
@@ -877,7 +992,7 @@ async function startRecognition() {
 
 /** 之後做麥克風選擇時，deviceId 從這裡傳進去。 */
 function openWebSpeechInput() {
-  return openAudioInput({ onEnded: handleWebSpeechInputEnded });
+  return openAudioInput({ ...inputHooks, onEnded: handleWebSpeechInputEnded });
 }
 
 function closeWebSpeechInput() {
@@ -905,7 +1020,7 @@ async function handleWebSpeechInputEnded() {
   const old = webSpeechInput;
   webSpeechInput = next;
   old?.close();
-  recognition.abort();   // onend → autoRestartRecognition が新しい音軌で start する
+  inputHooks.restart();   // 結束這個 session（先送出畫面上的），onend 的重啟會接到新的音軌
 }
 
 /** 停止按鈕的處理內容。暫停也會經過相同流程（完全釋放麥克風與連線）。 */
