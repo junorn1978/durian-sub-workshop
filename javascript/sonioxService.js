@@ -351,10 +351,18 @@ function logSegmentDiag(reason, diag) {
   });
 }
 
-function flushSentenceBuffer(onTranscriptUpdate, reason, cut) {
+/**
+ * keepNonFinal：只送出已確認的部分，暫定的留著。Soniox 之後會再送一次這些 token
+ * （確認或修正後），一起送出的話，下一句開頭會重複上一句的後半段。
+ * 只有長度上限這種「之後還會有後續」的切法才需要；endpoint 時暫定部分已經是空的。
+ */
+function flushSentenceBuffer(onTranscriptUpdate, reason, cut, { keepNonFinal = false } = {}) {
   // merged 是「還沒送去翻譯」的部分，display 是「畫面上該有的全文」。
-  const merged = removeJapaneseSpaces((finalizedText + nonFinalizedText).trim());
-  const display = buildDisplayText();
+  const pending = keepNonFinal ? nonFinalizedText : "";
+  const merged = removeJapaneseSpaces((keepNonFinal ? finalizedText : finalizedText + nonFinalizedText).trim());
+  const display = keepNonFinal
+    ? removeJapaneseSpaces((displayCarryText + finalizedText).trim())
+    : buildDisplayText();
 
   if (merged.length === 0) return false;
 
@@ -369,6 +377,7 @@ function flushSentenceBuffer(onTranscriptUpdate, reason, cut) {
   }
 
   resetTranscriptBuffers();
+  nonFinalizedText = pending;
   return true;
 }
 
@@ -646,6 +655,11 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         const tokens = Array.isArray(received.tokens) ? received.tokens : [];
         if (tokens.length === 0) return;
 
+        // 有結果回來，代表這條連線是活的：重連次數歸零。
+        // 不歸零的話，配信中累計斷線 10 次就會放棄。
+        // 不在 onopen 歸零：設定被拒時 server 會開了又立刻關，那樣會無限重連。
+        retryCount = 0;
+
         let flushedByEndpoint = false;
         let newNonFinalText = "";
         let addedFinalThisRound = "";
@@ -714,8 +728,10 @@ export async function startSoniox(langId, onTranscriptUpdate, handlers = {}) {
         flushBySoftSplit(onTranscriptUpdate);
 
         // 長度防呆：累積過長強制斷句 (Soniox 不送 endpoint 且找不到標點的極端情境)
-        if ((finalizedText + nonFinalizedText).length >= MAX_BUFFER_LENGTH) {
-          flushSentenceBuffer(onTranscriptUpdate, "⚡ 最大長度強制斷", 'maxlen');
+        // 只看已確認的長度：暫定部分不會送出，算進去的話可能每則訊息都觸發卻送不出東西。
+        if (finalizedText.length >= MAX_BUFFER_LENGTH) {
+          flushSentenceBuffer(onTranscriptUpdate, "⚡ 最大長度強制斷", 'maxlen', { keepNonFinal: true });
+          if (nonFinalizedText) emitInterim(onTranscriptUpdate);
           return;
         }
 
