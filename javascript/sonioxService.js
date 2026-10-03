@@ -266,6 +266,70 @@ function buildContextText() {
   return context.length > CONTEXT_MAX_LENGTH ? context.slice(-CONTEXT_MAX_LENGTH) : context;
 }
 
+/* ---- 音量紀錄（斷句診斷用）----
+ *
+ * 目的是判斷 endpoint 的機制要不要改：光有 token 間隔分不出「真的停頓」和
+ * 「60ms 量化的時間戳看起來像停頓」（拉長音、句尾標點的時間戳較晚），
+ * 要看那段間隔裡實際有沒有聲音。
+ *
+ * 量的是送給 Soniox 的那份聲音（AGC・降噪・90Hz 高通之後），也就是辨識器實際聽到的。
+ * 每 20ms 記一格均方值，位置照「這條連線送出的音訊」排——跟 Soniox 的 start_ms / end_ms
+ * 是同一條時間軸（從這條連線收到的第一個樣本算起）。所以：
+ *   - 只在真正 send 的時候記（斷線期間存著的那些，補送時才記；超過上限被丟掉的不記）
+ *   - 每條新連線從 0 重新開始
+ */
+const LEVEL_SLOT_MS = 20;
+const LEVEL_HISTORY_MS = 60000;    // 最多回看這麼久（一段話不會比這長；soft 斷句也在 60 字內）
+const FLOOR_WINDOW_MS = 10000;     // 背景音量從這段話結尾往前看這麼久
+const levelSlots = new Float64Array(LEVEL_HISTORY_MS / LEVEL_SLOT_MS);
+let levelSlotCount = 0;            // 這條連線已記完的格數（= 時間軸位置 ÷ 20ms）
+let levelSlotSamples = 320;        // 一格幾個樣本（16kHz 時 320）
+let levelAccSum = 0;
+let levelAccN = 0;
+
+function resetLevelTimeline(sampleRate) {
+  levelSlotCount = 0;
+  levelAccSum = 0;
+  levelAccN = 0;
+  levelSlotSamples = Math.max(1, Math.round(sampleRate * LEVEL_SLOT_MS / 1000));
+}
+
+/** 送出一塊 pcm_s16le，同時記下它的音量。 */
+function sendAudioChunk(ws, buffer) {
+  const pcm = new Int16Array(buffer);
+  for (let i = 0; i < pcm.length; i++) {
+    const v = pcm[i] / 32768;
+    levelAccSum += v * v;
+    if (++levelAccN === levelSlotSamples) {
+      levelSlots[levelSlotCount % levelSlots.length] = levelAccSum / levelAccN;
+      levelSlotCount++;
+      levelAccSum = 0;
+      levelAccN = 0;
+    }
+  }
+  ws.send(buffer);
+}
+
+/** 這條連線目前送到時間軸的哪裡（ms）。 */
+function sentAudioMs() {
+  return levelSlotCount * LEVEL_SLOT_MS;
+}
+
+/**
+ * [fromMs, toMs) 之間各格音量的 q 分位數（0 = 最小、0.5 = 中位數、1 = 最大），整數 dBFS。
+ * 範圍內沒有資料（已經滾出記錄、或還沒送到）回傳 null。
+ */
+function levelDb(fromMs, toMs, q) {
+  const first = Math.max(0, levelSlotCount - levelSlots.length, Math.floor(fromMs / LEVEL_SLOT_MS));
+  const last = Math.min(levelSlotCount, Math.ceil(toMs / LEVEL_SLOT_MS));
+  if (last <= first) return null;
+  const values = [];
+  for (let i = first; i < last; i++) values.push(levelSlots[i % levelSlots.length]);
+  values.sort((a, b) => a - b);
+  const meanSquare = values[Math.round(q * (values.length - 1))];
+  return Math.max(-100, Math.round(10 * Math.log10(meanSquare + 1e-12)));
+}
+
 /**
  * 把一段話的時序整理成診斷資料，跟著翻譯請求一起送到後端。
  *
@@ -296,7 +360,10 @@ function buildSegmentDiag(cut, chars, ctxChars, tokens, msgs) {
     voiceMs += tokens[i].endMs - tokens[i].startMs;
     if (i === 0) continue;
     const gapMs = tokens[i].startMs - tokens[i - 1].endMs;
-    if (gapMs > 0 && gaps.length < DIAG_GAP_LIMIT) gaps.push([tokens[i].atChar, gapMs]);
+    if (gapMs > 0 && gaps.length < DIAG_GAP_LIMIT) {
+      // 第三欄是這段間隔裡的音量（中位數）。安靜＝真的停頓；跟講話差不多大聲＝時間戳造成的假間隔。
+      gaps.push([tokens[i].atChar, gapMs, levelDb(tokens[i - 1].endMs, tokens[i].startMs, 0.5)]);
+    }
   }
 
   diag.t0 = tokens[0].startMs;                                      // 音訊時間軸上的起點
@@ -312,7 +379,22 @@ function buildSegmentDiag(cut, chars, ctxChars, tokens, msgs) {
   // ⚠ 同理，gap 不等於靜音。token 時長被壓成 60ms，那個字實際還在唸的時間會被算進
   //   後面的 gap 裡（唱歌段落的拉長尾音就是這樣變成 1 秒以上的「間隔」）。
   //   比相對大小（分位數）仍然有效，但不能拿絕對毫秒數去對照換氣時間。
-  diag.gaps = gaps;                                                 // [atChar, gapMs]
+  diag.gaps = gaps;                                                 // [atChar, gapMs, gapDb]
+
+  // 音量（整數 dBFS，見「音量紀錄」）。vol 是講話的大小聲，floor 是背景，兩者的差就是
+  // 講話比背景大多少；peak 是最大聲的 20ms，看有沒有爆音。
+  const lastEnd = tokens[tokens.length - 1].endMs;
+  diag.vol = levelDb(diag.t0, lastEnd, 0.5);
+  diag.peak = levelDb(diag.t0, lastEnd, 1);
+  diag.floor = levelDb(lastEnd - FLOOR_WINDOW_MS, lastEnd, 0.1);
+
+  // endpoint 等了多久：最後一個字結束後，Soniox 收到多少音訊才送出 <end>，以及那段的音量。
+  // 以 <end> 抵達瀏覽器的時刻計算，所以也包含網路來回的時間（那段期間音訊仍在送）。
+  if (cut === 'endpoint') {
+    const sentMs = sentAudioMs();
+    diag.tailMs = Math.max(0, sentMs - lastEnd);
+    diag.tailDb = levelDb(lastEnd, sentMs, 0.5);
+  }
   return diag;
 }
 
@@ -330,7 +412,9 @@ function logSegmentDiag(reason, diag) {
     語速: diag.durMs > 0 ? `${(diag.chars / diag.durMs * 1000).toFixed(1)}字/秒` : '-',
     最大間隔: gaps.reduce((max, g) => Math.max(max, g[1]), 0),
     間隔數: gaps.length,
-    明細: gaps.map(g => `${g[0]}字/${g[1]}ms`).join(' ') || '（無時間戳或全程無停頓）'
+    音量: `vol=${diag.vol ?? '-'} peak=${diag.peak ?? '-'} floor=${diag.floor ?? '-'}dB`,
+    endpoint待ち: diag.tailMs != null ? `${diag.tailMs}ms/${diag.tailDb ?? '-'}dB` : '-',
+    明細: gaps.map(g => `${g[0]}字/${g[1]}ms/${g[2] ?? '-'}dB`).join(' ') || '（無時間戳或全程無停頓）'
   });
 }
 
@@ -617,7 +701,7 @@ async function buildAudioPipeline(stream, sessionId) {
   audioWorkletNode.port.onmessage = (event) => {
     if (sessionId !== session) return;
     if (socket?.readyState === WebSocket.OPEN && isConfigured) {
-      socket.send(event.data);
+      sendAudioChunk(socket, event.data);
     } else if (pendingAudioChunks.length < PENDING_CHUNK_LIMIT) {
       pendingAudioChunks.push(event.data);
     }
@@ -691,12 +775,14 @@ async function connectSocket(sessionId, authInfo = null) {
     try {
       ws.send(JSON.stringify(buildConfig(auth.value, audioContext?.sampleRate || 16000)));
       isConfigured = true;
+      // 新連線的時間軸從 0 開始，音量紀錄也跟著重來（要在補送之前）。
+      resetLevelTimeline(audioContext?.sampleRate || 16000);
       notifyStatusChange("Soniox に接続しました。");
 
       // 連線前（與斷線期間）存下的音訊補送
       if (pendingAudioChunks.length > 0) {
         log.debug(`補送 ${pendingAudioChunks.length} 塊音訊`);
-        for (const chunk of pendingAudioChunks) ws.send(chunk);
+        for (const chunk of pendingAudioChunks) sendAudioChunk(ws, chunk);
         pendingAudioChunks = [];
       }
     } catch (err) {
