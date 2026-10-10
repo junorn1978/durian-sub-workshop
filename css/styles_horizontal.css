@@ -13,44 +13,43 @@
   --settings-modal-height: 754px;
   /* UI アニメーション共通イージング（標準の ease-out より立ち上がりが強い） */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  /* 操作パネルのラベル色（#8B4513 を一段濃くしてコントラストを確保） */
-  --ui-label-color: #74390D;
+  /* 操作パネルのラベル色（地の紫より一段濃くしてコントラストを確保） */
+  --ui-label-color: #4A2A6A;
 
-  /* 操作パネルの配色（布丁狗）。色を変えるときはこの組だけ差し替える（ch2 は下の [data-ch="2"]）。
+  /* 操作パネルの配色（紫と黒）。色を変えるときはこの組だけ差し替える（ch2 は下の [data-ch="2"]）。
      字幕そのものの色は設定で決まるので、ここには含めない。 */
-  --theme-panel: #FFF2DE;        /* 操作パネル・状態列の地、通常ボタン */
-  --theme-panel-hover: #FFE3C1;
-  --theme-ink: #6D1313;          /* 状態列の文字、パネル下端の破線 */
-  --theme-recorder: #F8B8C4;     /* ロゴと開始・停止の区画 */
-  --theme-border: #8B4513;       /* ボタンの枠、フォーカスリング、スクロールバー */
-  --theme-button: #D8BFD1;       /* 頁籤ボタン、パネルの枠線 */
-  --theme-button-hover: #E2AFD2;
-  --theme-accent: #D28BC4;       /* 選択中の頁籤・チェック */
-  --theme-view: #F1C6D2;         /* 設定画面の地、モーダルの見出し、カードの破線 */
-  --theme-soft: #F8E6F0;         /* 右側の情報欄、モーダルの本文 */
-  --theme-divider: #FBE9EE;
-  --theme-menu: #C7EFFF;         /* 頁籤ボタンの並ぶ帯 */
-  --theme-on-label: #FFF7EC;     /* --ui-label-color の上の文字 */
+  --theme-panel: #EEE6F8;        /* 操作パネル・状態列の地、通常ボタン */
+  --theme-panel-hover: #E0D2F2;
+  --theme-ink: #2E1F40;          /* 状態列の文字、パネル下端の破線 */
+  --theme-recorder: #C6B0E6;     /* ロゴと開始・停止の区画 */
+  --theme-border: #2B2233;       /* ボタンの枠、フォーカスリング、スクロールバー */
+  --theme-button: #D6C6EE;       /* 頁籤ボタン、パネルの枠線 */
+  --theme-button-hover: #F5BDDA;
+  --theme-accent: #F38FC1;       /* 選択中の頁籤・チェック */
+  --theme-view: #CDB9EA;         /* 設定画面の地、モーダルの見出し、カードの破線 */
+  --theme-soft: #F3EDFB;         /* 右側の情報欄、モーダルの本文 */
+  --theme-divider: #EEE6F8;
+  --theme-menu: #3B2F4A;         /* 頁籤ボタンの並ぶ帯 */
+  --theme-on-label: #FFF5FB;     /* --ui-label-color の上の文字 */
 }
 
-/* ch2（index.html?ch=2、別の --user-data-dir で開く2つ目の bat）は庫洛米色。
-   コラボ相手の声などを別に字幕にする窓で、配信中に1つ目とひと目で見分けるため。
-   黒い枠・紫の地・ピンクの選択色。文字色（#2B2B2B など）は明るい地のままなので変えない。 */
+/* ch2（index.html?ch=2、「＋2つ目の窓」や ch2 の bat で開く窓）はクリームとピンクの配色。
+   コラボ相手の声などを別に字幕にする窓で、配信中に1つ目とひと目で見分けるため。 */
 :root[data-ch="2"] {
-  --ui-label-color: #4A2A6A;
-  --theme-panel: #EEE6F8;
-  --theme-panel-hover: #E0D2F2;
-  --theme-ink: #2E1F40;
-  --theme-recorder: #C6B0E6;
-  --theme-border: #2B2233;
-  --theme-button: #D6C6EE;
-  --theme-button-hover: #F5BDDA;
-  --theme-accent: #F38FC1;
-  --theme-view: #CDB9EA;
-  --theme-soft: #F3EDFB;
-  --theme-divider: #EEE6F8;
-  --theme-menu: #3B2F4A;
-  --theme-on-label: #FFF5FB;
+  --ui-label-color: #74390D;     /* #8B4513 を一段濃くしてコントラストを確保 */
+  --theme-panel: #FFF2DE;
+  --theme-panel-hover: #FFE3C1;
+  --theme-ink: #6D1313;
+  --theme-recorder: #F8B8C4;
+  --theme-border: #8B4513;
+  --theme-button: #D8BFD1;
+  --theme-button-hover: #E2AFD2;
+  --theme-accent: #D28BC4;
+  --theme-view: #F1C6D2;
+  --theme-soft: #F8E6F0;
+  --theme-divider: #FBE9EE;
+  --theme-menu: #C7EFFF;
+  --theme-on-label: #FFF7EC;
 }
 
 *, *::before, *::after {
