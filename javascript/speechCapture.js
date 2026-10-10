@@ -16,6 +16,7 @@ import { getSettingBool, getSettingNumber } from './settingsStore.js';
 import { openAudioInput } from './audioInput.js';
 import { mountMicSelector, mountTabShareButton, onMicChange, refreshMicList, getSelectedMicId } from './micSelector.js';
 import { hasTabShare, cloneTabStream, onTabShareChange } from './tabAudio.js';
+import { mountSecondWindow } from './secondWindow.js';
 
 const log = createLogger('SpeechRecognition');
 
@@ -1027,6 +1028,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   mountMicSelector();
   mountTabShareButton();
+  mountSecondWindow();
   onMicChange(switchInput);
   // 共用開始：改聽分頁。結束：停止（見 handleInputLost）。
   onTabShareChange((active) => {

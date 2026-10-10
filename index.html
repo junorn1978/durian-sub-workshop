@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ハムハム字幕アトリエ</title>
-  <!-- ch2（2つ目の bat が開く index.html?ch=2）の目印。配色とタイトルはここで先に決める：
+  <!-- ch2（「＋2つ目の窓」や ch2 の bat が開く index.html?ch=2）の目印。配色とタイトルはここで先に決める：
        CSS より前に置くと、布丁狗色が一瞬見えることがない。 -->
   <script>
     if (new URLSearchParams(location.search).get('ch') === '2') {
@@ -299,6 +299,7 @@
       <label for="mic-select" class="status-mic-label">マイク選択</label>
       <select id="mic-select" class="status-mic-select"><option value="">既定のマイク</option></select>
       <button type="button" id="tab-share-btn" class="status-tab-btn" aria-pressed="false">タブの音声</button>
+      <button type="button" id="second-window-btn" class="status-tab-btn" title="コラボ相手の声など、もう一つの音声を別に字幕にする窓（紫の配色）を開きます。言語・字幕の見た目などの設定は窓ごとに保存され、OBS には別の字幕ソースとして送られます。">＋2つ目の窓</button>
     </div>
     <div class="status-info" id="status-display">音声認識が反応しない場合は、一度停止して数秒待ってから、もう一度開始ボタンを押してください。</div>
     <span id="version-display">v3.1.42</span>

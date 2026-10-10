@@ -29,13 +29,10 @@
  * （HamHam字幕2-…）。分けないと ch2 が1路目の来源の網址を書き換えてしまう。
  */
 
-import { getSetting, getSettingBool } from './settingsStore.js';
+import { getSetting, getSettingBool, CHANNEL } from './settingsStore.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('OBSBridge');
-
-/** 何路目の窓か。index.html の <head> で ?ch=2 を見て付けた印を読む。 */
-const CHANNEL = document.documentElement.dataset.ch === '2' ? 2 : 1;
 
 const OBS_ENABLED_KEY = 'obs-ws-enabled';
 const OBS_IP_KEY = 'obs-ws-ip';
