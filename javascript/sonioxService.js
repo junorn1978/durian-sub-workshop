@@ -3,7 +3,8 @@
  * @description 管理 Soniox WebSocket 連線與音訊串流。
  *
  * 實作要點：
- * - 驗證是在連線後的第一則 JSON 訊息中傳送 api_key（並非 sub-protocol）。
+ * - 驗證是在開連線時以 sub-protocol ["soniox-api-key", key] 傳送，第一則 JSON 不帶 api_key。
+ *   （舊做法「第一則訊息帶 api_key」在 2027-01-15 後會被拒。兩邊都帶且 key 不同也會被拒。）
  * - 結果以 token 為單位傳回。is_final=true 表示已確認，false 表示暫定（可能被下一則訊息取代）。
  * - 端點偵測會以 <end> token 的形式傳送。一則訊息可能夾帶多個 <end>，需逐一就地斷句。
  */
@@ -730,12 +731,11 @@ async function buildAudioPipeline(stream, sessionId) {
   log.debug("Soniox 音訊路徑", { sampleRate, renderQuantum, bufferSize });
 }
 
-function buildConfig(apiKey, sampleRate) {
+function buildConfig(sampleRate) {
   const endpoint = getSonioxEndpointSettings();
   const langObj = sessionLangObj;
 
   const config = {
-    api_key: apiKey,
     model: SONIOX_MODEL,
     audio_format: "pcm_s16le",
     sample_rate: sampleRate,
@@ -778,14 +778,14 @@ async function connectSocket(sessionId, authInfo = null) {
     return;
   }
 
-  const ws = new WebSocket(SONIOX_WS_URL);
+  const ws = new WebSocket(SONIOX_WS_URL, ["soniox-api-key", auth.value]);
   socket = ws;
   const isCurrent = () => sessionId === session && socket === ws;
 
   ws.onopen = () => {
     if (!isCurrent()) return;
     try {
-      ws.send(JSON.stringify(buildConfig(auth.value, audioContext?.sampleRate || 16000)));
+      ws.send(JSON.stringify(buildConfig(audioContext?.sampleRate || 16000)));
       isConfigured = true;
       // 新連線的時間軸從 0 開始，音量紀錄也跟著重來（要在補送之前）。
       resetLevelTimeline(audioContext?.sampleRate || 16000);
