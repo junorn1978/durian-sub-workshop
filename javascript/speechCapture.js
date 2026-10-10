@@ -14,8 +14,8 @@ import { updateStatusDisplay, setRecognitionControlsState, clearAllTextElements,
 import { normalizeRecognised } from './normalizeJa.js';
 import { getSettingBool, getSettingNumber } from './settingsStore.js';
 import { openAudioInput } from './audioInput.js';
-import { mountMicSelector, onMicChange, refreshMicList, getSelectedMicId, isTabAudioSelected } from './micSelector.js';
-import { openTabShare, hasTabShare, cloneTabStream, closeTabShare, onTabShareEnded, NoTabAudioError } from './tabAudio.js';
+import { mountMicSelector, mountTabShareButton, onMicChange, refreshMicList, getSelectedMicId } from './micSelector.js';
+import { hasTabShare, cloneTabStream, onTabShareChange } from './tabAudio.js';
 
 const log = createLogger('SpeechRecognition');
 
@@ -135,7 +135,6 @@ function triggerSessionTimeout() {
   if (engine === 'soniox') stopSoniox({ reason: 'session-timeout' });
   if (recognition) recognition.abort();
   closeWebSpeechInput();
-  closeTabShare();
   displaySessionTimeoutMessages();
 }
 // #endregion
@@ -144,8 +143,8 @@ function triggerSessionTimeout() {
 /**
  * 暫停是將「停止 → 經過一段時間後開始」自動化。由於會經過與停止相同的流程，
  * 麥克風與 Soniox 連線都會完全釋放，5 小時看門狗也會比照停止處理。
- * 例外是分頁的共用（見 tabAudio.js）：沒有點擊就開不了，所以暫停期間留著，
- * 只停止送音訊。暫停期間共用被結束的話，就取消自動恢復（見 handleInputLost）。
+ * 分頁的共用（見 tabAudio.js）本來就不隨停止結束，暫停期間也留著，恢復時接著聽。
+ * 暫停期間共用被結束的話，就取消自動恢復（見 handleInputLost），不改聽麥克風。
  * 恢復方式有兩種：「開始」按鈕（立即恢復）或等待時間結束。暫停期間按下標誌不會恢復，
  * 而是將剩餘時間重設為設定值（休息時間延長時可再次按下）。
  */
@@ -841,17 +840,6 @@ async function startRecognition() {
     return;
   }
 
-  /* 分頁的共用只能在點擊後幾秒內開，所以在等 Soniox 的 token 之前先開。
-     暫停中留著的共用就直接沿用（自動恢復時沒有點擊，也開不了新的）。 */
-  if (isTabAudioSelected() && !hasTabShare()) {
-    try {
-      await openTabShare();
-    } catch (err) {
-      reportTabShareFailed(err);
-      return;
-    }
-  }
-
   resetTranslationDisplay();
   clearAllTextElements();
   updateSourceText.reset();
@@ -864,14 +852,11 @@ async function startRecognition() {
         handleCloudTranscript(text, isFinal, shouldTranslate, sourceLang, 'soniox', parts);
       }, {
         onStatusChange: updateStatusDisplay,
-        onStop: ({ reason, intentional }) => {
+        onStop: () => {
           resetRecognitionState({ clearText: true });
           stopSessionWatchdog();
-          // Soniox 自己停下來的（無音逾時、重連用盡）也結束分頁的共用。
-          // 啟動失敗時不結束：接下來要退回 Web Speech，還要用同一個共用。
-          if (!intentional && reason !== 'startup-error') closeTabShare();
         },
-        onInputEnded: () => handleInputLost()
+        onInputEnded: handleInputLost
       });
       if (sonioxStarted) {
         setRecognitionControlsState('recording');
@@ -895,7 +880,6 @@ async function startRecognition() {
     log.error('マイクを開けませんでした:', error);
     updateStatusDisplay('マイクを開けませんでした。マイクの接続と、ブラウザのマイク許可を確認してください。');
     closeWebSpeechInput();
-    closeTabShare();
     resetRecognitionState();
     return;
   }
@@ -911,19 +895,18 @@ async function startRecognition() {
   } catch (error) {
     log.error('辨識啟動失敗:', error);
     closeWebSpeechInput();
-    closeTabShare();
     resetRecognitionState();
   }
 }
 
-/** 開左下角選定的麥克風（不在就是既定裝置）；選的是分頁的聲音時用共用的複製。 */
+/** 開左下角選定的麥克風（不在就是既定裝置）；分頁共用中就用共用的複製。 */
 async function openWebSpeechInput() {
-  const tab = isTabAudioSelected();
+  const tab = hasTabShare();
   const input = await openAudioInput({
     deviceId: tab ? '' : getSelectedMicId(),
     stream: tab ? cloneTabStream() : undefined,
     ...inputHooks,
-    onEnded: () => handleInputLost(),
+    onEnded: () => handleInputLost(tab ? 'tab' : 'mic'),
   });
   if (input.fellBack) log.warn('選択したマイクが見つからないため、既定のマイクを使います:', input.label);
   return input;
@@ -935,7 +918,7 @@ function closeWebSpeechInput() {
 }
 
 /**
- * 辨識中在左下角選了別的麥克風（或分頁的聲音）。
+ * 辨識中在左下角選了別的麥克風，或開始了分頁的共用。
  * 開目前選定的裝置，結束目前的 session，讓重啟接到新的音軌上。開不了就停止。
  */
 async function switchWebSpeechInput() {
@@ -958,39 +941,27 @@ async function switchWebSpeechInput() {
 }
 
 /**
- * 辨識中聽的東西不見了：麥克風被拔掉、停用，或分頁的共用被結束、分頁被關掉。
- * 一律停止並在狀態列告知，不自動換到別的麥克風——換過去的可能是房間裡的麥克風，
- * 字幕會開始翻譯不該翻的聲音（例如聽連動對象時換成實況主自己的聲音）。
- * 暫停中發生的話，取消自動恢復（恢復時也開不了）。
- * 引擎的音軌與共用本身都會通知，所以會被呼叫兩次；第二次什麼都不做。
+ * 辨識中聽的東西不見了：麥克風被拔掉、停用，或分頁的共用結束了（按鈕、瀏覽器上的
+ * 「停止共用」、關掉分頁）。一律停止並在狀態列告知，不自動換到別的麥克風——換過去的
+ * 可能是房間裡的麥克風，字幕會開始翻譯不該翻的聲音（例如聽連動對象時換成實況主自己的聲音）。
+ * 暫停中發生的話，取消自動恢復（恢復時聽的就會是麥克風）。
+ * 引擎的音軌與共用本身都會通知，所以可能被呼叫兩次；第二次什麼都不做。
+ * @param {'mic'|'tab'} kind
  */
-function handleInputLost() {
+function handleInputLost(kind) {
   const paused = isPaused();
   if (!isRecognitionActive && !paused) return;
-  const tab = isTabAudioSelected();
+  const tab = kind === 'tab';
   log.warn(tab ? 'タブの共有が終了したため、認識を停止しました' : 'マイクが切断されたため、認識を停止しました');
   if (paused) clearPauseState();
   else stopRecognition('input-lost');
-  closeTabShare();
   // 停止流程會清空狀態列，所以最後才寫。
   updateStatusDisplay(tab
     ? 'タブ（ウィンドウ）の共有が終了したため、認識を停止しました。続けるには、もう一度「開始」を押してください。'
     : 'マイクが切断されたため、認識を停止しました。接続を確認して、もう一度「開始」を押してください。');
 }
 
-/** 分頁的共用開不了時（辨識不會開始，或已經停止），在狀態列說明原因。取消對話框也說明——可能是不小心按掉的。 */
-function reportTabShareFailed(err) {
-  log.warn('タブを共有できませんでした:', err);
-  if (err instanceof NoTabAudioError) {
-    updateStatusDisplay('タブの音声が共有されていません。共有するときに「タブの音声も共有する」（ウィンドウなら「アプリの音声も共有する」）をオンにしてください。');
-  } else if (err?.name === 'NotAllowedError') {
-    updateStatusDisplay('タブの共有がキャンセルされました。共有するには、もう一度「開始」を押してください。');
-  } else {
-    updateStatusDisplay('タブを共有できませんでした。もう一度「開始」を押してください。');
-  }
-}
-
-/** 停止按鈕的處理內容。暫停也會經過相同流程（完全釋放麥克風與連線，分頁的共用除外）。 */
+/** 停止按鈕的處理內容。暫停也會經過相同流程（完全釋放麥克風與連線）。分頁的共用不結束。 */
 function stopRecognition(reason = 'manual-stop') {
   // resetRecognitionState 會把 activeRecognitionEngine 清成 null，
   // 所以要先抓住目前的引擎再 reset。
@@ -1000,34 +971,13 @@ function stopRecognition(reason = 'manual-stop') {
   if (engine === 'soniox') stopSoniox({ reason });
   if (recognition) recognition.abort();
   closeWebSpeechInput();
-  if (reason !== 'pause') closeTabShare();
 }
 
-/**
- * 左下角選了別的。辨識中就立刻切換；暫停中則換好下次恢復要用的。
- * 選了分頁的聲音時，選擇本身就是點擊，在這裡跳出分頁選擇對話框。
- * 沒選成（取消、沒勾音訊）就停止，不繼續用設定已經不指向的麥克風。
- */
-async function onMicPicked() {
-  const paused = isPaused();
-  if (isTabAudioSelected()) {
-    if ((isRecognitionActive || paused) && !hasTabShare()) {
-      try {
-        await openTabShare();
-      } catch (err) {
-        if (paused) clearPauseState();
-        else stopRecognition('input-lost');
-        reportTabShareFailed(err);
-        return;
-      }
-    }
-  }
-  if (isRecognitionActive) {
-    if (activeRecognitionEngine === 'webspeech') await switchWebSpeechInput();
-    else if (activeRecognitionEngine === 'soniox') await switchSonioxMic();
-  }
-  // 換成麥克風了：不再需要的共用結束掉（切換完之後，才不會中斷正在聽的那份）。
-  if (!isTabAudioSelected()) closeTabShare();
+/** 辨識中換輸入：左下角選了別的麥克風，或開始了分頁的共用。暫停中不用做什麼，恢復時就會用新的。 */
+function switchInput() {
+  if (!isRecognitionActive) return;
+  if (activeRecognitionEngine === 'webspeech') switchWebSpeechInput();
+  else if (activeRecognitionEngine === 'soniox') switchSonioxMic();
 }
 
 /** 綁定 UI 操作按鈕與語音服務啟動邏輯 */
@@ -1050,7 +1000,6 @@ function setupSpeechRecognitionHandlers() {
     if (isPaused()) {
       log.info('一時停止を取り消しました（自動再開なし）');
       clearPauseState();
-      closeTabShare();
       return;
     }
     stopRecognition();
@@ -1077,8 +1026,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   activeRecognitionEngine = null;
 
   mountMicSelector();
-  onMicChange(onMicPicked);
-  onTabShareEnded(() => handleInputLost());
+  mountTabShareButton();
+  onMicChange(switchInput);
+  // 共用開始：改聽分頁。結束：停止（見 handleInputLost）。
+  onTabShareChange((active) => {
+    if (active) switchInput();
+    else handleInputLost('tab');
+  });
 
   // 若在受節流的 timer 觸發前回到前景，則在此偵測期限已到並恢復。
   document.addEventListener('visibilitychange', () => {

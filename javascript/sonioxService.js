@@ -11,15 +11,15 @@
 
 import { getLang, getSonioxEndpointSettings } from "./config.js";
 import { createLogger } from "./logger.js";
-import { getSelectedMicId, isTabAudioSelected } from "./micSelector.js";
-import { cloneTabStream } from "./tabAudio.js";
+import { getSelectedMicId } from "./micSelector.js";
+import { hasTabShare, cloneTabStream } from "./tabAudio.js";
 
 const log = createLogger('Soniox');
 
 const DEFAULT_LIFECYCLE_HANDLERS = {
   onStatusChange: () => {},
   onStop: () => {},
-  // 麥克風拔掉、分頁的共用結束。要不要停、怎麼告知交給呼叫端（speechCapture）。
+  // 麥克風拔掉、分頁的共用結束（引數 'mic' | 'tab'）。要不要停、怎麼告知交給呼叫端（speechCapture）。
   onInputEnded: () => {}
 };
 
@@ -583,7 +583,7 @@ let inputIsTab = false;
 /**
  * 開左下角選定的麥克風；裝置不見了（拔掉、改名）就退回既定裝置。權限錯誤直接往上丟。
  * 前處理（AGC・回音消除・降噪）維持開啟：這是麥克風輸入，跟 hamham 的分頁音訊不同。
- * 選的是分頁的聲音時，拿 speechCapture 開好的共用的複製（見 tabAudio.js），前處理全關。
+ * 分頁共用中（左下角的「タブの音声」按鈕）就拿共用的複製（見 tabAudio.js），前處理全關。
  */
 const MIC_CONSTRAINTS = {
   autoGainControl:  true,
@@ -593,7 +593,7 @@ const MIC_CONSTRAINTS = {
 };
 
 async function openMicStream() {
-  if (isTabAudioSelected()) return cloneTabStream();
+  if (hasTabShare()) return cloneTabStream();
   const deviceId = getSelectedMicId();
   if (deviceId) {
     try {
@@ -612,11 +612,11 @@ async function openMicStream() {
 /* 麥克風被拔掉、分頁的共用結束時：交給呼叫端停止。不自動換到別的麥克風——
    換過去的可能是房間裡的麥克風，字幕會開始翻譯不該翻的聲音。 */
 function watchMicEnded(stream, sessionId) {
-  inputIsTab = isTabAudioSelected();
+  inputIsTab = hasTabShare();
   stream.getAudioTracks()[0]?.addEventListener('ended', () => {
     if (sessionId !== session || stream !== globalStream) return;
     log.warn(inputIsTab ? "タブの共有が終了しました" : "マイクが切断されました");
-    lifecycleHandlers.onInputEnded();
+    lifecycleHandlers.onInputEnded(inputIsTab ? 'tab' : 'mic');
   });
 }
 

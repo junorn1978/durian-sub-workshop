@@ -177,6 +177,37 @@ body {
 .status-mic-select option { color: #222; background: #fff; }
 /* 選択したマイクが未接続（既定のマイクで認識中） */
 .status-mic-select.is-missing { background: rgba(140, 60, 0, 0.75); }
+/* タブ共有中は選べない（聞いているのはタブ） */
+.status-mic-select:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* マイク選択の右：タブ・ウィンドウの音声の共有ボタン（micSelector.js / tabAudio.js）。
+   select と同じ膠囊で並べ、共有中は赤い点と色で「いま共有している」と分かるようにする */
+.status-tab-btn {
+  font-size: 11px;
+  font-family: inherit;
+  white-space: nowrap;
+  color: rgba(255, 242, 222, 0.92);
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  border-radius: 999px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+.status-tab-btn:hover { background: rgba(0, 0, 0, 0.62); }
+.status-tab-btn:focus-visible { outline: 2px solid #6d1313; outline-offset: 1px; }
+.status-tab-btn:disabled { opacity: 0.6; cursor: progress; }
+.status-tab-btn[aria-pressed="true"] { background: rgba(140, 20, 20, 0.8); }
+.status-tab-btn[aria-pressed="true"]:hover { background: rgba(160, 30, 30, 0.9); }
+.status-tab-btn[aria-pressed="true"]::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: #ff6b6b;
+  vertical-align: 1px;
+}
 
 /* 底部狀態列右側：版本／使い方ガイド連結 */
 #version-display {
