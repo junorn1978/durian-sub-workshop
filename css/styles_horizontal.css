@@ -160,7 +160,7 @@ body {
 }
 /* 半透明黑底の膠囊で底色と區隔し、設定値を強調。過長は省略（全名は title） */
 .status-mic-select {
-  width: 205px;
+  width: 170px;
   font-size: 11px;
   font-family: inherit;
   color: rgba(255, 242, 222, 0.92);
@@ -1508,18 +1508,15 @@ body {
 .obs-test-status.fail    { color: #c62828; }
 
 /* =========================================
-   設定齒輪（info-right-col 右上）
+   設定齒輪（底部狀態列の右端、版本の右）。めったに押さないので小さめ
    ========================================= */
 .settings-gear-btn {
-  position: absolute;
-  top: -10px;
-  left: -10px;
-  z-index: 5;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: none;
   border-radius: 50%;
