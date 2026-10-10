@@ -235,14 +235,11 @@ async function executeAutoSetup() {
     // 正在看的就是字幕場景本身時，不能把它放進自己裡面。
     if (liveScene !== NEST_SCENE) await ensureSceneItem(liveScene, NEST_SCENE, true);
 
-    alert(`字幕ソースを5つ「${NEST_SCENE}」シーンにまとめ、現在のシーンに追加しました。
-初期状態では「全体表示」のみ表示されます。位置や大きさは「${NEST_SCENE}」シーンの中で調整すると、このシーンを入れたすべてのシーンに反映されます。
-以前のバージョンで現在のシーンに直接追加した「${SOURCE_PREFIX}-…」が残っている場合は、字幕が二重に表示されるので削除してください。`);
+    alert(`字幕ソースを5つ「${NEST_SCENE}」シーンにまとめ、現在のシーンに追加しました。\n初期状態では「全体表示」のみ表示されます。位置や大きさは「${NEST_SCENE}」シーンの中で調整すると、このシーンを入れたすべてのシーンに反映されます。\n以前のバージョンで現在のシーンに直接追加した「${SOURCE_PREFIX}-…」が残っている場合は、字幕が二重に表示されるので削除してください。`);
 
   } catch (error) {
     log.error("自動設定失敗:", error);
-    alert("OBSへの字幕ソースの追加に失敗しました。
-" + error.message);
+    alert("OBSへの字幕ソースの追加に失敗しました。\n" + error.message);
   }
 }
 
