@@ -15,6 +15,22 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   /* 操作パネルのラベル色（#8B4513 を一段濃くしてコントラストを確保） */
   --ui-label-color: #74390D;
+
+  /* 操作パネルの配色（布丁狗）。色を変えるときはこの組だけ差し替える。
+     字幕そのものの色は設定で決まるので、ここには含めない。 */
+  --theme-panel: #FFF2DE;        /* 操作パネル・状態列の地、通常ボタン */
+  --theme-panel-hover: #FFE3C1;
+  --theme-ink: #6D1313;          /* 状態列の文字、パネル下端の破線 */
+  --theme-recorder: #F8B8C4;     /* ロゴと開始・停止の区画 */
+  --theme-border: #8B4513;       /* ボタンの枠、フォーカスリング、スクロールバー */
+  --theme-button: #D8BFD1;       /* 頁籤ボタン、パネルの枠線 */
+  --theme-button-hover: #E2AFD2;
+  --theme-accent: #D28BC4;       /* 選択中の頁籤・チェック */
+  --theme-view: #F1C6D2;         /* 設定画面の地、モーダルの見出し、カードの破線 */
+  --theme-soft: #F8E6F0;         /* 右側の情報欄、モーダルの本文 */
+  --theme-divider: #FBE9EE;
+  --theme-menu: #C7EFFF;         /* 頁籤ボタンの並ぶ帯 */
+  --theme-on-label: #FFF7EC;     /* --ui-label-color の上の文字 */
 }
 
 *, *::before, *::after {
@@ -127,7 +143,7 @@ body {
   width: 100%;
   height: 5%;
   min-height: 30px;
-  background-color: #FFF2DE;
+  background-color: var(--theme-panel);
   padding: 0 20px;
   gap: 10px;
   z-index: 2;
@@ -138,7 +154,7 @@ body {
   height: 90%;
   text-align: left;
   align-items: center;
-  color: #6d1313;
+  color: var(--theme-ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -156,7 +172,7 @@ body {
 }
 .status-mic-label {
   white-space: nowrap;
-  color: #6d1313;
+  color: var(--theme-ink);
 }
 /* 半透明黑底の膠囊で底色と區隔し、設定値を強調。過長は省略（全名は title） */
 .status-mic-select {
@@ -172,7 +188,7 @@ body {
   cursor: pointer;
 }
 .status-mic-select:hover { background: rgba(0, 0, 0, 0.62); }
-.status-mic-select:focus-visible { outline: 2px solid #6d1313; outline-offset: 1px; }
+.status-mic-select:focus-visible { outline: 2px solid var(--theme-ink); outline-offset: 1px; }
 /* ドロップダウンの中は黒地に白だと OS によって読めないので、通常の配色に戻す */
 .status-mic-select option { color: #222; background: #fff; }
 /* 選択したマイクが未接続（既定のマイクで認識中） */
@@ -194,7 +210,7 @@ body {
   cursor: pointer;
 }
 .status-tab-btn:hover { background: rgba(0, 0, 0, 0.62); }
-.status-tab-btn:focus-visible { outline: 2px solid #6d1313; outline-offset: 1px; }
+.status-tab-btn:focus-visible { outline: 2px solid var(--theme-ink); outline-offset: 1px; }
 .status-tab-btn:disabled { opacity: 0.6; cursor: progress; }
 .status-tab-btn[aria-pressed="true"] { background: rgba(140, 20, 20, 0.8); }
 .status-tab-btn[aria-pressed="true"]:hover { background: rgba(160, 30, 30, 0.9); }
@@ -224,7 +240,7 @@ body {
 
 #control-panel {
   height: 40%;
-  background-color: #FFF2DE;
+  background-color: var(--theme-panel);
   padding: 20px;
   box-sizing: border-box;
   display: flex;
@@ -246,7 +262,7 @@ body {
   left: 20px;
   right: 20px;
   bottom: 0;
-  border-bottom: 2px dashed #6d1313;
+  border-bottom: 2px dashed var(--theme-ink);
   pointer-events: none;
 }
 
@@ -262,7 +278,7 @@ body {
   align-items: center;
   gap: 10px;
   border-radius: 10px;
-  background-color: #F8B8C4;
+  background-color: var(--theme-recorder);
 }
 
 /* ロゴ＝一時停止ボタン。録音中のみ押せる（待機中・一時停止中は disabled）。
@@ -305,7 +321,7 @@ body {
   padding: 5px 12px;
   border-radius: 999px;
   background-color: var(--ui-label-color);
-  color: #FFF7EC;
+  color: var(--theme-on-label);
   font-size: 13px;
   line-height: 1.25;
   white-space: nowrap;
@@ -344,7 +360,7 @@ body {
   padding: 10px 30px;
   border-radius: 999px;
   border: none;
-  background-color: #FFF2DE;
+  background-color: var(--theme-panel);
   color: #2B2B2B;
   font-size: 16px;
   cursor: pointer;
@@ -352,7 +368,7 @@ body {
   font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
 }
 @media (hover: hover) and (pointer: fine) {
-  .record-button:hover:not(:disabled) { background-color: #FFE3C1; }
+  .record-button:hover:not(:disabled) { background-color: var(--theme-panel-hover); }
 }
 .record-button:active:not(:disabled) { transform: scale(0.97); }
 /* disabled は透明度のみで表現（ピンク面での灰色は「汚れ」に見えるため） */
@@ -361,10 +377,10 @@ body {
 /* 開始＝主ボタン。押せる時だけ濃い茶色で強調（disabled 時は通常の見た目に戻る） */
 #start-recording:not(:disabled) {
   background-color: var(--ui-label-color);
-  color: #FFF7EC;
+  color: var(--theme-on-label);
 }
 @media (hover: hover) and (pointer: fine) {
-  #start-recording:hover:not(:disabled) { background-color: #8B4513; }
+  #start-recording:hover:not(:disabled) { background-color: var(--theme-border); }
 }
 
 /* 録音中（停止が押せる状態）は停止ボタンに静的な赤ドットを表示。点滅はさせない */
@@ -405,10 +421,10 @@ body {
   display: flex;
   align-items: center;
   gap: 5px;
-  background-color: #FFF2DE;
+  background-color: var(--theme-panel);
   padding: 3px 8px;
   border-radius: 6px;
-  border: 1px solid #D8BFD1;
+  border: 1px solid var(--theme-button);
   height: 30px;
 }
 .mode-selector-group label {
@@ -467,7 +483,7 @@ body {
   transition: opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
 }
 @media (hover: hover) and (pointer: fine) {
-  .link-help-btn:hover { opacity: 1; background-color: #FFF2DE; color: #D28BC4; }
+  .link-help-btn:hover { opacity: 1; background-color: var(--theme-panel); color: var(--theme-accent); }
 }
 
 .input-masked {
@@ -512,7 +528,7 @@ body {
   border-radius: 5px;
   width: auto;
   height: 30px;
-  background-color: #C7EFFF;
+  background-color: var(--theme-menu);
   margin-left: auto;
 }
 
@@ -522,7 +538,7 @@ body {
   align-items: center;
   gap: 10px;
   border-radius: 10px;
-  background-color: #C7EFFF;
+  background-color: var(--theme-menu);
   padding: 0 5px;
 }
 
@@ -531,8 +547,8 @@ body {
   min-width: 100px;
   height: 28px;
   border-radius: 25px;
-  border: 2px solid #8B4513;
-  background-color: #D8BFD1;
+  border: 2px solid var(--theme-border);
+  background-color: var(--theme-button);
   color: #2B2B2B;
   font-size: 12px;
   cursor: pointer;
@@ -545,7 +561,7 @@ body {
 }
 @media (hover: hover) and (pointer: fine) {
   .menu-button:hover, .menu3-button:hover, .options-button:hover {
-    background-color: #E2AFD2;
+    background-color: var(--theme-button-hover);
   }
 }
 .menu-button:active:not(:disabled),
@@ -553,7 +569,7 @@ body {
 .options-button:active:not(:disabled) { transform: scale(0.97); }
 .menu-button.active, .menu3-button.active, .options-button.active {
   border: 2px solid var(--ui-label-color);
-  background-color: #D28BC4;
+  background-color: var(--theme-accent);
   font-weight: bold;
 }
 
@@ -588,8 +604,8 @@ body {
   min-width: 110px;
   height: 28px;
   border-radius: 15px;
-  border: 2px solid #8B4513;
-  background-color: #FFF2DE;
+  border: 2px solid var(--theme-border);
+  background-color: var(--theme-panel);
   color: #2B2B2B;
   font-size: 12px;
   font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
@@ -599,10 +615,10 @@ body {
   transition: background-color 0.2s, border-color 0.2s;
 }
 @media (hover: hover) and (pointer: fine) {
-  .capsule-checkbox-label:hover { background-color: #FFE3C1; }
+  .capsule-checkbox-label:hover { background-color: var(--theme-panel-hover); }
 }
 .capsule-checkbox-label:has(input:checked) {
-  background-color: #D28BC4;
+  background-color: var(--theme-accent);
   border-color: #000000;
   font-weight: bold;
 }
@@ -624,7 +640,7 @@ body {
   height: 100%;
   gap: 10px;
   padding: 5px;
-  background-color: #F1C6D2;
+  background-color: var(--theme-view);
   border-radius: 10px;
   overflow-y: hidden;
   overflow-x: hidden;
@@ -706,10 +722,10 @@ body {
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
 }
 @media (hover: hover) and (pointer: fine) {
-  .color-picker-trigger:hover::before { box-shadow: inset 0 0 0 1px #8B4513; }
+  .color-picker-trigger:hover::before { box-shadow: inset 0 0 0 1px var(--theme-border); }
 }
 .color-picker-trigger:focus-visible {
-  outline: 2px solid #8B4513;
+  outline: 2px solid var(--theme-border);
   outline-offset: 2px;
 }
 /* 背景色はページ背景そのものが常に見えているので、トリガーに色見本を出さず
@@ -722,7 +738,7 @@ body {
   width: 264px;
   box-sizing: border-box;
   padding: 12px;
-  border: 1px solid #D8BFD1;
+  border: 1px solid var(--theme-button);
   border-radius: 10px;
   background: #FFFDF8;
   box-shadow: 0 8px 24px rgba(70, 40, 20, 0.22);
@@ -761,7 +777,7 @@ body {
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
 }
 .color-picker-saturation:focus-visible {
-  outline: 2px solid #8B4513;
+  outline: 2px solid var(--theme-border);
   outline-offset: 2px;
 }
 .color-picker-saturation-cursor {
@@ -836,7 +852,7 @@ body {
   font: 12px Consolas, "Courier New", monospace;
   text-transform: uppercase;
 }
-.color-picker-hex:focus { outline: 2px solid rgba(139, 69, 19, 0.25); border-color: var(--ui-label-color); }
+.color-picker-hex:focus { outline: 2px solid color-mix(in srgb, var(--theme-border) 25%, transparent); border-color: var(--ui-label-color); }
 .color-picker-hex.is-invalid { border-color: #C62828; }
 .color-picker-presets-label {
   margin-top: 10px;
@@ -865,8 +881,8 @@ body {
   .color-picker-preset:hover { transform: scale(1.08); }
 }
 .color-picker-preset:active { transform: scale(0.95); }
-.color-picker-preset.is-selected { box-shadow: 0 0 0 2px #FFF, 0 0 0 4px #8B4513; }
-.color-picker-preset:focus-visible { outline: 2px solid #8B4513; outline-offset: 1px; }
+.color-picker-preset.is-selected { box-shadow: 0 0 0 2px #FFF, 0 0 0 4px var(--theme-border); }
+.color-picker-preset:focus-visible { outline: 2px solid var(--theme-border); outline-offset: 1px; }
 .slider-group { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; min-width: 80px; }
 .tiny-label { font-size: 11px; color: #4A4A4A; margin-bottom: 10px; }
 .setting-row input[type="range"] { width: 100%; height: 5px; cursor: pointer; margin: 0; }
@@ -878,10 +894,10 @@ body {
   flex: 0 0 34%;
   display: flex;
   flex-direction: column;
-  background-color: #F8E6F0;
+  background-color: var(--theme-soft);
   border-radius: 8px;
   padding: 8px;
-  border: 1px solid #D8BFD1;
+  border: 1px solid var(--theme-button);
   height: 100%;
   overflow-y: auto;
 }
@@ -895,11 +911,11 @@ body {
   background-color: #FFFFFF;
   border-radius: 8px;
   padding: 12px;
-  box-shadow: 0 2px 4px rgba(139, 69, 19, 0.1);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--theme-border) 10%, transparent);
   display: flex; flex-direction: column; gap: 10px;
 }
 .full-height-card { height: 100%; }
-.card-title { font-size: 14px; font-weight: bold; color: var(--ui-label-color); border-bottom: 2px dashed #F1C6D2; padding-bottom: 5px; margin-bottom: 5px; }
+.card-title { font-size: 14px; font-weight: bold; color: var(--ui-label-color); border-bottom: 2px dashed var(--theme-view); padding-bottom: 5px; margin-bottom: 5px; }
 .auto-stop-warning-badge {
   /* 上下の padding を効かせるため inline-block を維持する（表示切替は hidden 属性）。 */
   display: inline-block;
@@ -932,7 +948,7 @@ body {
   .card-select:hover { border-color: var(--ui-label-color); }
 }
 .card-select:focus-visible {
-  outline: 2px solid #8B4513;
+  outline: 2px solid var(--theme-border);
   outline-offset: 1px;
 }
 
@@ -963,7 +979,7 @@ body {
 .translation-test-input:focus {
   outline: none;
   border-color: var(--ui-label-color);
-  box-shadow: 0 0 0 2px rgba(139, 69, 19, 0.12);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--theme-border) 12%, transparent);
 }
 .translation-test-actions {
   display: flex;
@@ -1136,17 +1152,17 @@ body {
   margin: 4px 0;
 }
 .options-settings-list::-webkit-scrollbar-thumb {
-  background: rgba(139, 69, 19, 0.25);
+  background: color-mix(in srgb, var(--theme-border) 25%, transparent);
   border-radius: 4px;
   transition: background 0.2s;
 }
 .options-settings-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 69, 19, 0.55);
+  background: color-mix(in srgb, var(--theme-border) 55%, transparent);
 }
 /* Firefox */
 .options-settings-list {
   scrollbar-width: thin;
-  scrollbar-color: rgba(139, 69, 19, 0.25) transparent;
+  scrollbar-color: color-mix(in srgb, var(--theme-border) 25%, transparent) transparent;
 }
 
 .options-test-area {
@@ -1161,14 +1177,14 @@ body {
   background-color: #FFFFFF;
   border-radius: 8px;
   padding: 6px 14px 8px;
-  box-shadow: 0 2px 4px rgba(139, 69, 19, 0.1);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--theme-border) 10%, transparent);
 }
 
 .settings-section-title {
   font-size: 14px;
   font-weight: bold;
   color: var(--ui-label-color);
-  border-bottom: 2px dashed #F1C6D2;
+  border-bottom: 2px dashed var(--theme-view);
   padding: 6px 0 5px;
   margin: 0 0 4px;
   display: flex;
@@ -1186,7 +1202,7 @@ body {
   flex: 0 0 auto;
   padding: 4px 0;
   gap: 10px;
-  border-bottom: 1px solid #FBE9EE;
+  border-bottom: 1px solid var(--theme-divider);
 }
 .settings-section .settings-row:last-child {
   border-bottom: none;
@@ -1370,15 +1386,15 @@ body {
   background: transparent;
 }
 .translation-test-pane-result::-webkit-scrollbar-thumb {
-  background: rgba(139, 69, 19, 0.25);
+  background: color-mix(in srgb, var(--theme-border) 25%, transparent);
   border-radius: 3px;
 }
 .translation-test-pane-result::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 69, 19, 0.55);
+  background: color-mix(in srgb, var(--theme-border) 55%, transparent);
 }
 .translation-test-pane-result {
   scrollbar-width: thin;
-  scrollbar-color: rgba(139, 69, 19, 0.25) transparent;
+  scrollbar-color: color-mix(in srgb, var(--theme-border) 25%, transparent) transparent;
 }
 
 @media screen and (max-width: 950px) {
@@ -1440,7 +1456,7 @@ body {
   display: flex;
   flex-direction: column;
   background-color: #FFF;
-  border: 1px solid #D8BFD1;
+  border: 1px solid var(--theme-button);
   border-radius: 12px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
   overflow: hidden;
@@ -1461,8 +1477,8 @@ body {
   justify-content: space-between;
   gap: 10px;
   padding: 12px 16px;
-  background-color: #F1C6D2;
-  border-bottom: 1px solid #D8BFD1;
+  background-color: var(--theme-view);
+  border-bottom: 1px solid var(--theme-button);
 }
 
 .obs-modal-title {
@@ -1487,7 +1503,7 @@ body {
   transition: background-color 0.2s;
 }
 @media (hover: hover) and (pointer: fine) {
-  .obs-modal-close:hover { background-color: rgba(139, 69, 19, 0.12); }
+  .obs-modal-close:hover { background-color: color-mix(in srgb, var(--theme-border) 12%, transparent); }
 }
 
 .obs-modal-body {
@@ -1556,7 +1572,7 @@ body {
   display: flex;
   flex-direction: column;
   background-color: #FFF;
-  border: 1px solid #D8BFD1;
+  border: 1px solid var(--theme-button);
   border-radius: 12px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
   overflow: hidden;
@@ -1573,8 +1589,8 @@ body {
   justify-content: space-between;
   gap: 10px;
   padding: 12px 16px;
-  background-color: #F1C6D2;
-  border-bottom: 1px solid #D8BFD1;
+  background-color: var(--theme-view);
+  border-bottom: 1px solid var(--theme-button);
 }
 .settings-modal-title {
   display: flex;
@@ -1597,7 +1613,7 @@ body {
   transition: background-color 0.2s;
 }
 @media (hover: hover) and (pointer: fine) {
-  .settings-modal-close:hover { background-color: rgba(139, 69, 19, 0.12); }
+  .settings-modal-close:hover { background-color: color-mix(in srgb, var(--theme-border) 12%, transparent); }
 }
 .settings-modal-body {
   padding: 12px 16px 16px;
@@ -1607,7 +1623,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background-color: #F8E6F0;
+  background-color: var(--theme-soft);
 }
 
 /* flex 子要素の既定 (flex-shrink: 1) だと、行が増えて max-height を超えたときに
