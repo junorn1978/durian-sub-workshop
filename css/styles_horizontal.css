@@ -16,7 +16,7 @@
   /* 操作パネルのラベル色（#8B4513 を一段濃くしてコントラストを確保） */
   --ui-label-color: #74390D;
 
-  /* 操作パネルの配色（布丁狗）。色を変えるときはこの組だけ差し替える。
+  /* 操作パネルの配色（布丁狗）。色を変えるときはこの組だけ差し替える（ch2 は下の [data-ch="2"]）。
      字幕そのものの色は設定で決まるので、ここには含めない。 */
   --theme-panel: #FFF2DE;        /* 操作パネル・状態列の地、通常ボタン */
   --theme-panel-hover: #FFE3C1;
@@ -31,6 +31,26 @@
   --theme-divider: #FBE9EE;
   --theme-menu: #C7EFFF;         /* 頁籤ボタンの並ぶ帯 */
   --theme-on-label: #FFF7EC;     /* --ui-label-color の上の文字 */
+}
+
+/* ch2（index.html?ch=2、別の --user-data-dir で開く2つ目の bat）は庫洛米色。
+   コラボ相手の声などを別に字幕にする窓で、配信中に1つ目とひと目で見分けるため。
+   黒い枠・紫の地・ピンクの選択色。文字色（#2B2B2B など）は明るい地のままなので変えない。 */
+:root[data-ch="2"] {
+  --ui-label-color: #4A2A6A;
+  --theme-panel: #EEE6F8;
+  --theme-panel-hover: #E0D2F2;
+  --theme-ink: #2E1F40;
+  --theme-recorder: #C6B0E6;
+  --theme-border: #2B2233;
+  --theme-button: #D6C6EE;
+  --theme-button-hover: #F5BDDA;
+  --theme-accent: #F38FC1;
+  --theme-view: #CDB9EA;
+  --theme-soft: #F3EDFB;
+  --theme-divider: #EEE6F8;
+  --theme-menu: #3B2F4A;
+  --theme-on-label: #FFF5FB;
 }
 
 *, *::before, *::after {

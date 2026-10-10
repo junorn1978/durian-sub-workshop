@@ -94,6 +94,8 @@
 
     // Mode-based element visibility (single file replaces 5 separate overlay HTMLs)
     const mode = hashParams.get('mode') || urlParams.get('mode') || 'all';
+    // 何路目の字幕か（ch2 の窓が作った来源は ch=2 付き）。ch の無いものは1路目。
+    const channel = (hashParams.get('ch') || urlParams.get('ch')) === '2' ? 2 : 1;
     const hideMap = {
       source:  '#target-text-1,#target-text-2,#target-text-3',
       target1: '#source-text,#target-text-2,#target-text-3',
@@ -242,7 +244,8 @@
            sourceEl.textContent = ''; // Clear connecting message
         }
 
-        if (op === 5 && d.eventType === 'CustomEvent' && d.eventData && d.eventData.type === 'hamham_subtitle_update') {
+        if (op === 5 && d.eventType === 'CustomEvent' && d.eventData && d.eventData.type === 'hamham_subtitle_update'
+            && (d.eventData.ch === 2 ? 2 : 1) === channel) {
           const data = d.eventData;
 
           // 處理對齊

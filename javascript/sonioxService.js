@@ -356,6 +356,8 @@ function buildSegmentDiag(cut, chars, ctxChars, tokens, msgs) {
   const diag = { cut, chars, ctx: ctxChars, toks: tokens.length, msgs };
   // 聽的是分頁（連動對象）時標上，音量跟麥克風的不能混在一起比。麥克風時省略。
   if (inputIsTab) diag.src = 'tab';
+  // ch2 の窓（2つ目の bat）の記録は1路目と分けて見る。1路目は省略。
+  if (document.documentElement.dataset.ch === '2') diag.ch = 2;
   if (tokens.length === 0) return diag;
 
   // 只記非零間隔。連續發話時 start_ms 會緊貼前一個 end_ms，間隔為 0 的佔大多數，

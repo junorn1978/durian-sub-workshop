@@ -22,12 +22,20 @@
  *   6 Request         送出一個請求（BroadcastCustomEvent、CreateInput…）
  *   7 RequestResponse 對應 op 6 的回覆，用 requestId 配對
  * 規格：https://github.com/obsproject/obs-websocket/blob/master/docs/generated/protocol.md
+ *
+ * 【ch2（index.html?ch=2）】2つ目の bat で開いた窓も同じ OBS へ同じ種類の事件を送るので、
+ * 事件に ch を付け、overlay の網址にも &ch=2 を付けて自分の路だけ描かせる（ch の無いものは
+ * 1路目扱いなので、既存の来源は設定し直さなくていい）。自動で作る来源の名前も分ける
+ * （HamHam字幕2-…）。分けないと ch2 が1路目の来源の網址を書き換えてしまう。
  */
 
 import { getSetting, getSettingBool } from './settingsStore.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('OBSBridge');
+
+/** 何路目の窓か。index.html の <head> で ?ch=2 を見て付けた印を読む。 */
+const CHANNEL = document.documentElement.dataset.ch === '2' ? 2 : 1;
 
 const OBS_ENABLED_KEY = 'obs-ws-enabled';
 const OBS_IP_KEY = 'obs-ws-ip';
@@ -63,7 +71,8 @@ function generateObsOverlayUrl(mode) {
   const url = getObsUrl();
   const pwd = getPassword();
   const modeParam = mode && mode !== 'all' ? `&mode=${encodeURIComponent(mode)}` : '';
-  return `${baseUrl}/obs_overlay.html#url=${encodeURIComponent(url)}&pwd=${encodeURIComponent(pwd)}${modeParam}`;
+  const chParam = CHANNEL === 2 ? '&ch=2' : '';
+  return `${baseUrl}/obs_overlay.html#url=${encodeURIComponent(url)}&pwd=${encodeURIComponent(pwd)}${modeParam}${chParam}`;
 }
 
 /**
@@ -163,12 +172,13 @@ async function executeAutoSetup() {
 
     log.debug(`自動設定開始。對象シーン: ${mainSceneName}`);
 
+    const prefix = CHANNEL === 2 ? 'HamHam字幕2' : 'HamHam字幕';
     const sourcesToCreate = [
-      { name: 'HamHam字幕-全体表示', mode: 'all', visible: true },
-      { name: 'HamHam字幕-音声', mode: 'source', visible: false },
-      { name: 'HamHam字幕-翻訳1', mode: 'target1', visible: false },
-      { name: 'HamHam字幕-翻訳2', mode: 'target2', visible: false },
-      { name: 'HamHam字幕-翻訳3', mode: 'target3', visible: false }
+      { name: `${prefix}-全体表示`, mode: 'all', visible: true },
+      { name: `${prefix}-音声`, mode: 'source', visible: false },
+      { name: `${prefix}-翻訳1`, mode: 'target1', visible: false },
+      { name: `${prefix}-翻訳2`, mode: 'target2', visible: false },
+      { name: `${prefix}-翻訳3`, mode: 'target3', visible: false }
     ];
 
     for (const source of sourcesToCreate) {
@@ -232,7 +242,7 @@ async function executeAutoSetup() {
       }
     }
 
-    alert("現在のシーンに5つの字幕ソースを追加しました。\n初期状態では「全体表示」のみ表示されます。必要に応じて、各ソースの配置やグループ分けを調整してください。");
+    alert(`現在のシーンに5つの字幕ソース（${prefix}-…）を追加しました。\n初期状態では「全体表示」のみ表示されます。必要に応じて、各ソースの配置やグループ分けを調整してください。`);
 
   } catch (error) {
     log.error("自動設定失敗:", error);
@@ -437,6 +447,7 @@ function broadcastSubtitleUpdate() {
       requestData: {
         eventData: {
           type: 'hamham_subtitle_update',
+          ch: CHANNEL,
           source: latestSourceText || '',
           target1: latestTranslations[0] || '',
           target2: latestTranslations[1] || '',
