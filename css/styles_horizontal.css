@@ -193,6 +193,12 @@ body {
   white-space: nowrap;
   color: var(--theme-ink);
 }
+/* 2つ目の窓では「タブの音声」の右（1つ目で「＋2つ目の窓」がある位置）に出す目印（secondWindow.js） */
+.status-ch-label {
+  white-space: nowrap;
+  color: var(--theme-ink);
+  font-weight: bold;
+}
 /* 半透明黑底の膠囊で底色と區隔し、設定値を強調。過長は省略（全名は title） */
 .status-mic-select {
   width: 170px;

@@ -5,8 +5,8 @@
  *
  * 第一個視窗：左下「タブの音声」右邊的按鈕打開它。已經開著就只叫到前面——
  *   用同一個名稱再 window.open(網址) 會重新載入那個視窗，辨識中的話就斷了。
- * 第二個視窗：不顯示按鈕（不能再開第三個：太多使用者不好管理）。
- *   用另一組配色（styles_horizontal.css 的 [data-ch="2"]）和標題的（2）來區分，這兩樣在 index.html 的 <head> 就先決定好。
+ * 第二個視窗：按鈕的位置改成「2つ目の窓」的文字（不能再開第三個：太多使用者不好管理）。
+ *   再加上另一組配色（styles_horizontal.css 的 [data-ch="2"]）和標題的（2）來區分，這兩樣在 index.html 的 <head> 就先決定好。
  *
  * OBS 的視窗擷取分得開同一個 Chrome 程序的兩個視窗（2026-10-10 實測）。之前以為
  * 分不開，其實是 OBS 裡兩個來源是同一個來源的「參照」。
@@ -35,10 +35,11 @@ function openSecondWindow() {
 /** 頁面載入時呼叫一次。 */
 export function mountSecondWindow() {
   const button = document.getElementById('second-window-btn');
-  if (!button) return;
   if (CHANNEL === 2) {
-    button.hidden = true;
+    if (button) button.hidden = true;
+    const label = document.getElementById('second-window-label');
+    if (label) label.hidden = false;
     return;
   }
-  button.addEventListener('click', openSecondWindow);
+  button?.addEventListener('click', openSecondWindow);
 }
