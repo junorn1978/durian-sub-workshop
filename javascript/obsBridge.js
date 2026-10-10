@@ -161,89 +161,88 @@ function sendSingleRequest(requestType, requestData) {
  *
  * 只有「全体表示」預設為顯示，其餘四個建立後隱藏，讓使用者自行決定要不要拆開排版。
  */
+/* 字幕來源收進的場景（1路目 HamHam字幕、ch2 HamHam字幕2），再把這個場景當成一個來源
+   加進目前的場景。obs-websocket 不能建立群組（沒有 CreateGroup），所以用場景當資料夾：
+   同一個場景來源可以放進好幾個場景，排一次位置，每個場景都跟著一起。
+   名稱不能和來源重複（OBS 的場景也是來源），HamHam字幕-… 那組不會撞到。 */
+const SOURCE_PREFIX = CHANNEL === 2 ? 'HamHam字幕2' : 'HamHam字幕';
+const NEST_SCENE = SOURCE_PREFIX;
+
+/* 把 sourceName 放進 sceneName，已經在裡面就不動，回傳 sceneItemId。
+   CreateSceneItem 遇到場景裡已有的來源不會失敗，而是再加一份（參照），所以要先查。 */
+async function ensureSceneItem(sceneName, sourceName, enabled) {
+  try {
+    const { sceneItemId } = await sendSingleRequest('GetSceneItemId', { sceneName, sourceName });
+    return sceneItemId;
+  } catch {
+    const res = await sendSingleRequest('CreateSceneItem', {
+      sceneName, sourceName, ...(enabled != null && { sceneItemEnabled: enabled })
+    });
+    return res.sceneItemId;
+  }
+}
+
 async function executeAutoSetup() {
   try {
     const currentSceneResponse = await sendSingleRequest('GetCurrentProgramScene');
-    const mainSceneName = currentSceneResponse.currentProgramSceneName || currentSceneResponse.sceneName || currentSceneResponse.sceneUuid;
-    if (!mainSceneName) throw new Error("現在のシーン名を取得できませんでした");
+    const liveScene = currentSceneResponse.currentProgramSceneName || currentSceneResponse.sceneName;
+    if (!liveScene) throw new Error("現在のシーン名を取得できませんでした");
 
-    log.debug(`自動設定開始。對象シーン: ${mainSceneName}`);
+    log.debug(`自動設定開始。對象シーン: ${liveScene}（字幕は ${NEST_SCENE} に入れる）`);
 
-    const prefix = CHANNEL === 2 ? 'HamHam字幕2' : 'HamHam字幕';
+    try { await sendSingleRequest('CreateScene', { sceneName: NEST_SCENE }); }
+    catch { /* 已經存在 */ }
+
+    const overlayCss = 'body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }';
     const sourcesToCreate = [
-      { name: `${prefix}-全体表示`, mode: 'all', visible: true },
-      { name: `${prefix}-音声`, mode: 'source', visible: false },
-      { name: `${prefix}-翻訳1`, mode: 'target1', visible: false },
-      { name: `${prefix}-翻訳2`, mode: 'target2', visible: false },
-      { name: `${prefix}-翻訳3`, mode: 'target3', visible: false }
+      { name: `${SOURCE_PREFIX}-全体表示`, mode: 'all', visible: true },
+      { name: `${SOURCE_PREFIX}-音声`, mode: 'source', visible: false },
+      { name: `${SOURCE_PREFIX}-翻訳1`, mode: 'target1', visible: false },
+      { name: `${SOURCE_PREFIX}-翻訳2`, mode: 'target2', visible: false },
+      { name: `${SOURCE_PREFIX}-翻訳3`, mode: 'target3', visible: false }
     ];
 
     for (const source of sourcesToCreate) {
+      const url = generateObsOverlayUrl(source.mode);
       try {
-        const url = generateObsOverlayUrl(source.mode);
         await sendSingleRequest('CreateInput', {
-          sceneName: mainSceneName,
+          sceneName: NEST_SCENE,
           inputName: source.name,
           inputKind: 'browser_source',
-          inputSettings: {
-            url: url,
-            width: 1280,
-            height: 200,
-            reroute_audio: false,
-            css: 'body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }'
-          },
+          inputSettings: { url, width: 1280, height: 200, reroute_audio: false, css: overlayCss },
           sceneItemEnabled: source.visible
         });
-        log.debug(`已在目前場景建立來源: ${source.name}`);
+        log.debug(`已建立來源: ${source.name}`);
       } catch (e) {
-        log.debug(`來源 ${source.name} 無法建立，多半是已經存在，改走修復流程。原因:`, e.message);
-        
+        /* 來源已經存在（OBS 裡任何地方）：更新設定（網址、密碼可能變了），沒在字幕場景裡才放進去。 */
+        log.debug(`來源 ${source.name} 已存在，改為更新。原因:`, e.message);
         try {
-          // 既然來源已經存在於 OBS 中，我們需要確保它有被加進「當前場景」
-          try {
-             await sendSingleRequest('CreateSceneItem', {
-                sceneName: mainSceneName,
-                sourceName: source.name
-             });
-             log.debug(`已將既有來源 ${source.name} 加入目前場景`);
-          } catch(errAdd) {
-             // 如果加入失敗，通常是因為它「已經在這個場景裡了」，這是可以接受的
-          }
-
-          // 更新它的設定 (網址可能變了、密碼可能變了)
           await sendSingleRequest('SetInputSettings', {
             inputName: source.name,
-            inputSettings: {
-              url: generateObsOverlayUrl(source.mode),
-              width: 1280,
-              height: 200,
-              css: 'body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }'
-            }
+            inputSettings: { url, width: 1280, height: 200, css: overlayCss }
           });
-          
-          // 顯示狀態要透過 sceneItemId 設定，因此得先查出這個來源在場景中的 id。
-          const idRes = await sendSingleRequest('GetSceneItemId', {
-              sceneName: mainSceneName,
-              sourceName: source.name
-          });
-          
+          const sceneItemId = await ensureSceneItem(NEST_SCENE, source.name);
           await sendSingleRequest('SetSceneItemEnabled', {
-              sceneName: mainSceneName,
-              sceneItemId: idRes.sceneItemId,
-              sceneItemEnabled: source.visible
+            sceneName: NEST_SCENE, sceneItemId, sceneItemEnabled: source.visible
           });
           log.debug(`既有來源已更新: ${source.name}`);
-        } catch(err2) {
-          log.error(`來源 ${source.name} 無法修復:`, err2.message);
+        } catch (err2) {
+          log.error(`來源 ${source.name} 無法更新:`, err2.message);
         }
       }
     }
 
-    alert(`現在のシーンに5つの字幕ソース（${prefix}-…）を追加しました。\n初期状態では「全体表示」のみ表示されます。必要に応じて、各ソースの配置やグループ分けを調整してください。`);
+    // 正在看的就是字幕場景本身時，不能把它放進自己裡面。
+    if (liveScene !== NEST_SCENE) await ensureSceneItem(liveScene, NEST_SCENE, true);
+
+    alert(`字幕ソースを5つ「${NEST_SCENE}」シーンにまとめ、現在のシーンに追加しました。
+初期状態では「全体表示」のみ表示されます。位置や大きさは「${NEST_SCENE}」シーンの中で調整すると、このシーンを入れたすべてのシーンに反映されます。
+以前のバージョンで現在のシーンに直接追加した「${SOURCE_PREFIX}-…」が残っている場合は、字幕が二重に表示されるので削除してください。`);
 
   } catch (error) {
     log.error("自動設定失敗:", error);
-    alert("OBSへの字幕ソースの追加に失敗しました。\n" + error.message);
+    alert("OBSへの字幕ソースの追加に失敗しました。
+" + error.message);
   }
 }
 
