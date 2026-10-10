@@ -72,15 +72,17 @@ async function openStream(deviceId) {
  * 開麥克風並建好音訊路徑。
  * @param {object} [opts]
  * @param {string}   [opts.deviceId]     '' / undefined → 系統預設
+ * @param {MediaStream} [opts.stream]    已經開好的音訊（分頁的聲音，見 tabAudio.js）。給了就不開裝置，
+ *   關閉時一樣會 stop() 它，所以交進來的要是複製的那份。
  * @param {Function} [opts.onPause]      辨識器聽到的聲音安靜下來了（350ms）
  * @param {Function} [opts.onShortPause] 短暫安靜（150ms，換氣）
  * @param {Function} [opts.onSpeech]     正在講話（講話期間每 0.5 秒重複）
- * @param {Function} [opts.onEnded]      裝置不見了（拔掉、停用）
+ * @param {Function} [opts.onEnded]      裝置不見了（拔掉、停用），或分頁的共用結束了
  * @returns {Promise<{ track: MediaStreamTrack, label: string, deviceId: string, fellBack: boolean,
  *   hold: Function, release: Function, close: Function }>}
  */
-export async function openAudioInput({ deviceId = '', onPause, onShortPause, onSpeech, onEnded } = {}) {
-  const { stream, fellBack } = await openStream(deviceId);
+export async function openAudioInput({ deviceId = '', stream: given, onPause, onShortPause, onSpeech, onEnded } = {}) {
+  const { stream, fellBack } = given ? { stream: given, fellBack: false } : await openStream(deviceId);
   const source = stream.getAudioTracks()[0];
 
   let ctx;

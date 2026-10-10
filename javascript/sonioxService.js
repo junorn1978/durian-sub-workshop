@@ -10,13 +10,16 @@
 
 import { getLang, getSonioxEndpointSettings } from "./config.js";
 import { createLogger } from "./logger.js";
-import { getSelectedMicId } from "./micSelector.js";
+import { getSelectedMicId, isTabAudioSelected } from "./micSelector.js";
+import { cloneTabStream } from "./tabAudio.js";
 
 const log = createLogger('Soniox');
 
 const DEFAULT_LIFECYCLE_HANDLERS = {
   onStatusChange: () => {},
-  onStop: () => {}
+  onStop: () => {},
+  // 麥克風拔掉、分頁的共用結束。要不要停、怎麼告知交給呼叫端（speechCapture）。
+  onInputEnded: () => {}
 };
 
 // #region [全域狀態變數]
@@ -350,6 +353,8 @@ function levelDb(fromMs, toMs, q) {
  */
 function buildSegmentDiag(cut, chars, ctxChars, tokens, msgs) {
   const diag = { cut, chars, ctx: ctxChars, toks: tokens.length, msgs };
+  // 聽的是分頁（連動對象）時標上，音量跟麥克風的不能混在一起比。麥克風時省略。
+  if (inputIsTab) diag.src = 'tab';
   if (tokens.length === 0) return diag;
 
   // 只記非零間隔。連續發話時 start_ms 會緊貼前一個 end_ms，間隔為 0 的佔大多數，
@@ -571,9 +576,13 @@ function cleanupAudioResources() {
   }
 }
 
+/** 現在聽的是分頁的聲音嗎（斷句診斷的 src）。 */
+let inputIsTab = false;
+
 /**
  * 開左下角選定的麥克風；裝置不見了（拔掉、改名）就退回既定裝置。權限錯誤直接往上丟。
  * 前處理（AGC・回音消除・降噪）維持開啟：這是麥克風輸入，跟 hamham 的分頁音訊不同。
+ * 選的是分頁的聲音時，拿 speechCapture 開好的共用的複製（見 tabAudio.js），前處理全關。
  */
 const MIC_CONSTRAINTS = {
   autoGainControl:  true,
@@ -583,6 +592,7 @@ const MIC_CONSTRAINTS = {
 };
 
 async function openMicStream() {
+  if (isTabAudioSelected()) return cloneTabStream();
   const deviceId = getSelectedMicId();
   if (deviceId) {
     try {
@@ -598,17 +608,19 @@ async function openMicStream() {
   return navigator.mediaDevices.getUserMedia({ audio: MIC_CONSTRAINTS, video: false });
 }
 
-/* 麥克風被拔掉時：換到目前能開的裝置，連線不斷。 */
+/* 麥克風被拔掉、分頁的共用結束時：交給呼叫端停止。不自動換到別的麥克風——
+   換過去的可能是房間裡的麥克風，字幕會開始翻譯不該翻的聲音。 */
 function watchMicEnded(stream, sessionId) {
+  inputIsTab = isTabAudioSelected();
   stream.getAudioTracks()[0]?.addEventListener('ended', () => {
     if (sessionId !== session || stream !== globalStream) return;
-    log.warn("マイクが切断されました。開き直します");
-    switchSonioxMic();
+    log.warn(inputIsTab ? "タブの共有が終了しました" : "マイクが切断されました");
+    lifecycleHandlers.onInputEnded();
   });
 }
 
 /**
- * 辨識中換麥克風（左下角選了別的、或裝置被拔掉）。只換音訊來源接到高通濾波器上，
+ * 辨識中換麥克風（左下角選了別的）。只換音訊來源接到高通濾波器上，
  * AudioContext、worklet、Soniox 連線都不動，所以不會斷線也不會重新計費。
  * 一支麥克風都開不了才停止。
  */
