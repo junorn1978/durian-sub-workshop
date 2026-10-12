@@ -277,7 +277,7 @@ function buildContextText() {
  * 「60ms 量化的時間戳看起來像停頓」（拉長音、句尾標點的時間戳較晚），
  * 要看那段間隔裡實際有沒有聲音。
  *
- * 量的是送給 Soniox 的那份聲音（AGC・降噪・90Hz 高通之後），也就是辨識器實際聽到的。
+ * 量的是送給 Soniox 的那份聲音（回音消除・降噪・90Hz 高通之後），也就是辨識器實際聽到的。
  * 每 20ms 記一格均方值，位置照「這條連線送出的音訊」排——跟 Soniox 的 start_ms / end_ms
  * 是同一條時間軸（從這條連線收到的第一個樣本算起）。所以：
  *   - 只在真正 send 的時候記（斷線期間存著的那些，補送時才記；超過上限被丟掉的不記）
@@ -585,11 +585,13 @@ let inputIsTab = false;
 
 /**
  * 開左下角選定的麥克風；裝置不見了（拔掉、改名）就退回既定裝置。權限錯誤直接往上丟。
- * 前處理（AGC・回音消除・降噪）維持開啟：這是麥克風輸入，跟 hamham 的分頁音訊不同。
+ * 回音消除・降噪維持開啟：這是麥克風輸入，跟 hamham 的分頁音訊不同。
+ * AGC 關閉：主播沒講話時它會把增益拉高，把房間裡另一台電腦外放的留言朗讀（棒読み）
+ * 放大到 Soniox 聽得清楚。關掉後遠處的聲音維持原本的小音量（v3.1.44，實測中）。
  * 分頁共用中（左下角的「タブの音声」按鈕）就拿共用的複製（見 tabAudio.js），前處理全關。
  */
 const MIC_CONSTRAINTS = {
-  autoGainControl:  true,
+  autoGainControl:  false,
   echoCancellation: true,
   noiseSuppression: true,
   channelCount: 1,
