@@ -70,6 +70,7 @@ let audioWorkletNode = null;
 let sinkGainNode = null;
 
 let isConfigured = false;          // config JSON 已送出，可以送音訊
+let sentEndpointSettings = null;   // 這條連線送出的端點偵測值（斷句診斷用）
 let pendingAudioChunks = [];
 
 // 每次開始 / 停止都 +1。舊連線、舊計時器、舊音訊回呼都靠這個判斷自己已經過期，
@@ -359,6 +360,13 @@ function buildSegmentDiag(cut, chars, ctxChars, tokens, msgs) {
   if (inputIsTab) diag.src = 'tab';
   // ch2 の窓の記録は1路目と分けて見る。1路目は省略。
   if (CHANNEL === 2) diag.ch = 2;
+  // 這條連線實際送給 Soniox 的端點偵測值。使用者沒動過設定時是 config.js 的預設，
+  // 動過就是 localStorage 的值——從後端紀錄看不出是哪一種，所以每段都附上。
+  if (sentEndpointSettings) {
+    diag.lat = sentEndpointSettings.latencyLevel;
+    diag.sens = sentEndpointSettings.sensitivity;
+    diag.maxDelay = sentEndpointSettings.maxDelayMs;
+  }
   if (tokens.length === 0) return diag;
 
   // 只記非零間隔。連續發話時 start_ms 會緊貼前一個 end_ms，間隔為 0 的佔大多數，
@@ -738,6 +746,7 @@ async function buildAudioPipeline(stream, sessionId) {
 
 function buildConfig(sampleRate) {
   const endpoint = getSonioxEndpointSettings();
+  sentEndpointSettings = endpoint;
   const langObj = sessionLangObj;
 
   const config = {
