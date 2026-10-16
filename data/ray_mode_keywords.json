@@ -172,6 +172,11 @@
   { "lang": "zh-TW", "source": "砲友", "target": "**" },
   { "lang": "zh-TW", "source": "炮友", "target": "**" },
   { "lang": "zh-TW", "source": "哈希標籤", "target": "標籤" },
+  { "lang": "zh-TW", "source": "れいか", "target": "reika" },
+  { "lang": "zh-TW", "source": "玲華", "target": "reika" },
+  { "lang": "zh-TW", "source": "玲花", "target": "reika" },
+  { "lang": "zh-TW", "source": "玲香", "target": "reika" },
+  { "lang": "zh-TW", "source": "麗華", "target": "reika" },
 
   { "lang": "en-US", "source": "\\bTrump\\b", "target": "***" },
   { "lang": "en-US", "source": "\\bHitler\\b", "target": "***" },
