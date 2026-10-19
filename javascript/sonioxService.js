@@ -297,6 +297,7 @@ function resetLevelTimeline(sampleRate) {
   levelSlotCount = 0;
   levelAccSum = 0;
   levelAccN = 0;
+  prevSegmentEndMs = null;
   levelSlotSamples = Math.max(1, Math.round(sampleRate * LEVEL_SLOT_MS / 1000));
 }
 
@@ -334,6 +335,41 @@ function levelDb(fromMs, toMs, q) {
   values.sort((a, b) => a - b);
   const meanSquare = values[Math.round(q * (values.length - 1))];
   return Math.max(-100, Math.round(10 * Math.log10(meanSquare + 1e-12)));
+}
+
+/* ---- 靜音長度（音量斷句的事前評估用）----
+ *
+ * 想知道「改成安靜滿 N ms 就換行」的話句子會怎麼切，但 token 間隔不能直接當靜音
+ * （時間戳是 60ms 量化的，拉長音會被算進間隔裡）。所以在每個間隔裡另外量
+ * 「連續安靜最長多久」，事後拿 [SEGMENT] 就能重演任意的 N。
+ *
+ * 「安靜」的定義跟 vad_test.html 的「比最近 3 秒的講話小 N dB」一樣：講話音量取間隔
+ * 開始前 3 秒的第 90 百分位。只記兩個深度，門檻淺的（−10）容易判成安靜、深的（−20）嚴格。
+ * 純紀錄，不影響斷句。
+ */
+const SPEECH_REF_MS = 3000;
+const QUIET_DROPS_DB = [10, 20];
+let prevSegmentEndMs = null;       // 同一條連線上，上一段最後一個字的結束時間（段與段之間的間隔用）
+
+/** [fromMs, toMs) 之間，音量連續低於 thDb 最長幾 ms。沒有資料回傳 null。 */
+function quietRunMs(fromMs, toMs, thDb) {
+  const first = Math.max(0, levelSlotCount - levelSlots.length, Math.floor(fromMs / LEVEL_SLOT_MS));
+  const last = Math.min(levelSlotCount, Math.ceil(toMs / LEVEL_SLOT_MS));
+  if (last <= first) return null;
+  const th = 10 ** (thDb / 10);
+  let run = 0, best = 0;
+  for (let i = first; i < last; i++) {
+    run = levelSlots[i % levelSlots.length] < th ? run + 1 : 0;
+    if (run > best) best = run;
+  }
+  return best * LEVEL_SLOT_MS;
+}
+
+/** 一個間隔的 [音量中位數dB, 安靜最長ms（講話−10dB）, 安靜最長ms（講話−20dB）]。 */
+function gapLevels(fromMs, toMs) {
+  const speechDb = levelDb(fromMs - SPEECH_REF_MS, fromMs, 0.9);
+  const quiet = QUIET_DROPS_DB.map(drop => (speechDb == null ? null : quietRunMs(fromMs, toMs, speechDb - drop)));
+  return [levelDb(fromMs, toMs, 0.5), ...quiet];
 }
 
 /**
@@ -379,7 +415,8 @@ function buildSegmentDiag(cut, chars, ctxChars, tokens, msgs) {
     const gapMs = tokens[i].startMs - tokens[i - 1].endMs;
     if (gapMs > 0 && gaps.length < DIAG_GAP_LIMIT) {
       // 第三欄是這段間隔裡的音量（中位數）。安靜＝真的停頓；跟講話差不多大聲＝時間戳造成的假間隔。
-      gaps.push([tokens[i].atChar, gapMs, levelDb(tokens[i - 1].endMs, tokens[i].startMs, 0.5)]);
+      // 第四、五欄是間隔裡連續安靜最長多久（見「靜音長度」）。
+      gaps.push([tokens[i].atChar, gapMs, ...gapLevels(tokens[i - 1].endMs, tokens[i].startMs)]);
     }
   }
 
@@ -396,11 +433,17 @@ function buildSegmentDiag(cut, chars, ctxChars, tokens, msgs) {
   // ⚠ 同理，gap 不等於靜音。token 時長被壓成 60ms，那個字實際還在唸的時間會被算進
   //   後面的 gap 裡（唱歌段落的拉長尾音就是這樣變成 1 秒以上的「間隔」）。
   //   比相對大小（分位數）仍然有效，但不能拿絕對毫秒數去對照換氣時間。
-  diag.gaps = gaps;                                                 // [atChar, gapMs, gapDb]
+  diag.gaps = gaps;                                   // [atChar, gapMs, gapDb, quiet−10dB, quiet−20dB]
+
+  // 跟上一段之間的間隔，格式同 gaps 去掉字位置。換行點在 Soniox 切的地方，段內的 gaps 看不到這一段。
+  const lastEnd = tokens[tokens.length - 1].endMs;
+  if (prevSegmentEndMs != null && diag.t0 >= prevSegmentEndMs) {
+    diag.pre = [diag.t0 - prevSegmentEndMs, ...gapLevels(prevSegmentEndMs, diag.t0)];
+  }
+  prevSegmentEndMs = lastEnd;
 
   // 音量（整數 dBFS，見「音量紀錄」）。vol 是講話的大小聲，floor 是背景，兩者的差就是
   // 講話比背景大多少；peak 是最大聲的 20ms，看有沒有爆音。
-  const lastEnd = tokens[tokens.length - 1].endMs;
   diag.vol = levelDb(diag.t0, lastEnd, 0.5);
   diag.peak = levelDb(diag.t0, lastEnd, 1);
   diag.floor = levelDb(lastEnd - FLOOR_WINDOW_MS, lastEnd, 0.1);
@@ -431,7 +474,8 @@ function logSegmentDiag(reason, diag) {
     間隔數: gaps.length,
     音量: `vol=${diag.vol ?? '-'} peak=${diag.peak ?? '-'} floor=${diag.floor ?? '-'}dB`,
     endpoint待ち: diag.tailMs != null ? `${diag.tailMs}ms/${diag.tailDb ?? '-'}dB` : '-',
-    明細: gaps.map(g => `${g[0]}字/${g[1]}ms/${g[2] ?? '-'}dB`).join(' ') || '（無時間戳或全程無停頓）'
+    前段間隔: diag.pre ? `${diag.pre[0]}ms/${diag.pre[1] ?? '-'}dB 安靜${diag.pre[2] ?? '-'}/${diag.pre[3] ?? '-'}ms` : '-',
+    明細: gaps.map(g => `${g[0]}字/${g[1]}ms/${g[2] ?? '-'}dB/安靜${g[3] ?? '-'}/${g[4] ?? '-'}ms`).join(' ') || '（無時間戳或全程無停頓）'
   });
 }
 
