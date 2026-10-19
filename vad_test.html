@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>音量斷句測試</title>
+<!--
+  音量斷句測試頁（實驗用，主程式不使用）
+
+  Soniox 只負責出文字；換行（= 一句字幕結束）由這一頁的音量偵測決定：
+    1. 講話後安靜滿「靜音門檻」→ 在「最後一次有聲音的時間點」立一個切點
+    2. 等 Soniox 把切點之前的音訊都確認（final_audio_proc_ms 過了切點）
+    3. 切點之前的已確認文字收成一行，之後的留給下一行
+  不送強制確認（finalize），Soniox 的 <end> 只畫成灰色的「｜」，不拿來切句。
+
+  要用 http://localhost:8081/vad_test.html 開（跟主程式的 localhost bat 同一個 server），
+  才能載入 worklet 和 data/soniox_context.json，後端的 CORS 也才會放行。
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1d1d1f; --bg:#f5f5f7; --card:#fff; --muted:#86868b; --line:#d2d2d7; --accent:#0071e3; --warn:#c93400; }
+  @media (prefers-color-scheme: dark) { :root { --fg:#f5f5f7; --bg:#1c1c1e; --card:#2c2c2e; --muted:#98989d; --line:#3a3a3c; --accent:#0a84ff; --warn:#ff9f0a; } }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; font-family: system-ui, "Noto Sans JP", "Noto Sans TC", sans-serif; background:var(--bg); color:var(--fg); }
+  h1 { font-size:18px; margin:0 0 12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:12px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:8px 16px; }
+  label { display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--muted); }
+  label.inline { flex-direction:row; align-items:center; gap:6px; }
+  input, select, button { font:inherit; font-size:14px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
+  input[type=number] { width:100%; }
+  button { cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+  #status { font-size:13px; color:var(--muted); }
+  canvas { width:100%; height:110px; display:block; background:var(--bg); border-radius:6px; }
+  #meterText { font: 13px ui-monospace, Consolas, monospace; margin-top:6px; color:var(--muted); white-space:pre-wrap; word-break:break-all; }
+  #lines { display:flex; flex-direction:column; gap:6px; max-height:55vh; overflow:auto; }
+  .line { padding:8px 10px; border-left:4px solid var(--line); background:var(--bg); border-radius:4px; }
+  .line.open { border-left-color:var(--accent); }
+  .line .text { font-size:20px; line-height:1.5; }
+  .line .meta { font: 12px ui-monospace, Consolas, monospace; color:var(--muted); margin-top:2px; }
+  .nf { color:var(--muted); }
+  .endmark { color:var(--muted); opacity:.6; padding:0 1px; }
+  .cutmark { color:var(--warn); font-weight:bold; padding:0 2px; }
+  .warn { color:var(--warn); }
+</style>
+</head>
+<body>
+<h1>音量斷句測試 <span style="font-weight:normal;font-size:13px;color:var(--muted)">Soniox 只出文字，換行由音量決定</span></h1>
+
+<div class="card">
+  <div class="grid">
+    <label>後端網址（同主程式「翻訳クラウド接続」）
+      <input id="backend" placeholder="key://xxx.run.app 或 https://...">
+    </label>
+    <label>或直接貼 Soniox 臨時金鑰（優先使用）
+      <input id="rawKey" placeholder="留空就向後端取得">
+    </label>
+    <label>麥克風（共用分頁時改聽分頁）
+      <span style="display:flex;gap:6px">
+        <select id="mic" style="flex:1;min-width:0"><option value="">（預設裝置）</option></select>
+        <button id="tabBtn" type="button" title="同主程式左下角的「タブの音声」">タブの音声</button>
+      </span>
+    </label>
+    <label>靜音門檻 ms（安靜這麼久就換行）
+      <input id="silenceMs" type="number" value="1000" min="100" step="50">
+    </label>
+    <label>停頓偵測依據（送給 Soniox 的聲音不受影響）
+      <select id="detector">
+        <option value="combo">組合：人聲機率 且 去背景音量（背景吵用）</option>
+        <option value="vad">RNNoise 人聲機率</option>
+        <option value="dn">RNNoise 去背景後的音量</option>
+        <option value="raw">原始音量</option>
+      </select>
+    </label>
+    <label>人聲機率門檻（0～1，「人聲機率」「組合」用）
+      <input id="vadTh" type="number" value="0.8" min="0" max="1" step="0.05">
+    </label>
+    <label>音量門檻模式（「音量」「組合」用）
+      <select id="thMode">
+        <option value="speech">比最近 3 秒的講話小 N dB 以內</option>
+        <option value="fixed">固定 dBFS</option>
+        <option value="relative">背景 + N dB</option>
+      </select>
+    </label>
+    <label>門檻值（講話−N：填 N／固定：dBFS／背景+N：填 N）
+      <input id="thValue" type="number" value="10" step="1">
+    </label>
+    <label>開口判定 ms（沒在講話時，連續有人聲這麼久才算開始講話）
+      <input id="onsetMs" type="number" value="60" min="20" step="20">
+    </label>
+    <label>恢復判定 ms（停頓中，連續有人聲這麼久才算又開口；短雜音不打斷停頓）
+      <input id="resumeMs" type="number" value="20" min="20" step="20">
+    </label>
+    <label>長句：一行超過幾字後改用較短門檻（0 = 不用）
+      <input id="longChars" type="number" value="80" min="0" step="5">
+    </label>
+    <label>長句時的靜音門檻 ms
+      <input id="longSilenceMs" type="number" value="500" min="100" step="50">
+    </label>
+    <label class="inline"><input id="useEndpoint" type="checkbox" checked> Soniox endpoint 偵測（只畫「｜」不切句，關掉可比較確認速度）</label>
+  </div>
+  <div class="row">
+    <span style="font-size:13px;color:var(--muted)">預設值：</span>
+    <button id="presetQuiet" type="button" class="primary">推薦值（背景安靜）</button>
+    <button id="presetNoisy" type="button">背景吵（分頁、有 BGM）</button>
+  </div>
+  <div class="row">
+    <button id="startBtn" class="primary">開始</button>
+    <button id="stopBtn" disabled>停止</button>
+    <button id="downloadBtn" disabled>下載紀錄（JSON）</button>
+    <button id="clearBtn">清除畫面</button>
+    <span id="status">待機中</span>
+  </div>
+</div>
+
+<div class="card">
+  <canvas id="meter" width="1200" height="220"></canvas>
+  <div id="meterText">—</div>
+</div>
+
+<div class="card">
+  <div id="lines"></div>
+</div>
+
+<script type="module">
+// 分頁音訊直接用主程式的 tabAudio.js：共用對話框的參數、前處理全關、交出複製音軌都一樣
+import { openTabShare, closeTabShare, hasTabShare, cloneTabStream, getTabShareLabel, onTabShareChange, NoTabAudioError } from "./javascript/tabAudio.js";
+
+// #region 設定
+const SONIOX_WS_URL = "wss://stt-rt.soniox.com/transcribe-websocket";
+const SONIOX_MODEL = "stt-rt-v5";
+const WORKLET_URL = new URL("./javascript/sonioxPcmWorklet.js", location.href).href;
+const SLOT_MS = 20;                  // 音量一格 20ms（跟主程式的診斷同一個單位）
+const FLOOR_WINDOW_SLOTS = 500;      // 背景音量看最近 10 秒
+const METER_SPAN_MS = 10000;         // 音量圖顯示最近 10 秒
+const MIC_CONSTRAINTS = { autoGainControl: false, echoCancellation: true, noiseSuppression: true, channelCount: 1 };
+const JP = "぀-ヿ㐀-鿿＀-￯　-〿";
+const JP_SPACE = new RegExp(`([${JP}])\\s+(?=[${JP}])`, "g");
+// #endregion
+
+const $ = (id) => document.getElementById(id);
+const num = (id) => Number($(id).value);
+
+// #region 狀態
+let ws = null, audioCtx = null, stream = null, workletNode = null;
+let configured = false, pending = [];
+let running = false;
+let usingTab = false;                // 這次辨識聽的是分頁
+
+// 音量時間軸：跟 Soniox 的 start_ms / end_ms 同一條（從送出的第一個樣本算起）
+let slotSamples = 320, acc = 0, accN = 0, slotCount = 0;
+let levels = [];                     // 每格 dBFS（整數）。下載紀錄時整條附上，事後可以重算別的門檻
+let floorDb = -80;
+let speechRefDb = -30;               // 最近 3 秒的講話音量（第 90 百分位）。「講話−N」模式用
+const SPEECH_REF_SLOTS = 150;
+let chunkMarks = [];                 // [audioMs, wallMs]：把音訊時間換成實際時間，用來算延遲
+
+// RNNoise：從一份複製的聲音去掉背景，只給停頓偵測用（同主程式 speechInputWorklet.js 的做法）
+let rnn = null;                      // wasm（載一次）
+let denoiser = null;                 // 這次辨識用的狀態
+let dnLevels = [];                   // 每格去背景後的 dBFS
+let vadProbs = [];                   // 每格人聲機率（0～1）
+
+// 講話偵測
+let loudRun = 0, speaking = false, lastLoudMs = 0;
+
+// Soniox 文字
+let finals = [];                     // {text, start, end, isEnd, wall}
+let nonFinals = [];
+let finalAudioMs = 0, totalAudioMs = 0, hasFinalAudioField = false;
+let assignedUpTo = 0;                // finals 中已經收進「已換行」的數量
+let boundaries = [];                 // 等 Soniox 確認的切點 {atMs, detectedWall, needMs}
+let closed = [];                     // 已換行的句子（紀錄用）
+let sessionStartWall = 0;
+// 診斷：Soniox 到底有沒有回東西
+let msgCount = 0, tokenCount = 0, lastRaw = "", lastError = "";
+// #endregion
+
+// #region 小工具
+function setStatus(msg, warn = false) { $("status").textContent = msg; $("status").className = warn ? "warn" : ""; }
+function joinTokens(toks) { return toks.map(t => t.text).join("").replace(JP_SPACE, "$1").trim(); }
+function audioNowMs() { return slotCount * SLOT_MS; }
+function wallAt(audioMs) {
+  for (const [ms, wall] of chunkMarks) if (ms >= audioMs) return wall - (ms - audioMs);
+  return performance.now();
+}
+function thresholdDb() {
+  const m = $("thMode").value;
+  if (m === "relative") return floorDb + num("thValue");
+  if (m === "speech") return speechRefDb - num("thValue");
+  return num("thValue");
+}
+/** 第 k 格算不算「有人聲」：依選的偵測依據 */
+function slotVoice(k) {
+  const mode = $("detector").value;
+  const vadOk = (vadProbs[k] ?? 0) >= num("vadTh");
+  if (mode === "vad") return vadOk;
+  if (mode === "combo") return vadOk && dnLevels[k] > thresholdDb();
+  const v = mode === "raw" ? levels[k] : dnLevels[k];
+  return v > thresholdDb();
+}
+function openFinalChars() {
+  let n = 0;
+  for (let i = assignedUpTo; i < finals.length; i++) if (!finals[i].isEnd) n += finals[i].text.trim().length;
+  return n;
+}
+function loadPrefs() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("vad-test-prefs") || "{}");
+    for (const [k, v] of Object.entries(saved)) {
+      const el = $(k); if (!el) continue;
+      if (el.type === "checkbox") el.checked = v; else el.value = v;
+    }
+    // 沒存過就借主程式（ch1）的後端網址
+    if (!$("backend").value) $("backend").value = localStorage.getItem("translation-link") || "";
+  } catch { /* 無痕視窗等情況：用預設值 */ }
+}
+function savePrefs() {
+  try {
+    const ids = ["backend", "silenceMs", "thMode", "thValue", "onsetMs", "longChars", "longSilenceMs", "useEndpoint", "mic", "detector", "vadTh", "resumeMs"];
+    const o = {};
+    for (const id of ids) o[id] = $(id).type === "checkbox" ? $(id).checked : $(id).value;
+    localStorage.setItem("vad-test-prefs", JSON.stringify(o));
+  } catch { /* 存不了就算了 */ }
+}
+// #endregion
+
+// #region 臨時金鑰（同主程式 fetchSonioxTemporaryToken）
+async function getTempKey() {
+  const raw = $("rawKey").value.trim();
+  if (raw) return raw;
+  const input = $("backend").value.trim();
+  if (!input) throw new Error("請輸入後端網址或臨時金鑰");
+  let serviceUrl = input, apiKey = "";
+  const m = input.match(/^([a-zA-Z0-9-]+):\/\/(.+)$/);
+  if (m && !/^https?$/i.test(m[1])) { apiKey = m[1].trim(); serviceUrl = m[2].trim(); }
+  if (!/^https?:\/\//i.test(serviceUrl)) {
+    const isLocal = /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(serviceUrl);
+    serviceUrl = `${isLocal ? "http" : "https"}://${serviceUrl.replace(/^\/+/, "")}`;
+  }
+  const tokenUrl = new URL("/soniox/token", new URL(serviceUrl.replace(/\/+$/, ""))).toString();
+  const res = await fetch(tokenUrl, { headers: apiKey ? { "x-api-key": apiKey } : {} });
+  if (!res.ok) throw new Error(`取得金鑰失敗 HTTP ${res.status}`);
+  const data = await res.json();
+  const key = [data.key, data.api_key, data.access_token].find(v => typeof v === "string" && v.trim());
+  if (!key) throw new Error("後端回應裡沒有金鑰");
+  return key.trim();
+}
+async function loadContext() {
+  try {
+    const r = await fetch("data/soniox_context.json");
+    if (!r.ok) return null;
+    const d = await r.json();
+    const ctx = {};
+    if (Array.isArray(d.terms) && d.terms.length) ctx.terms = d.terms.filter(t => typeof t === "string" && t.trim());
+    if (Array.isArray(d.general) && d.general.length) ctx.general = d.general;
+    return Object.keys(ctx).length ? ctx : null;
+  } catch { return null; }
+}
+// #endregion
+
+// #region 麥克風清單
+async function refreshMics() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const sel = $("mic"), keep = sel.value;
+    sel.innerHTML = '<option value="">（預設裝置）</option>';
+    for (const d of devices) if (d.kind === "audioinput" && d.deviceId && d.deviceId !== "default") {
+      const o = document.createElement("option");
+      o.value = d.deviceId; o.textContent = d.label || d.deviceId.slice(0, 8);
+      sel.appendChild(o);
+    }
+    sel.value = keep;
+  } catch { /* 沒權限時只有預設 */ }
+}
+// #endregion
+
+// #region RNNoise（從主程式 speechInputWorklet.js 移植，改成在主執行緒處理 Int16）
+/* RNNoise 吃 48kHz、每格 10ms（480 樣本）、16-bit 刻度的 float。其他取樣率線性內插上去：
+   這裡要的是音量和人聲機率，不是音質。wasm 是 Jitsi 的 emscripten 原始 build，
+   匯出名稱被壓縮過（對應關係同主程式）。processFrame 的回傳值就是 rnnoise_process_frame 的
+   人聲機率（0～1）。 */
+const RNN_RATE = 48000, RNN_FRAME = 480, RNN_SCALE = 32768;
+
+async function loadRnnoise() {
+  if (rnn) return rnn;
+  const res = await fetch("javascript/vendor/rnnoise.wasm");
+  if (!res.ok) throw new Error(`rnnoise.wasm 載入失敗 HTTP ${res.status}`);
+  const bytes = await res.arrayBuffer();
+  let memory;
+  const imports = { a: {
+    a: (requested) => {      // emscripten_resize_heap
+      const grow = Math.ceil(((requested >>> 0) - memory.buffer.byteLength) / 65536);
+      try { memory.grow(grow); return 1; } catch { return 0; }
+    },
+    b: (dest, src, n) => { new Uint8Array(memory.buffer).copyWithin(dest, src, src + n); },   // emscripten_memcpy_big
+  } };
+  // 主執行緒不能同步編譯大於 4KB 的 wasm，所以用 instantiate（非同步）
+  const { instance } = await WebAssembly.instantiate(bytes, imports);
+  const x = instance.exports;
+  memory = x.c;
+  x.d();                     // static constructors
+  rnn = { memory, create: x.f, malloc: x.g, processFrame: x.j };
+  return rnn;
+}
+
+class Denoiser {
+  constructor(r, inRate) {
+    this.r = r;
+    this.state = r.create(0);
+    this.inPtr = r.malloc(RNN_FRAME * 4);
+    this.outPtr = r.malloc(RNN_FRAME * 4);
+    this.frame = new Float32Array(RNN_FRAME);
+    this.fill = 0;
+    this.step = inRate / RNN_RATE;   // 每個 48kHz 樣本前進幾個輸入樣本
+    this.pos = 0;
+    this.prev = 0;
+    this.frames = [];                // 每 10ms 一筆 [去背景後的均方值, 人聲機率]
+    this.base = 0;                   // frames[0] 是第幾格（舊的會被丟掉）
+  }
+  push(pcm) {
+    const n = pcm.length;
+    let pos = this.pos;
+    while (pos <= n - 1) {
+      const i = Math.floor(pos);
+      const a = i < 0 ? this.prev : pcm[i];
+      const b = i + 1 < n ? pcm[i + 1] : a;
+      this.frame[this.fill++] = a + (b - a) * (pos - i);   // Int16 本來就是 16-bit 刻度
+      if (this.fill === RNN_FRAME) this.process();
+      pos += this.step;
+    }
+    this.pos = pos - n;
+    this.prev = pcm[n - 1];
+  }
+  process() {
+    this.fill = 0;
+    const { memory, processFrame } = this.r;
+    new Float32Array(memory.buffer, this.inPtr, RNN_FRAME).set(this.frame);   // heap 可能長大，每次重做 view
+    const vad = processFrame(this.state, this.outPtr, this.inPtr);
+    const out = new Float32Array(memory.buffer, this.outPtr, RNN_FRAME);
+    let sum = 0;
+    for (let i = 0; i < RNN_FRAME; i++) sum += out[i] * out[i];
+    this.frames.push([sum / RNN_FRAME / (RNN_SCALE * RNN_SCALE), Number.isFinite(vad) ? vad : 0]);
+  }
+  /** 第 k 格（20ms = 2 個 RNNoise 格）的去背景音量與人聲機率。RNNoise 落後一兩格，還沒算到就用最新的。 */
+  slot(k) {
+    const f = this.frames;
+    if (!f.length) return [-100, 0];
+    const i = Math.max(0, 2 * k - this.base);
+    const a = f[Math.min(i, f.length - 1)], b = f[Math.min(i + 1, f.length - 1)];
+    const db = Math.max(-100, Math.round(10 * Math.log10((a[0] + b[0]) / 2 + 1e-12)));
+    return [db, Math.max(a[1], b[1])];
+  }
+}
+// #endregion
+
+// #region 音訊 → 音量 → 講話偵測
+function sendChunk(buffer) {
+  const pcm = new Int16Array(buffer);
+  denoiser?.push(pcm);
+  for (let i = 0; i < pcm.length; i++) {
+    const v = pcm[i] / 32768;
+    acc += v * v;
+    if (++accN === slotSamples) {
+      const db = Math.max(-100, Math.round(10 * Math.log10(acc / accN + 1e-12)));
+      const [dn, vad] = denoiser ? denoiser.slot(slotCount) : [db, 0];
+      levels.push(db);
+      dnLevels.push(dn);
+      vadProbs.push(Math.round(vad * 100) / 100);
+      slotCount++;
+      acc = 0; accN = 0;
+      if (slotCount % 25 === 0) updateFloor();
+      if (slotCount % 5 === 0) updateSpeechRef();
+      onSlot(slotCount - 1, slotCount * SLOT_MS);
+    }
+  }
+  // 舊的 RNNoise 格不再需要（slot 只往前看），留一點緩衝就好
+  if (denoiser && denoiser.frames.length > 4000) {
+    const drop = denoiser.frames.length - 2000;
+    denoiser.frames.splice(0, drop);
+    denoiser.base += drop;
+  }
+  chunkMarks.push([audioNowMs(), performance.now()]);
+  if (chunkMarks.length > 6000) chunkMarks.splice(0, 1000);
+  ws.send(buffer);
+}
+
+function levelSeries() { return $("detector").value === "raw" ? levels : dnLevels; }
+
+function updateFloor() {
+  const recent = levelSeries().slice(-FLOOR_WINDOW_SLOTS).sort((a, b) => a - b);
+  if (recent.length) floorDb = recent[Math.floor(recent.length * 0.1)];
+}
+
+/* 最近 3 秒的講話音量。背景整體變大聲時講話也跟著大聲，「比講話小 N dB」就不受影響
+   （主程式 speechInputWorklet.js 的停頓偵測也是看「比講話小多少」）。 */
+function updateSpeechRef() {
+  const recent = levelSeries().slice(-SPEECH_REF_SLOTS).sort((a, b) => a - b);
+  if (recent.length) speechRefDb = recent[Math.floor((recent.length - 1) * 0.9)];
+}
+
+function onSlot(k, slotEndMs) {
+  // 沒在講話時用「開口判定」；講話中（停頓計時中）用「恢復判定」，短雜音不會把停頓計時歸零
+  const needSlots = Math.max(1, Math.round(num(speaking ? "resumeMs" : "onsetMs") / SLOT_MS));
+  if (slotVoice(k)) {
+    loudRun++;
+    if (loudRun >= needSlots) { speaking = true; lastLoudMs = slotEndMs; }
+  } else {
+    loudRun = 0;
+  }
+  if (!speaking) return;
+  const longChars = num("longChars");
+  const needMs = longChars > 0 && openFinalChars() >= longChars ? num("longSilenceMs") : num("silenceMs");
+  if (slotEndMs - lastLoudMs >= needMs) {
+    speaking = false;
+    boundaries.push({ atMs: lastLoudMs, detectedWall: performance.now(), needMs });
+    tryClose();
+    render();
+  }
+}
+// #endregion
+
+// #region Soniox
+function connect(key, sampleRate, context) {
+  ws = new WebSocket(SONIOX_WS_URL, ["soniox-api-key", key]);
+  ws.onopen = () => {
+    const config = {
+      model: SONIOX_MODEL,
+      audio_format: "pcm_s16le",
+      sample_rate: sampleRate,
+      num_channels: 1,
+      language_hints: ["ja", "zh", "en"],
+      language_hints_strict: true,
+      enable_endpoint_detection: $("useEndpoint").checked,
+    };
+    if (context) config.context = context;
+    ws.send(JSON.stringify(config));
+    configured = true;
+    slotSamples = Math.max(1, Math.round(sampleRate * SLOT_MS / 1000));
+    for (const c of pending) sendChunk(c);
+    pending = [];
+    setStatus("辨識中");
+  };
+  ws.onmessage = (ev) => {
+    msgCount++;
+    lastRaw = typeof ev.data === "string" ? ev.data.slice(0, 300) : `(binary ${ev.data?.size ?? "?"} bytes)`;
+    if (msgCount <= 5) console.log("[Soniox]", ev.data);
+    try { handleMessage(ev); } catch (e) { lastError = String(e?.stack || e); console.error(e); }
+  };
+  ws.onclose = (ev) => {
+    console.log("[Soniox] close", ev.code, ev.reason);
+    if (running) { setStatus(`Soniox 連線中斷（${ev.code} ${ev.reason || ""}）`, true); stop(); }
+  };
+  ws.onerror = () => setStatus("Soniox 連線錯誤", true);
+}
+
+function handleMessage(ev) {
+  {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch { return; }
+    if (msg.error_code || msg.error_message) { setStatus(`Soniox 錯誤：${msg.error_message || msg.error_code}`, true); return; }
+    tokenCount += (msg.tokens || []).length;
+    if (typeof msg.final_audio_proc_ms === "number") { finalAudioMs = msg.final_audio_proc_ms; hasFinalAudioField = true; }
+    if (typeof msg.total_audio_proc_ms === "number") totalAudioMs = msg.total_audio_proc_ms;
+    const nf = [];
+    const now = performance.now();
+    for (const t of msg.tokens || []) {
+      if (!t.text || t.text === "<fin>") continue;
+      const prevEnd = finals.length ? finals[finals.length - 1].end : 0;
+      const start = typeof t.start_ms === "number" ? t.start_ms : prevEnd;
+      const end = typeof t.end_ms === "number" ? t.end_ms : start;
+      if (t.is_final) finals.push({ text: t.text === "<end>" ? "" : t.text, start, end, isEnd: t.text === "<end>", wall: now });
+      else nf.push({ text: t.text, start, end });
+    }
+    nonFinals = nf;
+    tryClose();
+    render();
+  }
+}
+
+/** 最前面的切點，等 Soniox 把它之前的音訊都確認完就換行。 */
+function tryClose() {
+  // 換行之後才確認的句號：補回上一行
+  while (closed.length && assignedUpTo < finals.length && /^[\s。、．，？！?!,.]+$/.test(finals[assignedUpTo].text)) {
+    const last = closed[closed.length - 1], t = finals[assignedUpTo++];
+    last.text += t.text.trim(); last.html += esc(t.text.trim());
+  }
+  while (boundaries.length) {
+    const b = boundaries[0];
+    const ready = hasFinalAudioField
+      ? finalAudioMs >= b.atMs
+      : totalAudioMs >= b.atMs && !nonFinals.some(t => t.start < b.atMs);
+    if (!ready) return;
+    const toks = [];
+    let j = assignedUpTo;
+    while (j < finals.length && finals[j].start < b.atMs) toks.push(finals[j++]);
+    // 句號常被 Soniox 放在最後一個字之後很遠（今天的紀錄最長 1.5 秒），時間戳會落在切點後面。
+    // 緊接著的標點（和 <end>）算這一行的，不要讓下一行從「。」開始。
+    while (j < finals.length && (finals[j].isEnd || /^[\s。、．，？！?!,.]+$/.test(finals[j].text))) toks.push(finals[j++]);
+    assignedUpTo = j;
+    boundaries.shift();
+    if (!toks.some(t => !t.isEnd && t.text.trim())) continue;   // 只有雜音：不換行
+    closeLine(toks, b, "silence");
+  }
+}
+
+function closeLine(toks, b, reason) {
+  const words = toks.filter(t => !t.isEnd);
+  const now = performance.now();
+  const speechEndWall = b ? wallAt(b.atMs) : now;
+  closed.push({
+    text: joinTokens(words),
+    html: renderTokens(toks),
+    reason,
+    needMs: b?.needMs ?? null,
+    startMs: words[0]?.start ?? null,
+    endMs: words.length ? words[words.length - 1].end : null,
+    cutAtMs: b?.atMs ?? null,
+    sonioxEnds: toks.filter(t => t.isEnd).length,
+    latencyMs: Math.round(now - speechEndWall),          // 講完 → 換行
+    waitFinalMs: b ? Math.round(now - b.detectedWall) : null, // 偵測到靜音 → Soniox 確認完
+    wallSec: Math.round((now - sessionStartWall) / 100) / 10,
+  });
+}
+// #endregion
+
+// #region 畫面
+function esc(s) { return s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]); }
+function renderTokens(toks) {
+  let out = "";
+  for (const t of toks) out += t.isEnd ? '<span class="endmark">｜</span>' : esc(t.text);
+  return out.replace(JP_SPACE, "$1");
+}
+function render() {
+  const box = $("lines");
+  const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 30;
+  let html = "";
+  for (const l of closed.slice(-60)) {
+    const parts = [
+      l.reason === "silence" ? `靜音${l.needMs}ms換行` : l.reason,
+      `講完→換行 ${l.latencyMs}ms`,
+      l.waitFinalMs != null ? `等確認 ${l.waitFinalMs}ms` : null,
+      `Soniox會切 ${l.sonioxEnds} 次`,
+      `${l.text.length}字`,
+    ].filter(Boolean);
+    html += `<div class="line"><div class="text">${l.html}</div><div class="meta">${parts.join("　")}</div></div>`;
+  }
+  // 還沒換行的部分：已確認（黑）＋暫定（灰）；等確認中的切點畫成橘色「‖」
+  const open = finals.slice(assignedUpTo);
+  const cuts = boundaries.map(b => b.atMs);
+  let openHtml = "", ci = 0;
+  for (const t of open) {
+    while (ci < cuts.length && t.start >= cuts[ci]) { openHtml += '<span class="cutmark">‖</span>'; ci++; }
+    openHtml += t.isEnd ? '<span class="endmark">｜</span>' : esc(t.text);
+  }
+  let nfHtml = "";
+  for (const t of nonFinals) {
+    while (ci < cuts.length && t.start >= cuts[ci]) { nfHtml += '<span class="cutmark">‖</span>'; ci++; }
+    nfHtml += esc(t.text);
+  }
+  const waiting = boundaries.length ? `等 Soniox 確認中（${Math.round(performance.now() - boundaries[0].detectedWall)}ms）` : (speaking ? "講話中" : "");
+  html += `<div class="line open"><div class="text">${openHtml.replace(JP_SPACE, "$1")}<span class="nf">${nfHtml.replace(JP_SPACE, "$1")}</span>&nbsp;</div><div class="meta">${waiting}</div></div>`;
+  box.innerHTML = html;
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+
+function drawMeter() {
+  const c = $("meter"), g = c.getContext("2d");
+  const W = c.width, H = c.height;
+  g.clearRect(0, 0, W, H);
+  const slots = METER_SPAN_MS / SLOT_MS;
+  const data = levels.slice(-slots);
+  const y = (db) => H - ((Math.max(-90, Math.min(0, db)) + 90) / 90) * H;
+  const style = getComputedStyle(document.documentElement);
+  // 文字（Soniox 已確認的 token）位置
+  const base = slotCount - data.length;
+  g.fillStyle = style.getPropertyValue("--line");
+  for (let i = assignedUpTo; i < finals.length; i++) {
+    const s = finals[i].start / SLOT_MS - base, e = finals[i].end / SLOT_MS - base;
+    if (e < 0) continue;
+    g.fillRect((s / slots) * W, H - 8, Math.max(2, ((e - s) / slots) * W), 8);
+  }
+  const mode = $("detector").value;
+  // 人聲機率：底下 1/3 的灰綠色區塊（滿格 = 1）
+  const band = H / 3;
+  const vadData = vadProbs.slice(-slots);
+  g.fillStyle = "rgba(52,199,89,.25)";
+  vadData.forEach((p, i) => { const h = p * band; g.fillRect((i / slots) * W, H - h, W / slots + 1, h); });
+  // 原始音量（藍）與去背景後的音量（綠）；沒選的那條畫淡一點
+  const line = (series, color, active) => {
+    g.globalAlpha = active ? 1 : 0.35;
+    g.strokeStyle = color; g.lineWidth = active ? 2 : 1; g.beginPath();
+    series.forEach((db, i) => { const x = (i / slots) * W; i ? g.lineTo(x, y(db)) : g.moveTo(x, y(db)); });
+    g.stroke();
+    g.globalAlpha = 1;
+  };
+  line(data, style.getPropertyValue("--accent"), mode === "raw");
+  line(dnLevels.slice(-slots), "#34c759", mode === "dn" || mode === "combo");
+  // 門檻（橘虛線）：人聲機率的畫在底部那一區，音量的畫在 dB 刻度上
+  g.setLineDash([6, 4]);
+  g.strokeStyle = style.getPropertyValue("--warn");
+  const hline = (yy) => { g.beginPath(); g.moveTo(0, yy); g.lineTo(W, yy); g.stroke(); };
+  if (mode === "vad" || mode === "combo") hline(H - num("vadTh") * band);
+  if (mode !== "vad") hline(y(thresholdDb()));
+  g.setLineDash([]);
+  // 每格判定結果：頂端一條細線，有人聲＝綠
+  const vk = levels.length - data.length;
+  g.fillStyle = "#34c759";
+  for (let i = 0; i < data.length; i++) if (slotVoice(vk + i)) g.fillRect((i / slots) * W, 0, W / slots + 1, 5);
+  // 切點
+  g.strokeStyle = style.getPropertyValue("--warn"); g.lineWidth = 2;
+  const allCuts = closed.map(l => l.cutAtMs).filter(v => v != null).concat(boundaries.map(b => b.atMs));
+  for (const ms of allCuts) {
+    const x = ((ms / SLOT_MS - base) / slots) * W;
+    if (x < 0 || x > W) continue;
+    g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke();
+  }
+  const cur = levels.length ? levels[levels.length - 1] : null;
+  const silence = speaking ? audioNowMs() - lastLoudMs : null;
+  const curDn = dnLevels.length ? dnLevels[dnLevels.length - 1] : null;
+  const curVad = vadProbs.length ? vadProbs[vadProbs.length - 1] : null;
+  $("meterText").textContent =
+    `原始 ${cur ?? "—"} dB　去背景 ${curDn ?? "—"} dB　人聲機率 ${curVad ?? "—"}　` +
+    (mode === "vad" || mode === "combo" ? `機率門檻 ≥${num("vadTh")}　` : "") +
+    (mode !== "vad" ? `音量門檻 ${thresholdDb()} dB（背景 ${floorDb}／近期講話 ${speechRefDb}）　` : "") +
+    `${speaking ? `講話中（已安靜 ${silence}ms）` : "未講話"}　` +
+    `音訊 ${(audioNowMs() / 1000).toFixed(1)}s　已確認到 ${(finalAudioMs / 1000).toFixed(1)}s\n` +
+    `Soniox 訊息 ${msgCount} 則／token ${tokenCount} 個／已確認 ${finals.length}／暫定 ${nonFinals.length}` +
+    (lastError ? `\n處理錯誤：${lastError}` : "") +
+    (lastRaw ? `\n最後一則：${lastRaw}` : "");
+  if (running) requestAnimationFrame(drawMeter);
+}
+// #endregion
+
+// #region 開始／停止
+async function start() {
+  savePrefs();
+  $("startBtn").disabled = true;
+  try {
+    setStatus("取得金鑰中…");
+    const [key, context] = await Promise.all([getTempKey(), loadContext()]);
+    // 共用中就聽分頁（同主程式 openMicStream）；否則開選定的麥克風
+    usingTab = hasTabShare();
+    if (usingTab) {
+      stream = cloneTabStream();
+    } else {
+      setStatus("開啟麥克風…");
+      const deviceId = $("mic").value;
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: deviceId ? { ...MIC_CONSTRAINTS, deviceId: { exact: deviceId } } : MIC_CONSTRAINTS, video: false,
+      });
+      refreshMics();
+    }
+    try { audioCtx = new AudioContext({ sampleRate: 16000 }); } catch { audioCtx = new AudioContext(); }
+    if (audioCtx.state === "suspended") await audioCtx.resume();
+    await audioCtx.audioWorklet.addModule(WORKLET_URL);
+    const sr = audioCtx.sampleRate;
+    const bufferSize = Math.max(256, Math.round((sr * 100) / 1000 / 256) * 256);
+    const src = audioCtx.createMediaStreamSource(stream);
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = "highpass"; hp.frequency.value = 90; hp.Q.value = 0.707;
+    workletNode = new AudioWorkletNode(audioCtx, "soniox-pcm-processor", {
+      numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1], processorOptions: { bufferSize },
+    });
+    const sink = audioCtx.createGain(); sink.gain.value = 0;
+    src.connect(hp); hp.connect(workletNode); workletNode.connect(sink); sink.connect(audioCtx.destination);
+
+    // 狀態歸零
+    configured = false; pending = []; msgCount = 0; tokenCount = 0; lastRaw = ""; lastError = ""; acc = 0; accN = 0; slotCount = 0; levels = []; chunkMarks = [];
+    dnLevels = []; vadProbs = [];
+    // RNNoise 載不到就只用原始音量（不擋辨識）
+    try { denoiser = new Denoiser(await loadRnnoise(), sr); }
+    catch (e) { denoiser = null; console.error(e); setStatus("RNNoise 載入失敗，只能用原始音量", true); $("detector").value = "raw"; }
+    loudRun = 0; speaking = false; lastLoudMs = 0; floorDb = -80;
+    finals = []; nonFinals = []; finalAudioMs = 0; totalAudioMs = 0; hasFinalAudioField = false;
+    assignedUpTo = 0; boundaries = []; closed = [];
+    sessionStartWall = performance.now();
+
+    workletNode.port.onmessage = (ev) => {
+      if (ws?.readyState === WebSocket.OPEN && configured) sendChunk(ev.data);
+      else if (pending.length < 200) pending.push(ev.data);
+    };
+    setStatus("連線 Soniox…");
+    running = true;
+    connect(key, sr, context);
+    $("stopBtn").disabled = false;
+    $("downloadBtn").disabled = false;
+    requestAnimationFrame(drawMeter);
+  } catch (e) {
+    setStatus(String(e.message || e), true);
+    cleanup();
+    $("startBtn").disabled = false;
+  }
+}
+
+function stop() {
+  if (!running) return;
+  running = false;
+  // 還沒換行的部分收成最後一行（已確認＋暫定都算）
+  const rest = finals.slice(assignedUpTo).concat(nonFinals.map(t => ({ ...t, isEnd: false })));
+  assignedUpTo = finals.length;
+  boundaries = [];
+  if (rest.some(t => !t.isEnd && t.text.trim())) closeLine(rest, null, "停止");
+  cleanup();
+  render();
+  setStatus(`已停止（${closed.length} 行）`);
+  $("startBtn").disabled = false;
+  $("stopBtn").disabled = true;
+}
+
+function cleanup() {
+  try { ws?.close(); } catch { /* 已關 */ }
+  ws = null;
+  try { workletNode?.disconnect(); } catch { /* 已斷 */ }
+  stream?.getTracks().forEach(t => t.stop());
+  audioCtx?.close().catch(() => {});
+  audioCtx = null; stream = null; workletNode = null;
+}
+
+function download() {
+  const settings = {};
+  for (const id of ["detector", "vadTh", "silenceMs", "thMode", "thValue", "onsetMs", "resumeMs", "longChars", "longSilenceMs"]) settings[id] = $(id).value;
+  settings.useEndpoint = $("useEndpoint").checked;
+  settings.source = usingTab ? `tab: ${getTabShareLabel()}` : "mic";
+  const data = {
+    savedAt: new Date().toISOString(),
+    settings,
+    diag: { msgCount, tokenCount, finalAudioMs, totalAudioMs, lastRaw, lastError },
+    lines: closed.map(({ html, ...rest }) => rest),
+    // 事後重新模擬別的門檻用：所有已確認 token 與每 20ms 的音量
+    tokens: finals.map(({ wall, ...t }) => t),
+    levels,
+    dnLevels,                        // RNNoise 去背景後的音量（每 20ms）
+    vadProbs,                        // RNNoise 人聲機率（每 20ms）
+    slotMs: SLOT_MS,
+  };
+  const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `vad_test_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+// #endregion
+
+loadPrefs();
+refreshMics();
+$("startBtn").onclick = start;
+$("stopBtn").onclick = stop;
+$("downloadBtn").onclick = download;
+$("clearBtn").onclick = () => { closed = []; render(); };
+// 分頁共用按鈕（同主程式 micSelector.js 的 mountTabShareButton）：
+// 共用要在點擊時開，所以獨立一顆按鈕，不放進「開始」
+function renderTabButton() {
+  const sharing = hasTabShare();
+  $("tabBtn").textContent = sharing ? "タブ共有中（終了）" : "タブの音声";
+  $("tabBtn").classList.toggle("primary", sharing);
+  $("tabBtn").title = sharing ? `「${getTabShareLabel() || "タブ"}」の音声を聞いています。クリックで共有を終了します` : "同主程式左下角的「タブの音声」";
+  $("mic").disabled = sharing;
+}
+if (!navigator.mediaDevices?.getDisplayMedia) $("tabBtn").hidden = true;
+$("tabBtn").onclick = async () => {
+  if (hasTabShare()) { closeTabShare(); return; }
+  $("tabBtn").disabled = true;
+  try {
+    await openTabShare();
+  } catch (err) {
+    setStatus(err instanceof NoTabAudioError
+      ? "分頁沒有聲音：共用時要打開「也共用分頁音訊」（視窗則是「也共用應用程式音訊」）"
+      : "分頁共用失敗，請再按一次", true);
+  } finally {
+    $("tabBtn").disabled = false;
+  }
+};
+onTabShareChange((active) => {
+  renderTabButton();
+  // 聽分頁中被結束（按鈕、瀏覽器的「停止共用」、關掉分頁）就停止辨識，同主程式
+  if (!active && running && usingTab) { stop(); setStatus("分頁共用已結束，辨識停止", true); }
+});
+renderTabButton();
+// 切換模式時把門檻值換成該模式合理的起點
+$("thMode").onchange = () => { $("thValue").value = { speech: 10, relative: 20, fixed: -50 }[$("thMode").value]; };
+
+/* 預設值。「背景吵」是用 2026-10-19 的分頁測試紀錄（有 BGM、背景有人聲）離線比較後最好的一組：
+   句號後停頓的 13 處命中 11 處，句中切 5 次。背景吵時很少有連續 1 秒的乾淨停頓，
+   所以靜音門檻只能用 500ms。
+   「推薦值」是用背景安靜的另一位直播主（179 秒）比較出來的：句尾停頓中位數 720ms、句中停頓
+   95% 在 360ms 以內，所以靜音門檻取 600ms。句號後停頓的 24 處命中 23 處，句中切 3 次，
+   每行字數中位數 22、最長 58（1000ms 時只命中 15 處、最長 109 字）。背景安靜時人聲機率就夠分，
+   恢復判定 100ms 比 20ms 穩。 */
+const PRESETS = {
+  presetNoisy: { detector: "combo", vadTh: 0.8, thMode: "speech", thValue: 10, silenceMs: 500, onsetMs: 60, resumeMs: 20, longChars: 80, longSilenceMs: 300 },
+  presetQuiet: { detector: "vad", vadTh: 0.8, thMode: "speech", thValue: 10, silenceMs: 600, onsetMs: 60, resumeMs: 100, longChars: 80, longSilenceMs: 400 },
+};
+for (const [btn, values] of Object.entries(PRESETS)) {
+  $(btn).onclick = () => {
+    for (const [id, v] of Object.entries(values)) $(id).value = v;
+    savePrefs();
+    setStatus(`已套用「${$(btn).textContent}」`);
+  };
+}
+render();
+</script>
+</body>
+</html>
