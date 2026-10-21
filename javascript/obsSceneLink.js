@@ -2,8 +2,9 @@
  * @file obsSceneLink.js
  * @description シーン連動：OBS 切換場景時自動開始／停止辨識。與一時停止二選一。
  *
- * 【規則】在 OBS連携 的視窗裡，替每個場景選「何もしない／開始／停止」，存成
- * { 場景名稱: 'start' | 'stop' }。切到「開始」的場景就開始、切到「停止」的場景就停止，
+ * 【規則】在 OBS連携 的視窗裡，替每個場景選「開始／停止／何もしない」，預設是「開始」。
+ * 只存不是預設的場景：{ 場景名稱: 'stop' | 'none' }，沒有記錄的場景就是「開始」
+ * （新增的場景也是）。切到「開始」的場景就開始、切到「停止」的場景就停止，
  * 「何もしない」的場景維持原狀（例如從遊戲畫面切到聊天畫面，辨識照舊）。
  * 看的是節目（Program）場景，工作室模式下只切預覽不會觸發。
  *
@@ -36,7 +37,10 @@ const log = createLogger('ObsSceneLink');
 const ENABLED_KEY = 'obs-scene-link-enabled';
 const RULES_KEY = 'obs-scene-rules';
 
-const ACTION_LABELS = { '': '何もしない', start: '開始', stop: '停止' };
+/* 選單的順序也照這個。 */
+const ACTION_LABELS = { start: '開始', stop: '停止', none: '何もしない' };
+/* 沒有記錄的場景的動作。 */
+const DEFAULT_ACTION = 'start';
 
 /** @type {(action: 'start'|'stop', sceneName: string) => void} */
 let applyAction = () => {};
@@ -45,7 +49,7 @@ function isEnabled() {
   return getSettingBool(ENABLED_KEY);
 }
 
-/** @returns {Record<string, 'start'|'stop'>} */
+/** @returns {Record<string, 'stop'|'none'>} */
 function loadRules() {
   try {
     const rules = JSON.parse(getSetting(RULES_KEY));
@@ -81,8 +85,8 @@ function buildSceneRow(sceneName, action) {
   }
   select.addEventListener('change', () => {
     const rules = loadRules();
-    if (select.value) rules[sceneName] = select.value;
-    else delete rules[sceneName];
+    if (select.value === DEFAULT_ACTION) delete rules[sceneName];
+    else rules[sceneName] = select.value;
     saveRules(rules);
     row.dataset.action = select.value;
   });
@@ -112,14 +116,14 @@ async function refreshSceneList() {
   }
 
   const rules = loadRules();
-  list.replaceChildren(...names.map(name => buildSceneRow(name, rules[name] || '')));
+  list.replaceChildren(...names.map(name => buildSceneRow(name, rules[name] || DEFAULT_ACTION)));
   setListStatus(names.length ? '切り替えたときの動作をシーンごとに選んでください' : 'シーンがありません');
 }
 
 function handleProgramSceneChanged(sceneName) {
   if (!isEnabled() || !sceneName) return;
-  const action = loadRules()[sceneName];
-  log.debug(`シーン切替: ${sceneName} → ${action || '何もしない'}`);
+  const action = loadRules()[sceneName] || DEFAULT_ACTION;
+  log.debug(`シーン切替: ${sceneName} → ${ACTION_LABELS[action] || action}`);
   if (action === 'start' || action === 'stop') applyAction(action, sceneName);
 }
 

@@ -54,7 +54,7 @@
 
           <div class="settings-row">
             <label for="obs-ws-port" class="settings-row-label">サーバーポート</label>
-            <input type="text" id="obs-ws-port" class="card-select settings-row-input" value="4455" placeholder="4455" inputmode="numeric" autocomplete="off" spellcheck="false" autocorrect="off">
+            <input type="text" id="obs-ws-port" class="card-select settings-row-input" value="4455" placeholder="4455" inputmode="numeric" maxlength="5" autocomplete="off" spellcheck="false" autocorrect="off">
           </div>
 
           <div class="settings-row">
@@ -99,7 +99,7 @@
           </div>
           <p id="obs-scene-link-note" class="obs-scene-note">
             OBS のシーンを切り替えると、音声認識を自動で開始・停止します。<br>
-            シーンごとに「開始」「停止」「何もしない」を選べます。<br>
+            シーンごとに「開始」「停止」「何もしない」を選べます（初期値は「開始」）。<br>
             有効にすると、ロゴの一時停止は使えなくなります。
           </p>
           <div id="obs-scene-link-body" class="obs-scene-link-body" hidden>

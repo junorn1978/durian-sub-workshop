@@ -1681,6 +1681,8 @@ body.obs-settings-page {
   width: 120px;
   flex-shrink: 0;
 }
+/* シーン一覧の選択欄はクリックしたときの枠を出さない（行が多く、枠がちらついて見える）。 */
+.settings-section .obs-scene-row > select.card-select:focus-visible { outline: none; }
 
 /* =========================================
    設定齒輪（底部狀態列の右端、版本の右）。めったに押さないので小さめ

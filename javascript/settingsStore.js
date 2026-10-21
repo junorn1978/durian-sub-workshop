@@ -78,7 +78,7 @@ export const SETTING_DEFAULTS = Object.freeze({
   'obs-ws-port': '4455',
   'obs-ws-password': '',
   'obs-scene-link-enabled': 'false',
-  'obs-scene-rules': '{}',        // { 場景名稱: 'start' | 'stop' }（見 obsSceneLink.js）
+  'obs-scene-rules': '{}',        // { 場景名稱: 'stop' | 'none' }，沒記錄的是「開始」（見 obsSceneLink.js）
 
   // 音声認識
   'speech-recognition-engine': 'soniox',

@@ -25,11 +25,12 @@ import { setupToggleVisibility } from './visibilityToggle.js';
 /** IP／連接埠／密碼每打一個字都會寫入，重連等輸入停下來再做。 */
 const RECONNECT_DEBOUNCE_MS = 300;
 
-/* 欄位 id → 設定 key。select 以 change、文字欄位以 input 寫入。 */
+/* 欄位 id → 設定 key。select 以 change、文字欄位以 input 寫入。
+   sanitize：寫入前先整理輸入的字（連接埠只留數字，貼上的也一樣）。 */
 const CONNECTION_FIELDS = [
   { id: 'obs-ws-enabled', key: 'obs-ws-enabled' },
   { id: 'obs-ws-ip', key: 'obs-ws-ip' },
-  { id: 'obs-ws-port', key: 'obs-ws-port' },
+  { id: 'obs-ws-port', key: 'obs-ws-port', sanitize: value => value.replace(/\D/g, '') },
   { id: 'obs-ws-password', key: 'obs-ws-password' }
 ];
 const SCENE_LINK_FIELD = { id: 'obs-scene-link-opt', key: 'obs-scene-link-enabled' };
@@ -45,11 +46,16 @@ function applyConnection() {
 }
 
 /** 把欄位接到設定上：載入目前的值，改了就寫回去並呼叫 onChange。 */
-function bindField({ id, key }, onChange) {
+function bindField({ id, key, sanitize }, onChange) {
   const el = document.getElementById(id);
   if (!el) return;
   el.value = getSetting(key) ?? '';
   el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
+    if (sanitize) {
+      const cleaned = sanitize(el.value);
+      // 沒有要刪的字時不重設，否則游標會跳到最後面。
+      if (cleaned !== el.value) el.value = cleaned;
+    }
     setSetting(key, el.value);
     onChange(el.value);
   });
