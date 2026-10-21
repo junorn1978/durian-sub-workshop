@@ -466,6 +466,8 @@ body {
   cursor: pointer;
   font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
 }
+/* 2つ目の窓では翻訳の設定は表示だけ（1つ目の窓と共通。uiController.js）。 */
+#translation-mode:disabled, #translation-link:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* 表示・非表示は JS が hidden 属性で切り替える（翻訳モードが link のときだけ表示）。 */
 .link-wrapper {

@@ -10,7 +10,7 @@ import { updateStatusDisplay, scheduleInitialStatusClear } from './uiState.js';
 import { setupLanguagePackButton } from './languagePackManager.js';
 import { loadLanguageConfig } from './config.js';
 import { createLogger, setLogLevel } from './logger.js';
-import { getSetting, setSetting, hasStoredSetting, CHANNEL } from './settingsStore.js';
+import { getSetting, setSetting, hasStoredSetting, onExternalSettingChange, CHANNEL } from './settingsStore.js';
 import { bindSettings } from './settingsBindings.js';
 import { setupToggleVisibility } from './visibilityToggle.js';
 import { isObsConnected, onObsConnectionChange } from './obsBridge.js';
@@ -44,15 +44,25 @@ const setupPanelSwitching = (panels) => {
   });
 };
 
-/** 管理翻譯模式切換。目前的 UI 支援 gtx／link。 */
+/**
+ * 管理翻譯模式切換。目前的 UI 支援 gtx／link。
+ *
+ * 翻訳モード與翻訳クラウド接続的網址兩個視窗共用一份（Soniox 也從這個網址拿連線資訊）：
+ *   - 另一個視窗改了，這裡馬上跟著換，不用重新整理。
+ *   - 只能在第一個視窗改。第二個視窗的欄位不能改，網址的「顯示」按鈕也拿掉。
+ */
 const setupTranslationModeHandler = () => {
   const modeSelect = document.getElementById('translation-mode');
   const linkWrapper = document.getElementById('link-input-wrapper');
+  const linkInput = document.getElementById('translation-link');
   if (!modeSelect) return;
 
-  const applyMode = (mode) => {
+  const showMode = (mode) => {
     if (linkWrapper) linkWrapper.hidden = mode !== 'link';
-    if (mode === 'link') document.getElementById('translation-link')?.focus();
+  };
+  const applyMode = (mode) => {
+    showMode(mode);
+    if (mode === 'link') linkInput?.focus();
     setSetting('translation-mode-selection', mode);
   };
 
@@ -60,6 +70,27 @@ const setupTranslationModeHandler = () => {
   applyMode(modeSelect.value);
 
   modeSelect.addEventListener('change', (event) => applyMode(event.target.value));
+
+  // 另一個視窗改的：只更新畫面，不再寫回去。
+  onExternalSettingChange(['translation-mode-selection'], () => {
+    modeSelect.value = getSetting('translation-mode-selection');
+    showMode(modeSelect.value);
+  });
+  onExternalSettingChange(['translation-link'], () => {
+    if (linkInput) linkInput.value = getSetting('translation-link');
+  });
+
+  if (CHANNEL === 2) {
+    const note = '翻訳の設定は1つ目の窓で変更します';
+    modeSelect.disabled = true;
+    modeSelect.title = note;
+    if (linkInput) {
+      linkInput.disabled = true;
+      linkInput.title = note;
+    }
+    const eyeButton = document.getElementById('toggle-link-visibility');
+    if (eyeButton) eyeButton.hidden = true;
+  }
 };
 
 /** 點擊字幕面板時收合操作面板，擴大字幕區域。 */
