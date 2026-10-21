@@ -17,6 +17,7 @@ import { openAudioInput } from './audioInput.js';
 import { mountMicSelector, mountTabShareButton, onMicChange, refreshMicList, getSelectedMicId } from './micSelector.js';
 import { hasTabShare, cloneTabStream, onTabShareChange } from './tabAudio.js';
 import { mountSecondWindow } from './secondWindow.js';
+import { mountObsSceneLink } from './obsSceneLink.js';
 
 const log = createLogger('SpeechRecognition');
 
@@ -974,6 +975,46 @@ function stopRecognition(reason = 'manual-stop') {
   closeWebSpeechInput();
 }
 
+/* シーン連動：最後一次要求的動作。開始要等 Soniox 連上，這段期間又切了場景的話，
+   等開始完成後照最後一次的要求做，不會停在中途的狀態（開始中切走就該停下來）。 */
+let pendingSceneAction = null;
+let followingScene = false;
+
+/**
+ * OBS 的場景要求開始／停止（見 obsSceneLink.js）。與按鈕走同一條路：
+ * 開始時取消暫停狀態，停止時若在暫停中就只取消自動恢復。分頁的共用不結束。
+ * @param {'start'|'stop'} action
+ * @param {string} sceneName
+ */
+async function followObsScene(action, sceneName) {
+  pendingSceneAction = { action, sceneName };
+  if (followingScene) return;
+  followingScene = true;
+  try {
+    while (pendingSceneAction) {
+      const { action: next, sceneName: scene } = pendingSceneAction;
+      pendingSceneAction = null;
+      if (next === 'start') {
+        // 按鈕沒綁上（瀏覽器不支援）時，「開始」本來就按不了。
+        if (isRecognitionActive || !recognition) continue;
+        log.info(`OBS のシーン「${scene}」に切り替わったため開始します`);
+        clearPauseState();
+        await startRecognition();
+      } else if (isPaused()) {
+        log.info(`OBS のシーン「${scene}」に切り替わったため、一時停止を取り消しました`);
+        clearPauseState();
+      } else if (isRecognitionActive) {
+        log.info(`OBS のシーン「${scene}」に切り替わったため停止します`);
+        stopRecognition('obs-scene');
+        // 停止流程會清空狀態列，所以最後才寫。
+        updateStatusDisplay(`OBS のシーン「${scene}」に切り替わったため、認識を停止しました。`);
+      }
+    }
+  } finally {
+    followingScene = false;
+  }
+}
+
 /** 辨識中換輸入：左下角選了別的麥克風，或開始了分頁的共用。暫停中不用做什麼，恢復時就會用新的。 */
 function switchInput() {
   if (!isRecognitionActive) return;
@@ -1029,6 +1070,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   mountMicSelector();
   mountTabShareButton();
   mountSecondWindow();
+  mountObsSceneLink({ onAction: followObsScene });
   onMicChange(switchInput);
   // 共用開始：改聽分頁。結束：停止（見 handleInputLost）。
   onTabShareChange((active) => {

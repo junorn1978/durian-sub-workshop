@@ -10,9 +10,9 @@ import { updateStatusDisplay, scheduleInitialStatusClear } from './uiState.js';
 import { setupLanguagePackButton } from './languagePackManager.js';
 import { loadLanguageConfig } from './config.js';
 import { createLogger, setLogLevel } from './logger.js';
-import { getSetting, setSetting, hasStoredSetting } from './settingsStore.js';
+import { getSetting, setSetting, hasStoredSetting, CHANNEL } from './settingsStore.js';
 import { bindSettings } from './settingsBindings.js';
-import { triggerAutoSetup, testObsConnection, refreshObsDragLinks } from './obsBridge.js';
+import { setupToggleVisibility } from './visibilityToggle.js';
 import { translateTestText } from './translationController.js';
 import { setupColorPickers } from './colorPicker.js';
 import { setupModal } from './modals.js';
@@ -21,39 +21,10 @@ const log = createLogger('UI');
 
 // #region [小型元件]
 
-const EYE_OPEN_ICON = '<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
-const EYE_CLOSED_ICON = '<svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
-
-/**
- * 密碼、URL 之類欄位的「顯示／隱藏」切換。
- * 圖示一律由目前的遮蔽狀態算出來，不依賴 HTML 裡寫死的那一份，
- * 兩邊不同步時（例如改了初始 class）也不會顯示錯誤的眼睛。
- */
-const setupToggleVisibility = (buttonId, inputId) => {
-  const button = document.getElementById(buttonId);
-  const input = document.getElementById(inputId);
-  if (!button || !input) return;
-
-  const render = () => {
-    const isMasked = input.classList.contains('input-masked');
-    input.classList.toggle('input-visible', !isMasked);
-    button.innerHTML = isMasked ? EYE_CLOSED_ICON : EYE_OPEN_ICON;
-    button.setAttribute('aria-pressed', String(!isMasked));
-  };
-
-  button.addEventListener('click', (event) => {
-    event.stopPropagation();
-    input.classList.toggle('input-masked');
-    render();
-  });
-
-  render();
-};
-
 /** 管理面板切換與選單按鈕狀態。 */
 const setupPanelSwitching = (panels) => {
   const switchPanel = (buttonId) => {
-    // 沒有對應面板的按鈕（例如 OBS 整合對話框）不列入分頁切換對象。
+    // 沒有對應面板的按鈕（例如 OBS連携：它開成另一個視窗）不列入分頁切換對象。
     if (!panels[buttonId]) return;
     document.querySelectorAll('.menu-button').forEach(btn => btn.classList.remove('active'));
     document.getElementById(buttonId)?.classList.add('active');
@@ -230,15 +201,14 @@ const setupTranslationTestTool = () => {
 // #region [對話框]
 
 /**
- * 對話框的清單。說明用的兩個（Soniox／OBS WebSocket）會疊在設定對話框上方，
+ * 對話框的清單。說明用的（翻訳クラウド接続／Soniox）會疊在設定對話框上方，
  * 疊放順序與 Esc 的處理都由 modals.js 的堆疊負責。
+ * OBS連携 不在這裡：它開成另一個視窗（見 setupObsSettingsWindow）。
  */
 const MODALS = [
-  { overlayId: 'obs-modal-overlay', openButtonId: 'obs-settings', closeButtonId: 'obs-modal-close' },
   { overlayId: 'settings-modal-overlay', openButtonId: 'settings-gear', closeButtonId: 'settings-modal-close' },
   { overlayId: 'link-help-modal-overlay', openButtonId: 'link-help-btn', closeButtonId: 'link-help-close' },
-  { overlayId: 'soniox-help-modal-overlay', openButtonId: 'engine-help-link', closeButtonId: 'soniox-help-close' },
-  { overlayId: 'obs-help-modal-overlay', openButtonId: 'obs-help-btn', closeButtonId: 'obs-help-close' }
+  { overlayId: 'soniox-help-modal-overlay', openButtonId: 'engine-help-link', closeButtonId: 'soniox-help-close' }
 ];
 
 /** 翻訳クラウド接続の說明對話框裡的「複製範例程式碼」。 */
@@ -257,26 +227,21 @@ const setupLinkHelpCopy = () => {
   });
 };
 
-/** OBS 整合對話框裡的連線測試與自動設定。 */
-const setupObsModalActions = () => {
-  const testBtn = document.getElementById('obs-test-btn');
-  const testStatus = document.getElementById('obs-test-status');
-
-  testBtn?.addEventListener('click', async () => {
-    if (testStatus) {
-      testStatus.textContent = '接続中…';
-      testStatus.className = 'obs-test-status testing';
+/**
+ * 「OBS連携」按鈕：另開設定視窗（obs_settings.html）。
+ * 開在這個頁面裡的話，OBS 的ウィンドウキャプチャ會把設定畫面（含場景名稱）拍進直播。
+ * 已經開著就叫到前面，不重新載入。ch2 開的是 ch2 那一份設定。
+ */
+const setupObsSettingsWindow = () => {
+  let settingsWindow = null;
+  document.getElementById('obs-settings')?.addEventListener('click', () => {
+    if (settingsWindow && !settingsWindow.closed) {
+      settingsWindow.focus();
+      return;
     }
-    testBtn.disabled = true;
-    const ok = await testObsConnection();
-    testBtn.disabled = false;
-    if (testStatus) {
-      testStatus.textContent = ok ? '接続成功' : '接続失敗';
-      testStatus.className = `obs-test-status ${ok ? 'ok' : 'fail'}`;
-    }
+    const query = CHANNEL === 2 ? '?ch=2' : '';
+    settingsWindow = window.open(`obs_settings.html${query}`, `hamham-obs-settings-${CHANNEL}`, 'popup,width=920,height=640');
   });
-
-  document.getElementById('obs-auto-setup-btn')?.addEventListener('click', () => triggerAutoSetup());
 };
 // #endregion
 
@@ -311,14 +276,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupTranslationModeHandler();
   setupTranslationTestTool();
   setupToggleVisibility('toggle-link-visibility', 'translation-link');
-  setupToggleVisibility('toggle-obs-pwd-visibility', 'obs-ws-password');
 
   MODALS.forEach(setupModal);
   setupLinkHelpCopy();
-  setupObsModalActions();
+  setupObsSettingsWindow();
 
   document.getElementById('Subtitle')?.click();
-  refreshObsDragLinks();
   setupSourceScrollBehavior('source-text');
 });
 // #endregion

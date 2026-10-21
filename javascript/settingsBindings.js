@@ -12,9 +12,10 @@
 import {
   browserInfo, setAlignment, setForceSingleLineStatus, setSpeechEngine, setSonioxEndpointSetting
 } from './config.js';
-import { getSetting, setSetting, SETTING_DEFAULTS } from './settingsStore.js';
+import { getSetting, getSettingBool, setSetting, SETTING_DEFAULTS, onExternalSettingChange } from './settingsStore.js';
 import { createLogger, setLogLevel } from './logger.js';
-import { handleObsBridgeSettingsChanged, refreshObsDragLinks } from './obsBridge.js';
+import { handleObsBridgeSettingsChanged } from './obsBridge.js';
+import { applySceneLinkEnabled } from './obsSceneLink.js';
 
 const log = createLogger('SettingsBindings');
 
@@ -42,12 +43,11 @@ const debounce = (fn, waitMs) => {
 /**
  * OBS 的設定變更集中在這裡節流。
  * handleObsBridgeSettingsChanged() 發現 URL 或密碼變了就會斷線重連，
- * 而 IP／連接埠／密碼都是 input 事件，等於每打一個字就重連一次。
- * 啟動時四個欄位也會各觸發一次，節流後合併成一次。
+ * 而 IP／連接埠／密碼在設定視窗裡每打一個字就寫一次，等於每個字都重連一次。
+ * 語言欄位在啟動時也會各觸發一次，節流後合併成一次。
  */
 const applyObsSettings = debounce(() => {
   handleObsBridgeSettingsChanged();
-  refreshObsDragLinks();
 }, OBS_APPLY_DEBOUNCE_MS);
 
 // #region [UI 設定定義]
@@ -88,10 +88,6 @@ export const CONFIG = {
   special: [
     { id: 'display-panel-color', type: 'body-color', css: '--body-background' },
     { id: 'translation-link', type: 'text' },
-    { id: 'obs-ws-enabled', type: 'select', onApply: () => applyObsSettings() },
-    { id: 'obs-ws-ip', type: 'text', onApply: () => applyObsSettings() },
-    { id: 'obs-ws-port', type: 'text', onApply: () => applyObsSettings() },
-    { id: 'obs-ws-password', type: 'text', onApply: () => applyObsSettings() },
     { id: 'click-minimize-opt', type: 'select', key: 'click-minimize-enabled' },
     {
       id: 'force-single-line-opt', type: 'select', key: 'force-single-line-enabled',
@@ -399,6 +395,23 @@ const applyBrowserLimits = () => {
 };
 
 /**
+ * OBS 連線與シーン連動的設定欄位在另開的 OBS連携 視窗裡（obs_settings.html），
+ * 主視窗沒有那些欄位，所以不在 CONFIG 裡。這裡在啟動時套用一次（連上 OBS），
+ * 之後設定視窗每改一次就再套用（storage 事件）。「全部重設」也因此不會動到它們。
+ */
+const OBS_CONNECTION_KEYS = ['obs-ws-enabled', 'obs-ws-ip', 'obs-ws-port', 'obs-ws-password'];
+const SCENE_LINK_KEY = 'obs-scene-link-enabled';
+
+const bindObsWindowSettings = () => {
+  applyObsSettings();
+  onExternalSettingChange(OBS_CONNECTION_KEYS, applyObsSettings);
+
+  const applySceneLink = () => applySceneLinkEnabled(getSettingBool(SCENE_LINK_KEY));
+  applySceneLink();
+  onExternalSettingChange([SCENE_LINK_KEY], applySceneLink);
+};
+
+/**
  * 建立所有設定處理器，並完成載入與監聽。
  * @returns {{ resetAll: () => void }}
  */
@@ -416,6 +429,8 @@ export function bindSettings() {
     handler.load();
     handler.setupListener();
   });
+
+  bindObsWindowSettings();
 
   return {
     resetAll: () => handlers.forEach(handler => handler.reset())

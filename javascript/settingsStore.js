@@ -39,6 +39,7 @@ const PER_CHANNEL_KEYS = new Set([
   'speech-recognition-engine',
   'soniox-latency-level', 'soniox-sensitivity', 'soniox-max-delay-ms',
   'subtitle-clear-idle-sec',
+  'obs-scene-link-enabled', 'obs-scene-rules',
   'text-alignment', 'force-single-line-enabled', 'display-panel-color'
 ]);
 const PER_CHANNEL_STYLE = /^(source|target[123])-font-(color|stroke-color|size|stroke-size)$/;
@@ -76,6 +77,8 @@ export const SETTING_DEFAULTS = Object.freeze({
   'obs-ws-ip': '127.0.0.1',
   'obs-ws-port': '4455',
   'obs-ws-password': '',
+  'obs-scene-link-enabled': 'false',
+  'obs-scene-rules': '{}',        // { 場景名稱: 'start' | 'stop' }（見 obsSceneLink.js）
 
   // 音声認識
   'speech-recognition-engine': 'soniox',
@@ -128,6 +131,20 @@ export function getSettingNumber(key, { min = -Infinity, max = Infinity, allowed
   if (!Number.isFinite(value)) return fallback;
   if (allowed && !allowed.includes(value)) return fallback;
   return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * 別的視窗（OBS連携 的設定視窗等）改了這些設定時呼叫 fn()。
+ * storage 事件只會送到「沒有寫入的那些視窗」，自己寫的不會觸發。
+ * key 用這個視窗的路來比對，ch2 的設定視窗寫 'ch2:…' 時，只有 ch2 的主視窗會收到。
+ * @param {string[]} keys
+ * @param {() => void} fn
+ */
+export function onExternalSettingChange(keys, fn) {
+  const watched = new Set(keys.map(storageKey));
+  window.addEventListener('storage', (event) => {
+    if (event.storageArea === localStorage && watched.has(event.key)) fn();
+  });
 }
 
 /** 寫入設定值。 */

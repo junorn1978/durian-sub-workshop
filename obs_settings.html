@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OBS連携 - ハムハム字幕アトリエ</title>
+  <!-- 主視窗「OBS連携」ボタンで開く設定視窗（javascript/obsSettingsWindow.js）。
+       主視窗の中に出すと OBS のウィンドウキャプチャに映ってしまう（シーン名など）ため、別の窓にしている。
+       ch2 の主視窗から開くと ?ch=2 が付き、配色と設定（シーン連動）が ch2 のものになる。 -->
+  <script>
+    if (new URLSearchParams(location.search).get('ch') === '2') {
+      document.documentElement.dataset.ch = '2';
+      document.title += '（2）';
+    }
+  </script>
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+
+  <link rel="stylesheet" href="css/styles_horizontal.css">
+  <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Huninn&family=Kosugi+Maru&family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="obs-settings-page">
+  <div class="obs-window">
+    <div class="obs-modal">
+      <div class="obs-modal-header">
+        <h3 id="obs-modal-title" class="obs-modal-title">
+          <span>OBS連携</span>
+          <button type="button" id="obs-help-btn" class="link-help-btn link-help-inline" title="OBS WebSocket の設定方法">
+            <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          </button>
+          <span id="obs-conn-badge" class="obs-conn-badge" data-state="off" aria-live="polite">無効</span>
+        </h3>
+        <button type="button" id="obs-window-close" class="obs-modal-close" title="この窓を閉じる" aria-label="閉じる">✕</button>
+      </div>
+      <!-- 左：接続と字幕ソース／右：シーン連動 -->
+      <div class="obs-modal-body">
+        <section class="settings-section">
+          <h3 class="settings-section-title">接続</h3>
+          <div class="settings-row">
+            <span class="settings-row-label">OBS WebSocket</span>
+            <select id="obs-ws-enabled" class="card-select" title="OBS WebSocket 連携の有効／無効を切り替えます">
+              <option value="false" selected>無効</option>
+              <option value="true">有効</option>
+            </select>
+          </div>
+
+          <div class="settings-row">
+            <label for="obs-ws-ip" class="settings-row-label">サーバーIP</label>
+            <input type="text" id="obs-ws-ip" class="card-select settings-row-input" value="127.0.0.1" placeholder="127.0.0.1" autocomplete="off" spellcheck="false" autocorrect="off">
+          </div>
+
+          <div class="settings-row">
+            <label for="obs-ws-port" class="settings-row-label">サーバーポート</label>
+            <input type="text" id="obs-ws-port" class="card-select settings-row-input" value="4455" placeholder="4455" inputmode="numeric" autocomplete="off" spellcheck="false" autocorrect="off">
+          </div>
+
+          <div class="settings-row">
+            <label for="obs-ws-password" class="settings-row-label">サーバーパスワード</label>
+            <div class="settings-row-input-with-action">
+              <input type="text" id="obs-ws-password" class="card-select input-masked" placeholder="OBS WebSocket パスワード" autocomplete="off" spellcheck="false" autocorrect="off">
+              <button type="button" id="toggle-obs-pwd-visibility" class="visibility-btn" title="パスワードを表示／非表示">
+                <svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <button type="button" id="obs-test-btn" class="menu3-button settings-row-button">接続テスト</button>
+            <span id="obs-test-status" class="obs-test-status" aria-live="polite"></span>
+          </div>
+
+          <div class="settings-row settings-row-hidden" style="display: none;">
+            <a id="obs-drag-link" href="#" data-obs-mode="all" draggable="true" class="menu3-button obs-drag-button-full" title="このボタンを OBS のソース一覧にドラッグ＆ドロップしてください">全体表示をドラッグ＆ドロップ</a>
+          </div>
+          <div class="settings-row settings-row-hidden settings-row-drag-grid" style="display: none;">
+            <a id="obs-drag-link-source" href="#" data-obs-mode="source" draggable="true" class="menu3-button obs-drag-button" title="音声字幕">音声</a>
+            <a id="obs-drag-link-target1" href="#" data-obs-mode="target1" draggable="true" class="menu3-button obs-drag-button" title="翻訳1">翻訳1</a>
+            <a id="obs-drag-link-target2" href="#" data-obs-mode="target2" draggable="true" class="menu3-button obs-drag-button" title="翻訳2">翻訳2</a>
+            <a id="obs-drag-link-target3" href="#" data-obs-mode="target3" draggable="true" class="menu3-button obs-drag-button" title="翻訳3">翻訳3</a>
+          </div>
+
+          <div class="settings-row settings-row-wide">
+            <button id="obs-auto-setup-btn" class="menu3-button obs-auto-setup-button" title="字幕用のブラウザソース5つを「HamHam字幕」シーン（2つ目の窓は「HamHam字幕2」）にまとめ、そのシーンを現在の OBS シーンに追加します。既存のソースがある場合は、設定を更新します">OBS に字幕ソースを追加</button>
+          </div>
+        </section>
+
+        <!-- シーン連動：OBS のシーン切替で開始・停止（一時停止と二択。javascript/obsSceneLink.js） -->
+        <section class="settings-section obs-scene-section">
+          <h3 class="settings-section-title">シーン連動</h3>
+          <div class="settings-row">
+            <span class="settings-row-label">シーンで開始・停止</span>
+            <select id="obs-scene-link-opt" class="card-select" title="OBS のシーンを切り替えたときに、音声認識を自動で開始・停止します。有効にすると、ロゴの一時停止は使えなくなります">
+              <option value="false" selected>無効（一時停止を使う）</option>
+              <option value="true">有効</option>
+            </select>
+          </div>
+          <p id="obs-scene-link-note" class="obs-scene-note">
+            OBS のシーンを切り替えると、音声認識を自動で開始・停止します。<br>
+            シーンごとに「開始」「停止」「何もしない」を選べます。<br>
+            有効にすると、ロゴの一時停止は使えなくなります。
+          </p>
+          <div id="obs-scene-link-body" class="obs-scene-link-body" hidden>
+            <div class="settings-row">
+              <span id="obs-scene-status" class="obs-scene-status" aria-live="polite">切り替えたときの動作をシーンごとに選んでください</span>
+              <button type="button" id="obs-scene-refresh-btn" class="menu3-button settings-row-button" title="OBS からシーン一覧を取得し直します">一覧を更新</button>
+            </div>
+            <div id="obs-scene-list" class="obs-scene-list"></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="obs-help-modal-overlay" class="settings-modal-overlay" style="display: none;">
+    <div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="obs-help-title">
+      <div class="settings-modal-header">
+        <h3 id="obs-help-title" class="settings-modal-title"><span>OBS WebSocket の設定</span></h3>
+        <button type="button" id="obs-help-close" class="settings-modal-close" title="閉じる" aria-label="閉じる">✕</button>
+      </div>
+      <div class="settings-modal-body link-help-body">
+
+        <p class="soniox-help-intro">OBS 側で WebSocket サーバーを有効にすると、このツールから OBS のブラウザソースへ字幕を直接送信できるようになります（OBS 28 以降には標準搭載されています。旧バージョンでは obs-websocket プラグインが必要です）。</p>
+
+        <h4 class="link-help-subtitle">OBS 側の設定</h4>
+        <ol class="link-help-steps">
+          <li>OBS のメニュー「<strong>ツール</strong>」→「<strong>WebSocket サーバー設定</strong>」を開く</li>
+          <li>「<strong>WebSocket サーバーを有効にする</strong>」にチェックを入れる</li>
+          <li><strong>サーバーポート</strong>（既定 <code>4455</code>）を確認</li>
+          <li>「<strong>接続情報を表示</strong>」をクリックし、<strong>サーバーパスワード</strong>を確認（認証を使用する場合）</li>
+          <li>「OK」をクリックして設定を保存</li>
+        </ol>
+
+        <h4 class="link-help-subtitle">このツール側の設定</h4>
+        <ol class="link-help-steps">
+          <li><strong>サーバーIP</strong>：<code>127.0.0.1</code>（OBS と同じ PC の場合）</li>
+          <li><strong>サーバーポート</strong>：OBS と同じ（既定 <code>4455</code>）</li>
+          <li><strong>サーバーパスワード</strong>：OBS で確認したパスワード</li>
+          <li><strong>OBS WebSocket</strong> を有効にし、<strong>接続テスト</strong>で「接続成功」を確認</li>
+          <li>「<strong>OBS に字幕ソースを追加</strong>」をクリックすると、5つの字幕ソースを「HamHam字幕」シーンにまとめ、現在のシーンに追加します</li>
+        </ol>
+
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="javascript/obsSettingsWindow.js"></script>
+</body>
+</html>

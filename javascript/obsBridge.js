@@ -1,6 +1,7 @@
 /**
  * @file obsBridge.js
- * @description 直接連上 OBS WebSocket（obs-websocket v5）的橋接層。只送不收。
+ * @description 直接連上 OBS WebSocket（obs-websocket v5）的橋接層。字幕只送不收；
+ *              另外收場景切換的事件，交給 obsSceneLink.js（シーン連動）。
  *
  * 【資料怎麼走到 OBS 畫面上】
  * 本模組並不去改 OBS 裡的文字來源。字幕是這樣傳的：
@@ -12,13 +13,14 @@
  * 的自訂事件，跑在 OBS 瀏覽器來源裡的 obs_overlay.html 收到後自己畫字幕。
  * 好處是字幕的樣式與換行完全由網頁決定，不受 OBS 文字來源的能力限制。
  *
- * 因為只負責送，這一端的 eventSubscriptions 是 0（不訂閱任何 OBS 事件）；
+ * 字幕只負責送，這一端只訂閱 Scenes（場景切換・增減・改名，次數很少）；
  * 反過來 obs_overlay.html 那端會用 eventSubscriptions: 1 來收 CustomEvent。
  *
- * 【op（opcode）對照】協定裡的訊息種類，本檔案只用到這五個：
+ * 【op（opcode）對照】協定裡的訊息種類，本檔案只用到這六個：
  *   0 Hello           OBS 連上後主動送來，內含認證用的 salt／challenge
  *   1 Identify        我方回送的登入訊息（帶認證 token 與訂閱設定）
  *   2 Identified      登入成功。收到這個之後才能開始送 Request
+ *   5 Event           訂閱的事件（這裡只有 Scenes 類）
  *   6 Request         送出一個請求（BroadcastCustomEvent、CreateInput…）
  *   7 RequestResponse 對應 op 6 的回覆，用 requestId 配對
  * 規格：https://github.com/obsproject/obs-websocket/blob/master/docs/generated/protocol.md
@@ -59,12 +61,29 @@ let pendingTranslationPush = false;
 
 let lastStatusText = '';
 
+/* EventSubscription.Scenes（1 << 2）。只收場景類事件：CurrentProgramSceneChanged、
+   SceneListChanged、SceneNameChanged 等。 */
+const SCENE_EVENT_SUBSCRIPTION = 1 << 2;
+
+/* 場景事件的接收端（obsSceneLink.js）。連上 OBS 時也通知一次，讓它去抓場景清單。 */
+const sceneListeners = { programChanged: [], listChanged: [], renamed: [] };
+
+/* 連線狀態的接收端（設定視窗的「接続中」標示）。認證完成／斷線時呼叫 fn(connected)。 */
+const connectionListeners = [];
+
+function setAuthenticated(value) {
+  if (authenticated === value) return;
+  authenticated = value;
+  connectionListeners.forEach(fn => fn(value));
+}
+
 // --- OBS Auto Setup Feature ---
 
 let pendingAutoSetup = false;
 
 function generateObsOverlayUrl(mode) {
-  const baseUrl = window.location.href.split('?')[0].replace(/index\.html$/, '').replace(/\/$/, '');
+  // 這個頁面所在的資料夾。主視窗（index.html）和 OBS連携 的設定視窗（obs_settings.html）都會呼叫。
+  const baseUrl = new URL('.', window.location.href).href.replace(/\/$/, '');
   const url = getObsUrl();
   const pwd = getPassword();
   const modeParam = mode && mode !== 'all' ? `&mode=${encodeURIComponent(mode)}` : '';
@@ -304,7 +323,7 @@ function safeCloseSocket() {
     // 下面照樣把狀態歸零，讓重連流程從乾淨的狀態開始。
   }
   socket = null;
-  authenticated = false;
+  setAuthenticated(false);
   pendingSourcePush = false;
   pendingTranslationPush = false;
 }
@@ -361,9 +380,9 @@ function sendRaw(payload) {
 function sendIdentify(authentication = '') {
   const identifyData = {
     rpcVersion: 1,
-    // 0 = 不訂閱任何事件。本模組只送不收，訂閱只會白白收到大量 OBS 事件。
-    // （obs_overlay.html 那端相反，它要收 CustomEvent，所以用 1。）
-    eventSubscriptions: 0
+    // 只訂閱場景類。字幕本身只送不收，訂閱更多只會白白收到大量 OBS 事件。
+    // （obs_overlay.html 那端要收 CustomEvent，所以用 1。）
+    eventSubscriptions: SCENE_EVENT_SUBSCRIPTION
   };
   if (authentication) identifyData.authentication = authentication;
   sendRaw({ op: 1, d: identifyData });
@@ -548,11 +567,14 @@ function ensureConnection() {
     }
 
     if (op === 2) {
-      authenticated = true;
+      setAuthenticated(true);
       setBridgeStatus('OBS Bridge: identified/authenticated');
       flushPendingPushes();
+      sceneListeners.listChanged.forEach(fn => fn());
       return;
     }
+
+    if (op === 5) handleSceneEvent(data.eventType, data.eventData || {});
   };
 
   socket.onerror = () => {
@@ -561,12 +583,59 @@ function ensureConnection() {
 
   socket.onclose = (event) => {
     socket = null;
-    authenticated = false;
+    setAuthenticated(false);
     const closeCode = event?.code ?? 'unknown';
     const closeReason = event?.reason || '';
     setBridgeStatus(`OBS Bridge: disconnected code=${closeCode} ${closeReason}`.trim());
     if (isEnabled()) scheduleReconnect();
   };
+}
+
+/** op 5 Event 的分派。只訂閱了 Scenes，其他種類不會來。 */
+function handleSceneEvent(eventType, eventData) {
+  if (eventType === 'CurrentProgramSceneChanged') {
+    sceneListeners.programChanged.forEach(fn => fn(eventData.sceneName));
+  } else if (eventType === 'SceneNameChanged') {
+    sceneListeners.renamed.forEach(fn => fn(eventData.oldSceneName, eventData.sceneName));
+    sceneListeners.listChanged.forEach(fn => fn());
+  } else if (eventType === 'SceneListChanged' || eventType === 'SceneCreated' || eventType === 'SceneRemoved') {
+    sceneListeners.listChanged.forEach(fn => fn());
+  }
+}
+
+/** 節目（Program）的場景切換時呼叫 fn(sceneName)。工作室模式的預覽切換不算。 */
+export function onProgramSceneChanged(fn) {
+  sceneListeners.programChanged.push(fn);
+}
+
+/** 場景清單可能變了（連上 OBS、增減、改名、排序）時呼叫 fn()。 */
+export function onSceneListChanged(fn) {
+  sceneListeners.listChanged.push(fn);
+}
+
+/** 場景改名時呼叫 fn(oldName, newName)。 */
+export function onSceneRenamed(fn) {
+  sceneListeners.renamed.push(fn);
+}
+
+export function isObsConnected() {
+  return authenticated;
+}
+
+/** OBS との接続（認證完成）／斷線時呼叫 fn(connected)。 */
+export function onObsConnectionChange(fn) {
+  connectionListeners.push(fn);
+}
+
+/**
+ * 取得 OBS 的場景名稱，順序與 OBS 的場景清單相同（由上而下）。
+ * GetSceneList 回傳的是 sceneIndex 由下而上的順序，所以反過來。
+ * @returns {Promise<string[]>} 未連線時 reject
+ */
+export async function fetchSceneNames() {
+  if (!authenticated) throw new Error('OBS に接続されていません');
+  const { scenes = [] } = await sendSingleRequest('GetSceneList');
+  return scenes.map(scene => scene.sceneName).reverse();
 }
 
 /**
@@ -619,6 +688,15 @@ export function handleObsBridgeSettingsChanged() {
     pushSourceToObs();
     pushTranslationsToObs();
   }
+}
+
+/**
+ * 只連線、不送字幕。OBS連携 的設定視窗用：它要抓場景清單、加字幕來源，
+ * 但不能送字幕——它手上的字幕是空的，送出去會把畫面上的字幕清掉。
+ * 設定改了再呼叫一次，位址或密碼變了就會重連（見 ensureConnection）。
+ */
+export function connectObsBridge() {
+  ensureConnection();
 }
 
 /** 主動斷線並取消重連排程。停用整合或關閉頁面時呼叫。 */

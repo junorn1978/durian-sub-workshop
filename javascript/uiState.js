@@ -39,6 +39,11 @@ const PAUSE_BUTTON_HINTS = {
   paused: { label: '一時停止の残り時間をリセット', title: 'クリックで残り時間を設定した長さに戻します' }
 };
 
+/* 最後一次設定的按鈕狀態。切換シーン連動時要用它重算標誌能不能按。 */
+let controlsState = 'idle';
+/* シーン連動開啟時為 false：標誌的一時停止不能按（見 obsSceneLink.js）。 */
+let pauseAvailable = true;
+
 /**
  * 統一切換錄音操作按鈕的啟用狀態。
  * 在 'paused' 狀態下，可透過「開始」立即恢復、「停止」取消自動恢復，或按標誌重設剩餘時間，
@@ -49,11 +54,18 @@ export function setRecognitionControlsState(state) {
   const startButton = document.getElementById('start-recording');
   const stopButton = document.getElementById('stop-recording');
   const pauseButton = document.getElementById('pause-recording');
+  controlsState = state;
   if (!startButton || !stopButton) return;
 
   startButton.disabled = state === 'recording';
   stopButton.disabled = state === 'idle';
-  if (pauseButton) pauseButton.disabled = state === 'idle';
+  if (pauseButton) pauseButton.disabled = state === 'idle' || !pauseAvailable;
+}
+
+/** シーン連動の開關。關閉時標誌恢復成一時停止按鈕。 */
+export function setPauseAvailable(available) {
+  pauseAvailable = available;
+  setRecognitionControlsState(controlsState);
 }
 
 /**

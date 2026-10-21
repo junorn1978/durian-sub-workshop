@@ -1476,7 +1476,8 @@ body {
 
 .obs-modal {
   width: 100%;
-  max-width: 460px;
+  /* 左右2列（接続／シーン連動）。1列あたり以前の幅（460px）に近くなるようにする。 */
+  max-width: 880px;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
@@ -1534,11 +1535,107 @@ body {
 .obs-modal-body {
   padding: 8px 16px 16px;
   overflow-y: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+/* 窓が狭いときは以前どおり縦に並べる。 */
+@media (max-width: 760px) {
+  .obs-modal-body { grid-template-columns: 1fr; }
 }
 .obs-modal-body .settings-section {
   box-shadow: none;
   padding: 0;
 }
+
+/* OBS連携 の設定窓（obs_settings.html）。主視窗の対話框と同じ見た目（.obs-modal）を、
+   窓いっぱいに広げて使う。主視窗の body の最小幅・はみ出し隠しはここでは要らない。 */
+body.obs-settings-page {
+  min-width: 0;
+  background-color: var(--theme-panel);
+}
+.obs-window {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+.obs-window .obs-modal {
+  max-width: none;
+  max-height: none;
+  flex: 1 1 auto;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  /* 入場アニメーション（@starting-style の縮小）は対話框用。窓では要らない。 */
+  transform: none;
+  transition: none;
+}
+.obs-window .obs-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 16px;
+  gap: 16px;
+  background-color: var(--theme-panel);
+}
+/* 窓では2列をそれぞれ白いカードにする（対話框のときは枠なしだった）。 */
+.obs-window .obs-modal-body .settings-section {
+  padding: 8px 16px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--theme-button) 35%, transparent);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--theme-border) 10%, transparent);
+}
+/* 左のカードは右（シーン一覧）と同じ高さまで伸びるので、「字幕ソースを追加」を下端に寄せる。 */
+.obs-window .obs-modal-body > .settings-section:first-child {
+  display: flex;
+  flex-direction: column;
+}
+.obs-window .obs-modal-body > .settings-section:first-child > .settings-row-wide:last-child {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+/* 標題横の接続状態。 */
+.obs-conn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: bold;
+  background-color: color-mix(in srgb, #888 15%, #FFF);
+  color: #666;
+}
+.obs-conn-badge::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+.obs-conn-badge[data-state="on"]    { background-color: #E8F5E9; color: #2E7D32; }
+.obs-conn-badge[data-state="retry"] { background-color: #FFEBEE; color: #C62828; }
+
+/* シーン連動が無効のときの説明。 */
+.obs-scene-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ui-label-color);
+  background-color: color-mix(in srgb, var(--theme-panel) 70%, #FFF);
+}
+#obs-scene-link-opt { width: 190px; }
+
+/* シーンごとの動作を左端の色で示す（開始＝緑、停止＝赤、何もしない＝なし）。 */
+.obs-scene-row {
+  padding-left: 10px;
+  border-left: 3px solid transparent;
+}
+.obs-scene-row[data-action="start"] { border-left-color: #43A047; }
+.obs-scene-row[data-action="stop"]  { border-left-color: #E53935; }
 
 .obs-test-status {
   font-size: 13px;
@@ -1547,6 +1644,43 @@ body {
 .obs-test-status.testing { color: var(--ui-label-color); }
 .obs-test-status.ok      { color: #2e7d32; }
 .obs-test-status.fail    { color: #c62828; }
+
+/* シーン連動の一覧。シーンが多いときは一覧の中だけスクロールする。 */
+.obs-scene-status {
+  font-size: 12px;
+  color: var(--ui-label-color);
+}
+/* 右列の高さは左列（接続）で決まり、シーン一覧はその残りを埋めて中だけスクロールする。
+   flex-basis 0 にしておくと、シーンが多くても一覧が列の高さを押し広げない。 */
+.obs-scene-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.obs-scene-link-body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.obs-scene-list {
+  flex: 1 1 0;
+  min-height: 160px;
+  overflow-y: auto;
+}
+.obs-scene-row { min-height: 40px; }
+.obs-scene-name {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+.settings-section .obs-scene-row > select.card-select {
+  width: 120px;
+  flex-shrink: 0;
+}
 
 /* =========================================
    設定齒輪（底部狀態列の右端、版本の右）。めったに押さないので小さめ
