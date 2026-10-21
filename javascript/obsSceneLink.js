@@ -15,7 +15,8 @@
  * 場景在 OBS 裡改名時，規則跟著改名。已經不存在的場景的規則留著不刪
  * （OBS 暫時關掉或換了場景集合時，清單是空的，不該把設定洗掉）。
  *
- * 規則與開關是每個視窗各自一份（見 settingsStore.js 的 PER_CHANNEL_KEYS）。
+ * 規則與開關兩個視窗共用一份：連動時切到休息畫面，對方的字幕（第二個視窗）也一起停。
+ * 只能在第一個視窗的 OBS連携 改，第二個視窗的只顯示（見 obsSettingsWindow.js）。
  *
  * 【兩個視窗分工】設定畫面在另開的 OBS連携 視窗（obs_settings.html），不在主視窗裡：
  * 主視窗常被 OBS 的ウィンドウキャプチャ拍進直播，場景名稱不一定能給人看。
@@ -44,6 +45,8 @@ const DEFAULT_ACTION = 'start';
 
 /** @type {(action: 'start'|'stop', sceneName: string) => void} */
 let applyAction = () => {};
+/* 設定視窗是第二個視窗開的：清單只顯示、不能改。 */
+let readOnly = false;
 
 function isEnabled() {
   return getSettingBool(ENABLED_KEY);
@@ -80,6 +83,7 @@ function buildSceneRow(sceneName, action) {
 
   const select = document.createElement('select');
   select.className = 'card-select';
+  select.disabled = readOnly;
   for (const [value, text] of Object.entries(ACTION_LABELS)) {
     select.add(new Option(text, value, false, value === action));
   }
@@ -117,7 +121,8 @@ async function refreshSceneList() {
 
   const rules = loadRules();
   list.replaceChildren(...names.map(name => buildSceneRow(name, rules[name] || DEFAULT_ACTION)));
-  setListStatus(names.length ? '切り替えたときの動作をシーンごとに選んでください' : 'シーンがありません');
+  if (!names.length) setListStatus('シーンがありません');
+  else setListStatus(readOnly ? '1つ目の窓と同じ設定で動きます' : '切り替えたときの動作をシーンごとに選んでください');
 }
 
 function handleProgramSceneChanged(sceneName) {
@@ -166,9 +171,11 @@ export function showSceneRuleList(enabled) {
 
 /**
  * 設定視窗：場景清單。連上 OBS、場景增減改名時自動重畫，「一覧を更新」手動重畫。
- * 主視窗搬動規則（場景改名）時也重畫，清單上的選擇才不會停在舊名字上。
+ * 主視窗搬動規則（場景改名）、或第一個視窗改了規則時也重畫（第二個視窗的清單跟著變）。
+ * @param {{ readOnly?: boolean }} [options] readOnly：第二個視窗用，選單不能改
  */
-export function mountSceneRuleList() {
+export function mountSceneRuleList({ readOnly: isReadOnly = false } = {}) {
+  readOnly = isReadOnly;
   onSceneListChanged(refreshSceneList);
   onExternalSettingChange([RULES_KEY], refreshSceneList);
   document.getElementById('obs-scene-refresh-btn')?.addEventListener('click', refreshSceneList);

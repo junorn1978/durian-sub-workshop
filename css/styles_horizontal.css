@@ -598,6 +598,16 @@ body {
   font-weight: bold;
 }
 
+/* 「OBS連携」ボタン：OBS に接続している間だけ文字の左に緑の点を付ける。 */
+.menu-button.obs-connected { gap: 5px; }
+.menu-button.obs-connected::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #2E7D32;
+}
+
 /* 破壊的操作（設定リセット）は赤系で他のボタンと区別する */
 .options-button.danger-zone {
   background-color: #FFF;
@@ -1616,6 +1626,16 @@ body.obs-settings-page {
 }
 .obs-conn-badge[data-state="on"]    { background-color: #E8F5E9; color: #2E7D32; }
 .obs-conn-badge[data-state="retry"] { background-color: #FFEBEE; color: #C62828; }
+
+/* 2つ目の窓から開いたとき：表示だけの欄はグレーにし、上に説明を出す。 */
+.obs-ch2-note {
+  margin: 0;
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--ui-label-color);
+  background-color: color-mix(in srgb, var(--theme-panel) 70%, #FFF);
+}
+.obs-window .card-select:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* シーン連動が無効のときの説明。 */
 .obs-scene-note {

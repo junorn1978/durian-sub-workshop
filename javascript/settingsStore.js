@@ -39,7 +39,6 @@ const PER_CHANNEL_KEYS = new Set([
   'speech-recognition-engine',
   'soniox-latency-level', 'soniox-sensitivity', 'soniox-max-delay-ms',
   'subtitle-clear-idle-sec',
-  'obs-scene-link-enabled', 'obs-scene-rules',
   'text-alignment', 'force-single-line-enabled', 'display-panel-color'
 ]);
 const PER_CHANNEL_STYLE = /^(source|target[123])-font-(color|stroke-color|size|stroke-size)$/;

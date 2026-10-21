@@ -13,6 +13,7 @@ import { createLogger, setLogLevel } from './logger.js';
 import { getSetting, setSetting, hasStoredSetting, CHANNEL } from './settingsStore.js';
 import { bindSettings } from './settingsBindings.js';
 import { setupToggleVisibility } from './visibilityToggle.js';
+import { isObsConnected, onObsConnectionChange } from './obsBridge.js';
 import { translateTestText } from './translationController.js';
 import { setupColorPickers } from './colorPicker.js';
 import { setupModal } from './modals.js';
@@ -230,7 +231,7 @@ const setupLinkHelpCopy = () => {
 /**
  * 「OBS連携」按鈕：另開設定視窗（obs_settings.html）。
  * 開在這個頁面裡的話，OBS 的ウィンドウキャプチャ會把設定畫面（含場景名稱）拍進直播。
- * 已經開著就叫到前面，不重新載入。ch2 開的是 ch2 那一份設定。
+ * 已經開著就叫到前面，不重新載入。ch2 開的只顯示設定，能做的只有加 HamHam字幕2 的來源。
  */
 const setupObsSettingsWindow = () => {
   let settingsWindow = null;
@@ -242,6 +243,32 @@ const setupObsSettingsWindow = () => {
     const query = CHANNEL === 2 ? '?ch=2' : '';
     settingsWindow = window.open(`obs_settings.html${query}`, `hamham-obs-settings-${CHANNEL}`, 'popup,width=920,height=640');
   });
+};
+
+const OBS_CONNECTED_INTRO_TEXT = 'OBS 接続済み';
+
+/**
+ * 讓直播主打開頁面時確認有沒有連上 OBS。沒連上（含沒開 OBS WebSocket）就什麼都不顯示。
+ *   - 「OBS連携」按鈕上的綠點：連上時才亮。
+ *   - 字幕區第 3 行的開場文字（↓ Notice ↓）換成「OBS 接続済み」，斷線就換回來。
+ *     只在開場文字還在時換：開始辨識後這裡是字幕，之後重新連上也不去動它。
+ *     這裡只改畫面上的字，送到 OBS 的字幕不受影響（obsBridge.js 送的是自己記的字幕）。
+ */
+const setupObsConnectionIndicator = () => {
+  const button = document.getElementById('obs-settings');
+  const introLine = document.getElementById('target-text-2');
+  const introText = introLine?.textContent;
+
+  const render = (connected) => {
+    button?.classList.toggle('obs-connected', connected);
+    if (button) button.title = connected ? 'OBS に接続しています' : '';
+    // 開場文字已經被清掉（空字串）時，不能拿空字串來比，否則字幕清空後會被寫上去。
+    if (!introLine || !introText) return;
+    if (connected && introLine.textContent === introText) introLine.textContent = OBS_CONNECTED_INTRO_TEXT;
+    else if (!connected && introLine.textContent === OBS_CONNECTED_INTRO_TEXT) introLine.textContent = introText;
+  };
+  onObsConnectionChange(render);
+  render(isObsConnected());
 };
 // #endregion
 
@@ -280,6 +307,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   MODALS.forEach(setupModal);
   setupLinkHelpCopy();
   setupObsSettingsWindow();
+  setupObsConnectionIndicator();
 
   document.getElementById('Subtitle')?.click();
   setupSourceScrollBehavior('source-text');

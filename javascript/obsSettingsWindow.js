@@ -5,6 +5,10 @@
  * 【為什麼另開視窗】以前是主視窗裡的對話框，但主視窗常被 OBS 的ウィンドウキャプチャ
  * 拍進直播，打開設定就會連場景名稱一起播出去。另一個視窗不在擷取範圍內。
  *
+ * 【第二個視窗開的】連線與シーン連動的設定兩個視窗共用，只能在第一個視窗開的這裡改。
+ * 第二個視窗開的只顯示（欄位不能改，第一個視窗改了會跟著更新），能按的只有
+ * 「OBS に字幕ソースを追加」——它建立的是 HamHam字幕2 那一組，只能從這裡建。
+ *
  * 【和主視窗怎麼溝通】只靠 localStorage：這裡把值寫進去，主視窗收到 storage 事件後
  * 重新連線、切換一時停止能不能按（見 settingsBindings.js 的 bindObsWindowSettings）。
  * 場景規則主視窗每次切場景時才讀，所以不用通知。
@@ -14,7 +18,7 @@
  * 不用主視窗那個會順便重送字幕的 handleObsBridgeSettingsChanged()。
  */
 
-import { getSetting, setSetting } from './settingsStore.js';
+import { getSetting, setSetting, onExternalSettingChange, CHANNEL } from './settingsStore.js';
 import {
   connectObsBridge, testObsConnection, triggerAutoSetup, refreshObsDragLinks, isObsConnected, onObsConnectionChange
 } from './obsBridge.js';
@@ -35,6 +39,9 @@ const CONNECTION_FIELDS = [
 ];
 const SCENE_LINK_FIELD = { id: 'obs-scene-link-opt', key: 'obs-scene-link-enabled' };
 
+/* 第二個視窗開的：設定只顯示、不能改。 */
+const READ_ONLY = CHANNEL === 2;
+
 let reconnectTimer = null;
 
 function applyConnection() {
@@ -45,11 +52,22 @@ function applyConnection() {
   }, RECONNECT_DEBOUNCE_MS);
 }
 
-/** 把欄位接到設定上：載入目前的值，改了就寫回去並呼叫 onChange。 */
+/**
+ * 把欄位接到設定上：載入目前的值，改了就寫回去並呼叫 onChange。
+ * 只顯示時欄位不能改，改成第一個視窗改了值就跟著更新，同樣呼叫 onChange。
+ */
 function bindField({ id, key, sanitize }, onChange) {
   const el = document.getElementById(id);
   if (!el) return;
   el.value = getSetting(key) ?? '';
+  if (READ_ONLY) {
+    el.disabled = true;
+    onExternalSettingChange([key], () => {
+      el.value = getSetting(key) ?? '';
+      onChange(el.value);
+    });
+    return;
+  }
   el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
     if (sanitize) {
       const cleaned = sanitize(el.value);
@@ -98,15 +116,23 @@ document.addEventListener('DOMContentLoaded', () => {
   CONNECTION_FIELDS.forEach(field => bindField(field, () => { applyConnection(); renderConnectionBadge(); }));
   bindField(SCENE_LINK_FIELD, (value) => showSceneRuleList(value === 'true'));
 
-  setupToggleVisibility('toggle-obs-pwd-visibility', 'obs-ws-password');
+  if (READ_ONLY) {
+    // 密碼不給看；接続テスト的結果和第一個視窗一樣，不用在這裡測。
+    const hide = (el) => { if (el) el.hidden = true; };
+    document.getElementById('obs-ch2-note').hidden = false;
+    hide(document.getElementById('toggle-obs-pwd-visibility'));
+    hide(document.getElementById('obs-test-btn')?.closest('.settings-row'));
+  } else {
+    setupToggleVisibility('toggle-obs-pwd-visibility', 'obs-ws-password');
+    setupConnectionTest();
+  }
   setupModal({ overlayId: 'obs-help-modal-overlay', openButtonId: 'obs-help-btn', closeButtonId: 'obs-help-close' });
-  setupConnectionTest();
   document.getElementById('obs-auto-setup-btn')?.addEventListener('click', () => triggerAutoSetup());
   document.getElementById('obs-window-close')?.addEventListener('click', () => window.close());
 
   onObsConnectionChange(renderConnectionBadge);
   renderConnectionBadge();
-  mountSceneRuleList();
+  mountSceneRuleList({ readOnly: READ_ONLY });
   showSceneRuleList(getSetting(SCENE_LINK_FIELD.key) === 'true');
   connectObsBridge();
   refreshObsDragLinks();

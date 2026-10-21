@@ -6,7 +6,7 @@
   <title>OBS連携 - ハムハム字幕アトリエ</title>
   <!-- 主視窗「OBS連携」ボタンで開く設定視窗（javascript/obsSettingsWindow.js）。
        主視窗の中に出すと OBS のウィンドウキャプチャに映ってしまう（シーン名など）ため、別の窓にしている。
-       ch2 の主視窗から開くと ?ch=2 が付き、配色と設定（シーン連動）が ch2 のものになる。 -->
+       ch2 の主視窗から開くと ?ch=2 が付き、配色が ch2 になる。設定は1つ目と共通で、表示だけ（字幕ソースの追加は HamHam字幕2）。 -->
   <script>
     if (new URLSearchParams(location.search).get('ch') === '2') {
       document.documentElement.dataset.ch = '2';
@@ -35,6 +35,8 @@
         </h3>
         <button type="button" id="obs-window-close" class="obs-modal-close" title="この窓を閉じる" aria-label="閉じる">✕</button>
       </div>
+      <!-- 2つ目の窓から開いたとき：設定は1つ目の窓と共通なので表示だけ（javascript/obsSettingsWindow.js） -->
+      <p id="obs-ch2-note" class="obs-ch2-note" hidden>接続とシーン連動の設定は、1つ目の窓で変更します。この窓では「OBS に字幕ソースを追加」だけ使えます。</p>
       <!-- 左：接続と字幕ソース／右：シーン連動 -->
       <div class="obs-modal-body">
         <section class="settings-section">
