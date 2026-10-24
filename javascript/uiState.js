@@ -3,8 +3,6 @@
  * @description Shared DOM-only UI helpers used across speech and translation flows.
  */
 
-import { publishSourceTextToObs, publishTranslationsToObs } from './obsBridge.js';
-
 export function updateStatusDisplay(text, details = null) {
   const statusDisplay = document.getElementById('status-display');
   let displayText = text;
@@ -98,7 +96,4 @@ export function clearAllTextElements() {
     }
     el.textContent = '';
   }
-
-  publishSourceTextToObs('');
-  publishTranslationsToObs([]);
 }

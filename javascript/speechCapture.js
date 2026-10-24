@@ -18,6 +18,7 @@ import { mountMicSelector, mountTabShareButton, onMicChange, refreshMicList, get
 import { hasTabShare, cloneTabStream, onTabShareChange } from './tabAudio.js';
 import { mountSecondWindow } from './secondWindow.js';
 import { mountObsSceneLink } from './obsSceneLink.js';
+import { onLanguagePackInstalled } from './languagePackManager.js';
 
 const log = createLogger('SpeechRecognition');
 
@@ -199,7 +200,7 @@ function clearPauseState() {
   updateSourceText.reset();
 
   if (wasPaused) {
-    clearAllTextElements();
+    clearAllText();
     setRecognitionControlsState('idle');
   }
 }
@@ -309,7 +310,7 @@ function clearSubtitlesForIdle() {
   if (!isRecognitionActive || isPaused()) return;
   log.debug(`${getClearIdleSec()}秒無音のため字幕をクリア`);
   resetTranslationDisplay();
-  clearAllTextElements();
+  clearAllText();
   updateSourceText.reset();
   previousText = '';
 }
@@ -325,6 +326,13 @@ function isWebSpeechRecognitionRunning() {
   return isRecognitionActive && activeRecognitionEngine === 'webspeech';
 }
 
+/** 清掉畫面上的字幕，OBS 那邊也一起清。 */
+function clearAllText() {
+  clearAllTextElements();
+  publishSourceTextToObs('');
+  publishTranslationsToObs([]);
+}
+
 function resetRecognitionState({ clearText = false } = {}) {
   cancelIdleClear();
   setRecognitionControlsState('idle');
@@ -332,7 +340,7 @@ function resetRecognitionState({ clearText = false } = {}) {
   activeRecognitionEngine = null;
   if (clearText) {
     resetTranslationDisplay();
-    clearAllTextElements();
+    clearAllText();
   }
 }
 
@@ -843,7 +851,7 @@ async function startRecognition() {
   }
 
   resetTranslationDisplay();
-  clearAllTextElements();
+  clearAllText();
   updateSourceText.reset();
 
   /* 雲端 STT 優先權邏輯：若選擇雲端引擎則嘗試啟動，失敗後 Fallback 至 Web Speech API */
@@ -1071,6 +1079,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   mountTabShareButton();
   mountSecondWindow();
   mountObsSceneLink({ onAction: followObsScene });
+  /* オンラインとオフラインで認識パラメータが異なるため、認識中であれば
+     一度停止し、オフライン用パラメータで再スタートしてもらう。 */
+  onLanguagePackInstalled(() => {
+    if (isWebSpeechRecognitionRunning()) document.getElementById('stop-recording')?.click();
+  });
   onMicChange(switchInput);
   // 共用開始：改聽分頁。結束：停止（見 handleInputLost）。
   onTabShareChange((active) => {
@@ -1091,5 +1104,3 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // #endregion
-
-export { isWebSpeechRecognitionRunning };

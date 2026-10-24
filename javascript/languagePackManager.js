@@ -18,7 +18,6 @@
 
 import { getLang } from './config.js';
 import { createLogger } from './logger.js';
-import { isWebSpeechRecognitionRunning } from './speechCapture.js';
 
 const log = createLogger('LanguagePackManager');
 
@@ -42,6 +41,9 @@ const QUALITY_PREFERENCE = ['dictation', 'command'];
 
 /** 最近一次檢查得到的可安裝品質下限。install() 不能先 await 檢查，所以沿用這個值。 */
 let installQuality = QUALITY_PREFERENCE[QUALITY_PREFERENCE.length - 1];
+
+/* 語言包裝好時要通知的對象。辨識狀態歸 speechCapture.js 管，由它自己決定要不要停。 */
+const installedListeners = [];
 
 // #endregion
 
@@ -189,11 +191,7 @@ async function downloadLanguagePack(langId, updateCallback) {
   if (installed) {
     log.info(`語言包 ${langObj.id} 安裝成功`);
     setButtonState('ダウンロード済み', true);
-    /* オンラインとオフラインで認識パラメータが異なるため、認識中であれば
-       一度停止し、オフライン用パラメータで再スタートしてもらう。 */
-    if (isWebSpeechRecognitionRunning()) {
-      document.getElementById('stop-recording')?.click();
-    }
+    installedListeners.forEach((listener) => listener(langObj.id));
     updateCallback(`「${langObj.label}」のローカル音声認識を使用できるようになりました。もう一度「開始」を押してください。`);
     return true;
   }
@@ -201,6 +199,14 @@ async function downloadLanguagePack(langId, updateCallback) {
   await updateLanguagePackButton(langId);
   updateCallback(`「${langObj.label}」の言語パックのダウンロードに失敗しました。もう一度お試しください。`);
   return false;
+}
+
+/**
+ * 語言包安裝成功時呼叫 listener。
+ * @param {(langId: string) => void} listener
+ */
+function onLanguagePackInstalled(listener) {
+  installedListeners.push(listener);
 }
 
 /**
@@ -234,4 +240,4 @@ async function setupLanguagePackButton(languageSelectorId, updateCallback) {
 }
 // #endregion
 
-export { isLanguageSupportedLocally, downloadLanguagePack, updateLanguagePackButton, setupLanguagePackButton };
+export { isLanguageSupportedLocally, downloadLanguagePack, updateLanguagePackButton, setupLanguagePackButton, onLanguagePackInstalled };
