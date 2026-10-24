@@ -13,7 +13,9 @@ import { createLogger, setLogLevel } from './logger.js';
 import { getSetting, setSetting, hasStoredSetting, onExternalSettingChange, CHANNEL } from './settingsStore.js';
 import { bindSettings } from './settingsBindings.js';
 import { setupToggleVisibility } from './visibilityToggle.js';
-import { isObsConnected, onObsConnectionChange } from './obsBridge.js';
+import { isObsConnected, onObsConnectionChange, republishSubtitlesToObs } from './obsBridge.js';
+import { setScenePresetHandler } from './obsSceneLink.js';
+import { mountSubtitlePresets, applyPreset } from './subtitlePresets.js';
 import { translateTestText } from './translationController.js';
 import { setupColorPickers } from './colorPicker.js';
 import { setupModal } from './modals.js';
@@ -111,11 +113,12 @@ const setupDisplayPanelInteraction = () => {
 };
 
 /** 全部重設按鈕的處理。 */
-const setupResetButton = (resetAll, syncColorPickers) => {
+const setupResetButton = (resetAll, syncColorPickers, syncPresets) => {
   document.getElementById('reset-settings')?.addEventListener('click', (event) => {
     event.stopPropagation();
     resetAll();
     syncColorPickers();
+    syncPresets();
   });
 };
 
@@ -326,9 +329,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const { resetAll } = bindSettings();
   const colorPickers = setupColorPickers();
+  // 換了配色馬上推給 OBS 的 overlay，不等下一句字幕。シーン連動 的換色也走這裡。
+  const subtitlePresets = mountSubtitlePresets({ onApplied: republishSubtitlesToObs });
+  setScenePresetHandler(applyPreset);
 
   setupPanelSwitching({ 'Subtitle': 'source-styles-panel', 'options': 'options-panel' });
-  setupResetButton(resetAll, colorPickers.sync);
+  setupResetButton(resetAll, colorPickers.sync, subtitlePresets.sync);
   await setupLanguagePackButton('source-language', updateStatusDisplay);
   setupDisplayPanelInteraction();
   setupTranslationModeHandler();

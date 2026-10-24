@@ -244,6 +244,14 @@
               </span>
             </div>
 
+            <!-- 字幕の配色：4行の文字色・縁取り色・縁取りサイズをまとめて切り替える（javascript/subtitlePresets.js）。
+                 選択肢は JS が描く。サイズと背景色は変えない。 -->
+            <div class="settings-row">
+              <span class="settings-row-label">字幕の配色</span>
+              <button type="button" id="subtitle-preset-btn" class="menu3-button settings-row-button" popovertarget="subtitle-preset-menu" title="字幕の文字色・縁取りをまとめて切り替えます（文字サイズと背景色は変わりません）">配色を選ぶ</button>
+              <div id="subtitle-preset-menu" class="subtitle-preset-menu" popover role="menu" aria-label="字幕の配色"></div>
+            </div>
+
             <div class="settings-row">
               <span class="settings-row-label">音声字幕を1行で表示</span>
               <select id="force-single-line-opt" class="card-select" title="長い音声字幕を1行に収めて表示します">

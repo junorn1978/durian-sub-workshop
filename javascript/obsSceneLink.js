@@ -18,10 +18,17 @@
  * 規則與開關兩個視窗共用一份：連動時切到休息畫面，對方的字幕（第二個視窗）也一起停。
  * 只能在第一個視窗的 OBS連携 改，第二個視窗的只顯示（見 obsSettingsWindow.js）。
  *
+ * 【字幕の配色】每個場景也能換字幕的配色（subtitlePresets.js）：聊天畫面用可愛的、
+ * 遊戲畫面用高對比的。這是另一條獨立的規則，「何もしない」的場景也能換色。
+ * 沒指定的場景是「配色そのまま」，所以手動挑的顏色不會被連動蓋掉，除非那個場景有指定。
+ * 字幕外觀每個視窗各自一份，所以配色規則也是各自一份（'ch2:obs-scene-presets'），
+ * 第二個視窗的 OBS連携 也能改這一欄。切場景時先換色再開始／停止。
+ *
  * 【兩個視窗分工】設定畫面在另開的 OBS連携 視窗（obs_settings.html），不在主視窗裡：
  * 主視窗常被 OBS 的ウィンドウキャプチャ拍進直播，場景名稱不一定能給人看。
  *   - 主視窗：mountObsSceneLink()——收場景切換、開始／停止、場景改名時搬規則。
  *   - 設定視窗：mountSceneRuleList()——畫場景清單、存規則。
+ *   - 主視窗的換色：setScenePresetHandler()——由 uiController.js 交進來。
  * 兩邊只透過 localStorage 交換：主視窗每次切場景都重讀規則，所以不必通知；
  * 開關則由 settingsBindings.js 監聽 storage 事件，再呼叫 applySceneLinkEnabled()。
  */
@@ -31,12 +38,14 @@ import {
 } from './obsBridge.js';
 import { getSetting, getSettingBool, setSetting, onExternalSettingChange } from './settingsStore.js';
 import { setPauseAvailable } from './uiState.js';
+import { PRESETS } from './subtitlePresets.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('ObsSceneLink');
 
 const ENABLED_KEY = 'obs-scene-link-enabled';
 const RULES_KEY = 'obs-scene-rules';
+const PRESETS_KEY = 'obs-scene-presets';
 
 /* 選單的順序也照這個。 */
 const ACTION_LABELS = { start: '開始', stop: '停止', none: '何もしない' };
@@ -45,6 +54,8 @@ const DEFAULT_ACTION = 'start';
 
 /** @type {(action: 'start'|'stop', sceneName: string) => void} */
 let applyAction = () => {};
+/** @type {(presetId: string) => void} */
+let applyPreset = () => {};
 /* 設定視窗是第二個視窗開的：清單只顯示、不能改。 */
 let readOnly = false;
 
@@ -52,26 +63,32 @@ function isEnabled() {
   return getSettingBool(ENABLED_KEY);
 }
 
-/** @returns {Record<string, 'stop'|'none'>} */
-function loadRules() {
+function loadMap(key) {
   try {
-    const rules = JSON.parse(getSetting(RULES_KEY));
-    return rules && typeof rules === 'object' ? rules : {};
+    const map = JSON.parse(getSetting(key));
+    return map && typeof map === 'object' ? map : {};
   } catch {
     return {};
   }
 }
 
-function saveRules(rules) {
-  setSetting(RULES_KEY, JSON.stringify(rules));
+function saveMap(key, map) {
+  setSetting(key, JSON.stringify(map));
 }
+
+/** @returns {Record<string, 'stop'|'none'>} */
+const loadRules = () => loadMap(RULES_KEY);
+const saveRules = (rules) => saveMap(RULES_KEY, rules);
+/** @returns {Record<string, string>} 場景名稱 → 配色 id */
+const loadPresets = () => loadMap(PRESETS_KEY);
+const savePresets = (presets) => saveMap(PRESETS_KEY, presets);
 
 function setListStatus(text) {
   const status = document.getElementById('obs-scene-status');
   if (status) status.textContent = text;
 }
 
-function buildSceneRow(sceneName, action) {
+function buildSceneRow(sceneName, action, presetId) {
   const row = document.createElement('div');
   row.className = 'settings-row obs-scene-row';
   row.dataset.action = action;
@@ -95,7 +112,22 @@ function buildSceneRow(sceneName, action) {
     row.dataset.action = select.value;
   });
 
-  row.append(label, select);
+  /* 配色：「配色そのまま」排第一，是每個場景的初始值。第二個視窗也能改（各自一份）。 */
+  const colours = document.createElement('select');
+  colours.className = 'card-select';
+  colours.title = `${sceneName} に切り替えたときの字幕の配色`;
+  colours.add(new Option('配色そのまま', '', false, !presetId));
+  for (const preset of PRESETS) {
+    colours.add(new Option(preset.name, preset.id, false, preset.id === presetId));
+  }
+  colours.addEventListener('change', () => {
+    const presets = loadPresets();
+    if (!colours.value) delete presets[sceneName];
+    else presets[sceneName] = colours.value;
+    savePresets(presets);
+  });
+
+  row.append(label, select, colours);
   return row;
 }
 
@@ -120,24 +152,35 @@ async function refreshSceneList() {
   }
 
   const rules = loadRules();
-  list.replaceChildren(...names.map(name => buildSceneRow(name, rules[name] || DEFAULT_ACTION)));
+  const presets = loadPresets();
+  list.replaceChildren(...names.map(name => buildSceneRow(name, rules[name] || DEFAULT_ACTION, presets[name] || '')));
   if (!names.length) setListStatus('シーンがありません');
-  else setListStatus(readOnly ? '1つ目の窓と同じ設定で動きます' : '切り替えたときの動作をシーンごとに選んでください');
+  else setListStatus(readOnly
+    ? '開始・停止は1つ目の窓と同じです。配色はこの窓の分を選べます'
+    : '切り替えたときの動作と配色をシーンごとに選んでください');
 }
 
 function handleProgramSceneChanged(sceneName) {
   if (!isEnabled() || !sceneName) return;
   const action = loadRules()[sceneName] || DEFAULT_ACTION;
-  log.debug(`シーン切替: ${sceneName} → ${ACTION_LABELS[action] || action}`);
+  const presetId = loadPresets()[sceneName] || '';
+  log.debug(`シーン切替: ${sceneName} → ${ACTION_LABELS[action] || action}、配色 ${presetId || 'そのまま'}`);
+  /* 先換色：不花時間，而且「開始」的場景第一句不該用上一個場景的顏色。 */
+  if (presetId) applyPreset(presetId);
   if (action === 'start' || action === 'stop') applyAction(action, sceneName);
 }
 
+/* 兩個主視窗都會收到同一次改名。開始・停止的規則是共用的，先存的那邊搬走，
+   另一邊就找不到舊名稱；配色規則各自一份，各搬各的。 */
 function handleSceneRenamed(oldName, newName) {
-  const rules = loadRules();
-  if (!oldName || !newName || !(oldName in rules)) return;
-  rules[newName] = rules[oldName];
-  delete rules[oldName];
-  saveRules(rules);
+  if (!oldName || !newName) return;
+  for (const key of [RULES_KEY, PRESETS_KEY]) {
+    const map = loadMap(key);
+    if (!(oldName in map)) continue;
+    map[newName] = map[oldName];
+    delete map[oldName];
+    saveMap(key, map);
+  }
 }
 
 /**
@@ -160,6 +203,15 @@ export function mountObsSceneLink({ onAction }) {
   onSceneRenamed(handleSceneRenamed);
 }
 
+/**
+ * 主視窗：場景要求換配色時的處理（uiController.js 提供，實際是 subtitlePresets.js 的 applyPreset）。
+ * 配色要碰設定畫面的 DOM，不在這裡直接呼叫，和 onAction 一樣由外面交進來。
+ * @param {(presetId: string) => void} fn
+ */
+export function setScenePresetHandler(fn) {
+  applyPreset = fn;
+}
+
 /** 設定視窗：開關切換時顯示／隱藏場景清單。關閉時改顯示這個功能的說明。 */
 export function showSceneRuleList(enabled) {
   const body = document.getElementById('obs-scene-link-body');
@@ -177,6 +229,6 @@ export function showSceneRuleList(enabled) {
 export function mountSceneRuleList({ readOnly: isReadOnly = false } = {}) {
   readOnly = isReadOnly;
   onSceneListChanged(refreshSceneList);
-  onExternalSettingChange([RULES_KEY], refreshSceneList);
+  onExternalSettingChange([RULES_KEY, PRESETS_KEY], refreshSceneList);
   document.getElementById('obs-scene-refresh-btn')?.addEventListener('click', refreshSceneList);
 }

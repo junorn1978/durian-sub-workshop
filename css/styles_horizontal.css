@@ -1703,8 +1703,91 @@ body.obs-settings-page {
   width: 120px;
   flex-shrink: 0;
 }
+/* 行は space-between なので、選択欄が2つ（動作と配色）だと1つ目が真ん中に浮く。
+   名前が残りを取り、選択欄2つは右端に並べる。 */
+.obs-scene-row > .obs-scene-name { margin-right: auto; }
 /* シーン一覧の選択欄はクリックしたときの枠を出さない（行が多く、枠がちらついて見える）。 */
 .settings-section .obs-scene-row > select.card-select:focus-visible { outline: none; }
+
+/* =========================================
+   字幕の配色（javascript/subtitlePresets.js）。右側の情報欄のボタンから開く
+   ========================================= */
+/* 開いている間はボタンを押した色のままにする。 */
+#subtitle-preset-btn:has(+ .subtitle-preset-menu:popover-open) {
+  background-color: var(--theme-button-hover);
+}
+
+/* 上に開く：下は画面の端で、上は字幕の表示欄なので、選んだ結果がそのまま見える。
+   右側の欄から出るので、左へ広げる。 */
+#subtitle-preset-btn { anchor-name: --subtitle-preset-btn; }
+.subtitle-preset-menu {
+  position-anchor: --subtitle-preset-btn;
+  position-area: top span-left;
+  position-try-fallbacks: flip-block;
+  inset: auto;
+  margin: 0 0 8px;
+  padding: 10px;
+  display: none;
+  border: 1px solid var(--theme-button);
+  border-radius: 10px;
+  background: #FFFDF8;
+  box-shadow: 0 8px 24px rgba(70, 40, 20, 0.22);
+  color: #2B2B2B;
+}
+.subtitle-preset-menu:popover-open {
+  display: grid;
+  gap: 8px;
+}
+.subtitle-preset-head {
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--ui-label-color);
+}
+.subtitle-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+/* 各項目は自分の配色で名前を描く（--p-color／--p-stroke は JS がインラインで設定）。
+   選択肢そのものがプレビューになる。縁取りは配信より細い：この大きさで実際の幅だと字が潰れる。
+   背景は灰色系：白い縁取りの配色（ゆめかわ）も、暗い縁取りの配色も読めるように。 */
+.subtitle-preset-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: #E9E4EE;
+  cursor: pointer;
+  text-align: left;
+}
+.subtitle-preset-item:hover { background: #DCD3E6; }
+.subtitle-preset-item[aria-checked="true"] {
+  box-shadow: inset 0 0 0 2px var(--theme-accent);
+}
+.subtitle-preset-name {
+  font-family: "M PLUS Rounded 1c", "Huninn", Arial, sans-serif;
+  font-size: 15px;
+  font-weight: bold;
+  white-space: nowrap;
+  color: var(--p-color);
+  -webkit-text-stroke: 3px var(--p-stroke);
+  paint-order: stroke fill;
+}
+.subtitle-preset-dots {
+  display: flex;
+  gap: 3px;
+}
+.subtitle-preset-dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
 
 /* =========================================
    設定齒輪（底部狀態列の右端、版本の右）。めったに押さないので小さめ

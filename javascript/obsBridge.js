@@ -659,6 +659,15 @@ export function publishTranslationsToObs(translations) {
 }
 
 /**
+ * 把目前的字幕連同外觀重送一次（換了配色之後）。
+ * 平常樣式只在送字幕時順便讀，換色後畫面上那句要等下一句才會變，切到「停止」的
+ * 場景時就一直是舊的顏色。未連線時什麼都不做：連上之後送的第一則就是新的樣式。
+ */
+export function republishSubtitlesToObs() {
+  broadcastSubtitleUpdate();
+}
+
+/**
  * OBS 相關設定變更後重新對齊連線狀態：停用就斷線、位址或密碼變了就重連，
  * 兩者都沒變則只把最新字幕重送一次（例如剛切換了翻譯語言）。
  * 呼叫端已在 settingsBindings.js 做過節流，這裡不需要再防抖。

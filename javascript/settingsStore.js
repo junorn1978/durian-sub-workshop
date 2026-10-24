@@ -39,7 +39,8 @@ const PER_CHANNEL_KEYS = new Set([
   'speech-recognition-engine',
   'soniox-latency-level', 'soniox-sensitivity', 'soniox-max-delay-ms',
   'subtitle-clear-idle-sec',
-  'text-alignment', 'force-single-line-enabled', 'display-panel-color'
+  'text-alignment', 'force-single-line-enabled', 'display-panel-color',
+  'obs-scene-presets'
 ]);
 const PER_CHANNEL_STYLE = /^(source|target[123])-font-(color|stroke-color|size|stroke-size)$/;
 
@@ -78,6 +79,7 @@ export const SETTING_DEFAULTS = Object.freeze({
   'obs-ws-password': '',
   'obs-scene-link-enabled': 'false',
   'obs-scene-rules': '{}',        // { 場景名稱: 'stop' | 'none' }，沒記錄的是「開始」（見 obsSceneLink.js）
+  'obs-scene-presets': '{}',      // { 場景名稱: 配色 id }，沒記錄的是「配色そのまま」。字幕外觀是每個視窗各自的，所以這個也是
 
   // 音声認識
   'speech-recognition-engine': 'soniox',
