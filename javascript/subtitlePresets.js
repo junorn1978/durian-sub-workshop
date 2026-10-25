@@ -56,8 +56,10 @@ export const PRESETS = [
     src: line('#FFFFFF', '#C8336F'), t1: line('#FFC2DA', '#A82A5E'), t2: line('#FFF1A8', '#A82A5E'), t3: line('#FFE0EC', '#A82A5E') },
   { id: 'contrast',  name: 'ビビッド',
     src: line('#FFFFFF', '#000000'), t1: line('#FFFF00', '#000000'), t2: line('#7FDBFF', '#000000'), t3: line('#FFB0E0', '#000000') },
-  { id: 'retro',     name: 'レトロ',
-    src: line('#F3E6C8', '#3B2414'), t1: line('#F2B45A', '#3B2414'), t2: line('#E89A7C', '#3B2414'), t3: line('#D9C27A', '#3B2414') },
+  /* 紅包・お年玉袋の朱赤の縁取りに、原文は白、金・シャンパンゴールド・梅の花の薄紅。
+     お正月（1月1日）にも旧正月（春節）にも使えるよう、名前は「新年」にした。 */
+  { id: 'newyear',   name: '新年',
+    src: line('#FFFFFF', '#A80F1A'), t1: line('#FFD54A', '#A80F1A'), t2: line('#FFE9B0', '#A80F1A'), t3: line('#FFC2C2', '#A80F1A') },
   /* 這個配信者料理配信時用的配色：白い縁取りに、行ごとに濃い色（原文は紫がかった墨色、紫・赤・青）。 */
   { id: 'cooking',   name: '料理配信',
     src: line('#4B3B63', '#FFFFFF'), t1: line('#8A2BE2', '#FFFFFF'), t2: line('#E0201E', '#FFFFFF'), t3: line('#2457D6', '#FFFFFF') },
