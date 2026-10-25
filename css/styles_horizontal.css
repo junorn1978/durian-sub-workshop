@@ -1766,6 +1766,39 @@ body.obs-settings-page {
   text-align: left;
 }
 .subtitle-preset-item:hover { background: #DCD3E6; }
+.subtitle-preset-item.is-empty {
+  cursor: default;
+  background: transparent;
+  outline: 1px dashed var(--theme-button);
+  outline-offset: -1px;
+}
+.subtitle-preset-item.is-empty .subtitle-preset-name {
+  color: var(--ui-label-color);
+  -webkit-text-stroke: 0;
+  font-weight: normal;
+  font-size: 13px;
+}
+
+/* マイテーマ：上の一覧と区切り、各格は「適用」のボタンの下に小さな「保存」。 */
+.subtitle-preset-mine {
+  padding-top: 8px;
+  border-top: 1px dashed var(--theme-button);
+}
+.subtitle-preset-slot {
+  display: grid;
+  gap: 3px;
+}
+.subtitle-preset-save {
+  justify-self: end;
+  padding: 1px 10px;
+  border: 1px solid var(--theme-button);
+  border-radius: 6px;
+  background: var(--theme-panel);
+  color: var(--ui-label-color);
+  font-size: 11px;
+  cursor: pointer;
+}
+.subtitle-preset-save:hover { background: var(--theme-button-hover); }
 .subtitle-preset-item[aria-checked="true"] {
   box-shadow: inset 0 0 0 2px var(--theme-accent);
 }

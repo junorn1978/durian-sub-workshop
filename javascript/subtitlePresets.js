@@ -17,8 +17,15 @@
  *
  * 名稱刻意用一般詞。有些配色參考了知名角色的配色，但不寫出角色名稱與商標。
  *
- * 這個模組最上層不碰 DOM：OBS連携 的視窗只拿 PRESETS 來列選單（見 obsSceneLink.js）。
+ * 【マイテーマ】另外有三格讓使用者存自己目前的顏色（同樣只存文字色與縁取り色）。
+ * 存在 'subtitle-custom-themes'，和字幕外觀一樣每個視窗各一份。
+ * シーン連動 也能選這三格；選了空的格子，切場景時就維持原本的顏色。
+ * 「全部重設」不清這三格：和翻訳クラウド接続 的 URL 一樣，是使用者自己做出來的東西。
+ *
+ * 這個模組最上層不碰 DOM：OBS連携 的視窗只拿 PRESETS／CUSTOM_SLOTS 來列選單（見 obsSceneLink.js）。
  */
+
+import { getSetting, setSetting } from './settingsStore.js';
 
 /* 每一行字幕的 input id 前綴，與配色裡的欄位。 */
 const LINES = [['source', 'src'], ['target1', 't1'], ['target2', 't2'], ['target3', 't3']];
@@ -52,9 +59,51 @@ export const PRESETS = [
     src: line('#4B3B63', '#FFFFFF'), t1: line('#8A2BE2', '#FFFFFF'), t2: line('#E0201E', '#FFFFFF'), t3: line('#2457D6', '#FFFFFF') },
   /* 同じく歌枠用：料理配信とは逆で、文字は白、縁取りが行ごとの色（原文はラベンダー、紫・えんじ・ピンク）。
      白い字が埋もれないよう、縁取りは画面で見た色より少し濃くしてある。 */
-  { id: 'singing',   name: '歌唱配信',
+  { id: 'singing',   name: '歌枠配信',
     src: line('#FFFFFF', '#8F88E0'), t1: line('#FFFFFF', '#8E2CC2'), t2: line('#FFFFFF', '#84182A'), t3: line('#FFFFFF', '#E04493') },
 ];
+
+/** マイテーマ 的設定 key。OBS連携 的視窗監聽它，存了新的就重畫場景清單。 */
+export const CUSTOM_THEMES_KEY = 'subtitle-custom-themes';
+
+/** マイテーマ 三格的 id 與名稱（シーン連動 的選單用 name，主題選單裡用 short）。 */
+export const CUSTOM_SLOTS = [1, 2, 3].map(n => ({ id: `custom${n}`, name: `マイテーマ ${n}`, short: `マイ ${n}` }));
+
+const isHex = (value) => /^#[0-9A-F]{6}$/.test(value);
+
+/** 存下來的三格，空的或壞掉的格子是 null。 */
+function loadCustomThemes() {
+  let saved = [];
+  try {
+    const parsed = JSON.parse(getSetting(CUSTOM_THEMES_KEY));
+    if (Array.isArray(parsed)) saved = parsed;
+  } catch { /* 壞掉的值當作全部空著 */ }
+  return CUSTOM_SLOTS.map((slot, index) => {
+    const theme = saved[index];
+    const valid = theme && LINES.every(([, key]) => isHex(theme[key]?.color) && isHex(theme[key]?.stroke));
+    return valid ? { ...theme, id: slot.id, name: slot.name } : null;
+  });
+}
+
+/* id 與名稱由格子的位置決定，只存四行的顏色。 */
+function saveCustomTheme(index, theme) {
+  const themes = loadCustomThemes();
+  themes[index] = theme;
+  const colours = themes.map(t => t && Object.fromEntries(LINES.map(([, key]) => [key, t[key]])));
+  setSetting(CUSTOM_THEMES_KEY, JSON.stringify(colours));
+}
+
+/** 這個 id 的主題（內建或マイテーマ）。沒有這個 id、或那格還空著時是 undefined。 */
+function findTheme(id) {
+  const custom = CUSTOM_SLOTS.findIndex(slot => slot.id === id);
+  if (custom >= 0) return loadCustomThemes()[custom] || undefined;
+  return PRESETS.find(p => p.id === id);
+}
+
+/** シーン連動 的選單用：這格マイテーマ是否存過。 */
+export function hasCustomTheme(id) {
+  return CUSTOM_SLOTS.some(slot => slot.id === id) && !!findTheme(id);
+}
 
 /** 套用之後要做的事（主視窗：馬上推給 OBS 的 overlay）。由 mountSubtitlePresets() 設定。 */
 let afterApply = () => {};
@@ -83,58 +132,80 @@ function apply(preset) {
   afterApply();
 }
 
-function matches(preset) {
-  return LINES.every(([prefix, slot]) => {
+/* 設定畫面上現在的顏色。input[type="color"] 的 value 一律是小寫，這裡統一成大寫。 */
+function currentColours() {
+  return Object.fromEntries(LINES.map(([prefix, slot]) => {
     const inputs = inputsOf(prefix);
-    // input[type="color"] 的 value 一律是小寫。
-    return inputs.color?.value.toUpperCase() === preset[slot].color &&
-      inputs.stroke?.value.toUpperCase() === preset[slot].stroke;
-  });
+    return [slot, line(inputs.color?.value.toUpperCase() || '#FFFFFF', inputs.stroke?.value.toUpperCase() || '#000000')];
+  }));
+}
+
+function matches(preset) {
+  const now = currentColours();
+  return LINES.every(([, slot]) => now[slot].color === preset[slot].color && now[slot].stroke === preset[slot].stroke);
 }
 
 /**
- * 依 id 套用配色（主視窗：シーン連動 切換場景時）。
- * @returns {boolean} 沒有這個 id（規則存下之後配色被拿掉了）時回傳 false，什麼都不改
+ * 依 id 套用主題（主視窗：シーン連動 切換場景時）。マイテーマ 的 id 也可以。
+ * @returns {boolean} 沒有這個 id（規則存下之後主題被拿掉了）、或那格マイテーマ還空著時
+ *   回傳 false，什麼都不改
  */
 export function applyPreset(id) {
-  const preset = PRESETS.find(p => p.id === id);
+  const preset = findTheme(id);
   if (preset) apply(preset);
   return !!preset;
 }
 
 /* 每一項用自己配色的翻訳 1 畫出名稱（原文大多是白色），再加四個點表示四行：
-   點是文字色、外圈是縁取り色（歌唱配信這種文字全白的，靠外圈才分得出來）。選單本身就是預覽。 */
-function buildItem(preset) {
+   點是文字色、外圈是縁取り色（歌枠配信這種文字全白的，靠外圈才分得出來）。選單本身就是預覽。
+   マイテーマ 存了新的顏色時重畫同一顆按鈕，所以「畫」和「建立」分開。 */
+function createItem(id) {
   const item = document.createElement('button');
   item.type = 'button';
   item.className = 'subtitle-preset-item';
   item.setAttribute('role', 'menuitemradio');
   item.setAttribute('aria-checked', 'false');
-  item.dataset.preset = preset.id;
-  item.style.setProperty('--p-color', preset.t1.color);
-  item.style.setProperty('--p-stroke', preset.t1.stroke);
+  item.dataset.preset = id;
+  return item;
+}
 
+function paintItem(item, preset, label) {
   const name = document.createElement('span');
   name.className = 'subtitle-preset-name';
-  name.textContent = preset.name;
+  name.textContent = preset ? label : `${label}（空き）`;
 
   const dots = document.createElement('span');
   dots.className = 'subtitle-preset-dots';
   dots.setAttribute('aria-hidden', 'true');
-  for (const [, slot] of LINES) {
-    const dot = document.createElement('i');
-    dot.style.background = preset[slot].color;
-    dot.style.setProperty('--dot-stroke', preset[slot].stroke);
-    dots.append(dot);
-  }
 
-  item.append(name, dots);
-  return item;
+  item.disabled = !preset;
+  item.classList.toggle('is-empty', !preset);
+  if (preset) {
+    item.style.setProperty('--p-color', preset.t1.color);
+    item.style.setProperty('--p-stroke', preset.t1.stroke);
+    for (const [, slot] of LINES) {
+      const dot = document.createElement('i');
+      dot.style.background = preset[slot].color;
+      dot.style.setProperty('--dot-stroke', preset[slot].stroke);
+      dots.append(dot);
+    }
+  } else {
+    item.style.removeProperty('--p-color');
+    item.style.removeProperty('--p-stroke');
+  }
+  item.replaceChildren(name, dots);
+}
+
+function createHead(text) {
+  const head = document.createElement('span');
+  head.className = 'subtitle-preset-head';
+  head.textContent = text;
+  return head;
 }
 
 /**
- * 主視窗：在 #subtitle-preset-menu 裡畫出配色選單並接上。
- * @param {{ onApplied?: () => void }} [options] onApplied：套用配色之後呼叫
+ * 主視窗：在 #subtitle-preset-menu 裡畫出主題選單並接上。
+ * @param {{ onApplied?: () => void }} [options] onApplied：套用主題之後呼叫
  * @returns {{ sync: () => void }} sync：設定被程式改掉（全部重設）之後，重新對打勾
  */
 export function mountSubtitlePresets({ onApplied = () => {} } = {}) {
@@ -142,25 +213,56 @@ export function mountSubtitlePresets({ onApplied = () => {} } = {}) {
   const menu = document.getElementById('subtitle-preset-menu');
   if (!menu) return { sync() {} };
 
-  const head = document.createElement('span');
-  head.className = 'subtitle-preset-head';
-  head.textContent = '字幕テーマ';
   const grid = document.createElement('div');
   grid.className = 'subtitle-preset-grid';
-  const items = PRESETS.map(buildItem);
+  const items = PRESETS.map(preset => {
+    const item = createItem(preset.id);
+    paintItem(item, preset, preset.name);
+    return item;
+  });
   grid.append(...items);
-  menu.append(head, grid);
 
+  /* マイテーマ：每格是套用的按鈕加一顆「保存」。保存後選單不關，存進去的顏色馬上看得到。 */
+  const mine = document.createElement('div');
+  mine.className = 'subtitle-preset-grid subtitle-preset-mine';
+  const slotItems = CUSTOM_SLOTS.map((slot, index) => {
+    const item = createItem(slot.id);
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'subtitle-preset-save';
+    save.textContent = '保存';
+    save.title = `いまの文字色・縁取り色を「${slot.name}」に保存します（前の内容は上書きされます）`;
+    save.addEventListener('click', () => {
+      saveCustomTheme(index, currentColours());
+      repaintSlots();
+      syncMenu();
+    });
+    const cell = document.createElement('div');
+    cell.className = 'subtitle-preset-slot';
+    cell.append(item, save);
+    mine.append(cell);
+    return item;
+  });
+
+  function repaintSlots() {
+    const themes = loadCustomThemes();
+    slotItems.forEach((item, index) => paintItem(item, themes[index], CUSTOM_SLOTS[index].short));
+  }
+  repaintSlots();
+
+  menu.append(createHead('字幕テーマ'), grid, createHead('マイテーマ（「保存」でいまの色を記録）'), mine);
+
+  const allItems = [...items, ...slotItems];
   syncMenu = () => {
-    for (const item of items) {
-      const preset = PRESETS.find(p => p.id === item.dataset.preset);
+    for (const item of allItems) {
+      const preset = findTheme(item.dataset.preset);
       item.setAttribute('aria-checked', String(!!preset && matches(preset)));
     }
   };
 
-  for (const item of items) {
+  for (const item of allItems) {
     item.addEventListener('click', () => {
-      applyPreset(item.dataset.preset);
+      if (!applyPreset(item.dataset.preset)) return;
       menu.hidePopover();
     });
   }

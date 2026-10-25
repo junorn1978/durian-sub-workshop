@@ -40,7 +40,7 @@ const PER_CHANNEL_KEYS = new Set([
   'soniox-latency-level', 'soniox-sensitivity', 'soniox-max-delay-ms',
   'subtitle-clear-idle-sec',
   'text-alignment', 'force-single-line-enabled', 'display-panel-color',
-  'obs-scene-presets'
+  'obs-scene-presets', 'subtitle-custom-themes'
 ]);
 const PER_CHANNEL_STYLE = /^(source|target[123])-font-(color|stroke-color|size|stroke-size)$/;
 
@@ -93,6 +93,7 @@ export const SETTING_DEFAULTS = Object.freeze({
   'mic-device-label': '',
 
   // 表示・システム
+  'subtitle-custom-themes': '[]', // マイテーマ 三格（見 subtitlePresets.js），每個視窗各一份
   'text-alignment': 'center',
   'click-minimize-enabled': 'true',
   'force-single-line-enabled': 'true',

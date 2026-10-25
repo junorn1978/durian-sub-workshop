@@ -38,7 +38,7 @@ import {
 } from './obsBridge.js';
 import { getSetting, getSettingBool, setSetting, onExternalSettingChange } from './settingsStore.js';
 import { setPauseAvailable } from './uiState.js';
-import { PRESETS } from './subtitlePresets.js';
+import { PRESETS, CUSTOM_SLOTS, CUSTOM_THEMES_KEY, hasCustomTheme } from './subtitlePresets.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('ObsSceneLink');
@@ -119,6 +119,11 @@ function buildSceneRow(sceneName, action, presetId) {
   colours.add(new Option('テーマそのまま', '', false, !presetId));
   for (const preset of PRESETS) {
     colours.add(new Option(preset.name, preset.id, false, preset.id === presetId));
+  }
+  /* マイテーマ 也列出來。空的格子也能選（之後存了就會生效），選了空的格子時顏色不變。 */
+  for (const slot of CUSTOM_SLOTS) {
+    const text = hasCustomTheme(slot.id) ? slot.name : `${slot.name}（空き）`;
+    colours.add(new Option(text, slot.id, false, slot.id === presetId));
   }
   colours.addEventListener('change', () => {
     const presets = loadPresets();
@@ -229,6 +234,7 @@ export function showSceneRuleList(enabled) {
 export function mountSceneRuleList({ readOnly: isReadOnly = false } = {}) {
   readOnly = isReadOnly;
   onSceneListChanged(refreshSceneList);
-  onExternalSettingChange([RULES_KEY, PRESETS_KEY], refreshSceneList);
+  // 主視窗存了マイテーマ時也重畫，「（空き）」的標示才會跟上。
+  onExternalSettingChange([RULES_KEY, PRESETS_KEY, CUSTOM_THEMES_KEY], refreshSceneList);
   document.getElementById('obs-scene-refresh-btn')?.addEventListener('click', refreshSceneList);
 }
