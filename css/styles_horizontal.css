@@ -1780,13 +1780,14 @@ body.obs-settings-page {
 }
 .subtitle-preset-dots {
   display: flex;
-  gap: 3px;
+  gap: 5px;
 }
 .subtitle-preset-dots i {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  /* 外圈＝縁取り色（--dot-stroke は JS がインラインで設定）。 */
+  box-shadow: 0 0 0 2px var(--dot-stroke, rgba(0, 0, 0, 0.35));
 }
 
 /* =========================================
