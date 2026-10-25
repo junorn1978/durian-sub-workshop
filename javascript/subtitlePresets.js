@@ -40,8 +40,10 @@ export const PRESETS = [
     src: line('#FFFFFF', '#000000'), t1: line('#FFFFFF', '#000000'), t2: line('#FFFFFF', '#000000'), t3: line('#FFFFFF', '#000000') },
   { id: 'standard',  name: 'カラフル',
     src: line('#FFFFFF', '#000000'), t1: line('#FFE873', '#000000'), t2: line('#9FD4FF', '#000000'), t3: line('#FFB3C7', '#000000') },
-  { id: 'game',      name: 'ネオン',
-    src: line('#FFFFFF', '#0A0F2C'), t1: line('#FFD400', '#0A0F2C'), t2: line('#4FE3FF', '#0A0F2C'), t3: line('#FF8A3D', '#0A0F2C') },
+  /* 原文はおばけの白、かぼちゃのオレンジ・魔女の紫・ろうそくの黄色に、夜の黒紫の縁取り。
+     ハロウィン定番の黄緑はクロマキーで抜けるので使わない。 */
+  { id: 'halloween', name: 'ハロウィン',
+    src: line('#FFF4E0', '#1A0B24'), t1: line('#FF7A00', '#1A0B24'), t2: line('#B86BFF', '#1A0B24'), t3: line('#FFD23F', '#1A0B24') },
   { id: 'cute',      name: 'ピンク',
     src: line('#FFFFFF', '#5A1E3C'), t1: line('#FF8FB1', '#5A1E3C'), t2: line('#B79CFF', '#5A1E3C'), t3: line('#FFD27F', '#5A1E3C') },
   { id: 'pastel',    name: '白フチ',
