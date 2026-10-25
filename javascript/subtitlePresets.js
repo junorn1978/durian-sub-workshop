@@ -136,7 +136,7 @@ export function mountSubtitlePresets({ onApplied = () => {} } = {}) {
 
   const head = document.createElement('span');
   head.className = 'subtitle-preset-head';
-  head.textContent = '字幕の配色';
+  head.textContent = '字幕テーマ';
   const grid = document.createElement('div');
   grid.className = 'subtitle-preset-grid';
   const items = PRESETS.map(buildItem);

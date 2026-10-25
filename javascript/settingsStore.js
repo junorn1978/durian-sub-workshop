@@ -79,7 +79,7 @@ export const SETTING_DEFAULTS = Object.freeze({
   'obs-ws-password': '',
   'obs-scene-link-enabled': 'false',
   'obs-scene-rules': '{}',        // { 場景名稱: 'stop' | 'none' }，沒記錄的是「開始」（見 obsSceneLink.js）
-  'obs-scene-presets': '{}',      // { 場景名稱: 配色 id }，沒記錄的是「配色そのまま」。字幕外觀是每個視窗各自的，所以這個也是
+  'obs-scene-presets': '{}',      // { 場景名稱: 配色 id }，沒記錄的是「テーマそのまま」。字幕外觀是每個視窗各自的，所以這個也是
 
   // 音声認識
   'speech-recognition-engine': 'soniox',

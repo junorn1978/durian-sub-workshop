@@ -20,7 +20,7 @@
  *
  * 【字幕の配色】每個場景也能換字幕的配色（subtitlePresets.js）：聊天畫面用可愛的、
  * 遊戲畫面用高對比的。這是另一條獨立的規則，「何もしない」的場景也能換色。
- * 沒指定的場景是「配色そのまま」，所以手動挑的顏色不會被連動蓋掉，除非那個場景有指定。
+ * 沒指定的場景是「テーマそのまま」，所以手動挑的顏色不會被連動蓋掉，除非那個場景有指定。
  * 字幕外觀每個視窗各自一份，所以配色規則也是各自一份（'ch2:obs-scene-presets'），
  * 第二個視窗的 OBS連携 也能改這一欄。切場景時先換色再開始／停止。
  *
@@ -112,11 +112,11 @@ function buildSceneRow(sceneName, action, presetId) {
     row.dataset.action = select.value;
   });
 
-  /* 配色：「配色そのまま」排第一，是每個場景的初始值。第二個視窗也能改（各自一份）。 */
+  /* 配色：「テーマそのまま」排第一，是每個場景的初始值。第二個視窗也能改（各自一份）。 */
   const colours = document.createElement('select');
   colours.className = 'card-select';
-  colours.title = `${sceneName} に切り替えたときの字幕の配色`;
-  colours.add(new Option('配色そのまま', '', false, !presetId));
+  colours.title = `${sceneName} に切り替えたときの字幕テーマ`;
+  colours.add(new Option('テーマそのまま', '', false, !presetId));
   for (const preset of PRESETS) {
     colours.add(new Option(preset.name, preset.id, false, preset.id === presetId));
   }
@@ -156,15 +156,15 @@ async function refreshSceneList() {
   list.replaceChildren(...names.map(name => buildSceneRow(name, rules[name] || DEFAULT_ACTION, presets[name] || '')));
   if (!names.length) setListStatus('シーンがありません');
   else setListStatus(readOnly
-    ? '開始・停止は1つ目の窓と同じです。配色はこの窓の分を選べます'
-    : '切り替えたときの動作と配色をシーンごとに選んでください');
+    ? '開始・停止は1つ目の窓と同じです。字幕テーマはこの窓の分を選べます'
+    : '切り替えたときの動作と字幕テーマをシーンごとに選んでください');
 }
 
 function handleProgramSceneChanged(sceneName) {
   if (!isEnabled() || !sceneName) return;
   const action = loadRules()[sceneName] || DEFAULT_ACTION;
   const presetId = loadPresets()[sceneName] || '';
-  log.debug(`シーン切替: ${sceneName} → ${ACTION_LABELS[action] || action}、配色 ${presetId || 'そのまま'}`);
+  log.debug(`シーン切替: ${sceneName} → ${ACTION_LABELS[action] || action}、テーマ ${presetId || 'そのまま'}`);
   /* 先換色：不花時間，而且「開始」的場景第一句不該用上一個場景的顏色。 */
   if (presetId) applyPreset(presetId);
   if (action === 'start' || action === 'stop') applyAction(action, sceneName);

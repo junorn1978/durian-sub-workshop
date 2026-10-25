@@ -22,6 +22,8 @@ const bindEscapeOnce = () => {
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || openStack.length === 0) return;
+    // 對話框裡開著調色盤（詳細設定的背景色）時，這次 Esc 只關調色盤（colorPicker.js 已 preventDefault）。
+    if (event.defaultPrevented) return;
     event.preventDefault();
     openStack[openStack.length - 1].close({ restoreFocus: true });
   });

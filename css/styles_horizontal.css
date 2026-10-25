@@ -10,7 +10,7 @@
   --body-background: #00FF00;
   --display-panel-height: 55%;
   /* 詳細設定モーダルの固定高さ。行を増減したらここだけ調整する。 */
-  --settings-modal-height: 754px;
+  --settings-modal-height: 808px;
   /* UI アニメーション共通イージング（標準の ease-out より立ち上がりが強い） */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   /* 操作パネルのラベル色（地の紫より一段濃くしてコントラストを確保） */
@@ -1710,7 +1710,7 @@ body.obs-settings-page {
 .settings-section .obs-scene-row > select.card-select:focus-visible { outline: none; }
 
 /* =========================================
-   字幕の配色（javascript/subtitlePresets.js）。右側の情報欄のボタンから開く
+   字幕テーマ（javascript/subtitlePresets.js）。右側の情報欄のボタンから開く
    ========================================= */
 /* 開いている間はボタンを押した色のままにする。 */
 #subtitle-preset-btn:has(+ .subtitle-preset-menu:popover-open) {
