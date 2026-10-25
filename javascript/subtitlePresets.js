@@ -47,6 +47,9 @@ export const PRESETS = [
   /* 這個配信者料理配信時用的配色：白い縁取りに、行ごとに濃い色（原文は紫がかった墨色、紫・赤・青）。 */
   { id: 'cooking',   name: '料理配信',
     src: line('#4B3B63', '#FFFFFF', 4), t1: line('#8A2BE2', '#FFFFFF', 4), t2: line('#E0201E', '#FFFFFF', 4), t3: line('#2457D6', '#FFFFFF', 4) },
+  /* 同じく歌枠用：白い縁取りに、原文は淡いラベンダー、紫・えんじ・ピンク。 */
+  { id: 'singing',   name: '歌唱配信',
+    src: line('#A9A3F0', '#FFFFFF', 4), t1: line('#A23BD6', '#FFFFFF', 4), t2: line('#9A1F2F', '#FFFFFF', 4), t3: line('#F25AA8', '#FFFFFF', 4) },
 ];
 
 /** 套用之後要做的事（主視窗：馬上推給 OBS 的 overlay）。由 mountSubtitlePresets() 設定。 */
