@@ -46,8 +46,10 @@ export const PRESETS = [
     src: line('#FFF4E0', '#1A0B24'), t1: line('#FF7A00', '#1A0B24'), t2: line('#B86BFF', '#1A0B24'), t3: line('#FFD23F', '#1A0B24') },
   { id: 'cute',      name: 'ピンク',
     src: line('#FFFFFF', '#5A1E3C'), t1: line('#FF8FB1', '#5A1E3C'), t2: line('#B79CFF', '#5A1E3C'), t3: line('#FFD27F', '#5A1E3C') },
-  { id: 'pastel',    name: '白フチ',
-    src: line('#7A2E55', '#FFFFFF'), t1: line('#9B3F8A', '#FFFFFF'), t2: line('#4B4BA8', '#FFFFFF'), t3: line('#A23B5B', '#FFFFFF') },
+  /* 原文は雪の白、金の飾り・ヒイラギの赤・氷の水色に、深いワインレッドの縁取り。
+     クリスマスの緑は暗い色でもクロマキーにかかりやすいので使わない。 */
+  { id: 'christmas', name: 'クリスマス',
+    src: line('#FFFFFF', '#3A0A12'), t1: line('#FFD24A', '#3A0A12'), t2: line('#FF5A5F', '#3A0A12'), t3: line('#BFE3FF', '#3A0A12') },
   { id: 'imp',       name: 'ラベンダー',
     src: line('#FFFFFF', '#241A2E'), t1: line('#CDA8FF', '#241A2E'), t2: line('#FF7EB9', '#241A2E'), t3: line('#9FB8FF', '#241A2E') },
   { id: 'berrymilk', name: 'いちごミルク',
