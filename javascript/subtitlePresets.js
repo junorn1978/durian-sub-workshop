@@ -26,22 +26,24 @@ const LINES = [['source', 'src'], ['target1', 't1'], ['target2', 't2'], ['target
 const line = (color, stroke) => ({ color, stroke });
 
 /* default 是 CSS 的預設值（--text-color／--stroke-color），也就是「恢復原狀」。 */
+/* 名稱照看起來的樣子取（從姊妹專案搬來時的名稱，拿掉縁取り寬度後有些對不上）。
+   id 不改：シーン連動 的規則存的是 id。 */
 export const PRESETS = [
   { id: 'default',   name: 'デフォルト',
     src: line('#FFFFFF', '#000000'), t1: line('#FFFFFF', '#000000'), t2: line('#FFFFFF', '#000000'), t3: line('#FFFFFF', '#000000') },
-  { id: 'standard',  name: 'スタンダード',
+  { id: 'standard',  name: 'カラフル',
     src: line('#FFFFFF', '#000000'), t1: line('#FFE873', '#000000'), t2: line('#9FD4FF', '#000000'), t3: line('#FFB3C7', '#000000') },
-  { id: 'game',      name: 'ゲーム',
+  { id: 'game',      name: 'ネオン',
     src: line('#FFFFFF', '#0A0F2C'), t1: line('#FFD400', '#0A0F2C'), t2: line('#4FE3FF', '#0A0F2C'), t3: line('#FF8A3D', '#0A0F2C') },
-  { id: 'cute',      name: 'かわいい',
+  { id: 'cute',      name: 'ピンク',
     src: line('#FFFFFF', '#5A1E3C'), t1: line('#FF8FB1', '#5A1E3C'), t2: line('#B79CFF', '#5A1E3C'), t3: line('#FFD27F', '#5A1E3C') },
-  { id: 'pastel',    name: 'ゆめかわ',
+  { id: 'pastel',    name: '白フチ',
     src: line('#7A2E55', '#FFFFFF'), t1: line('#9B3F8A', '#FFFFFF'), t2: line('#4B4BA8', '#FFFFFF'), t3: line('#A23B5B', '#FFFFFF') },
-  { id: 'imp',       name: '小悪魔',
+  { id: 'imp',       name: 'ラベンダー',
     src: line('#FFFFFF', '#241A2E'), t1: line('#CDA8FF', '#241A2E'), t2: line('#FF7EB9', '#241A2E'), t3: line('#9FB8FF', '#241A2E') },
   { id: 'berrymilk', name: 'いちごミルク',
     src: line('#FFFFFF', '#C8336F'), t1: line('#FFC2DA', '#A82A5E'), t2: line('#FFF1A8', '#A82A5E'), t3: line('#FFE0EC', '#A82A5E') },
-  { id: 'contrast',  name: 'ハイコントラスト',
+  { id: 'contrast',  name: 'ビビッド',
     src: line('#FFFFFF', '#000000'), t1: line('#FFFF00', '#000000'), t2: line('#7FDBFF', '#000000'), t3: line('#FFB0E0', '#000000') },
   { id: 'retro',     name: 'レトロ',
     src: line('#F3E6C8', '#3B2414'), t1: line('#F2B45A', '#3B2414'), t2: line('#E89A7C', '#3B2414'), t3: line('#D9C27A', '#3B2414') },
