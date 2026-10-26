@@ -1,0 +1,344 @@
+/* =========================================
+   2. 字幕顯示主區域 (Display Panel)
+   ========================================= */
+#display-panel {
+  height: var(--display-panel-height);
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  gap: 0px;
+  margin: 0 auto;
+  width: 100%;
+  background-color: transparent;
+  min-height: 290px;
+  user-select: none;
+  cursor: pointer; /* 提示可點擊切換最小化 */
+  transition: height 0.3s ease;
+}
+
+#source-text { max-block-size: 2.6em; } /* 強制最高兩行 */
+#source-text, #target-text-1, #target-text-2, #target-text-3 {
+  display: flex;
+  flex-direction: column;
+  align-items: var(--text-align);
+  text-align: var(--text-align);
+  
+  /* 字體設定 */
+  color: var(--text-color);
+  /* 基底字體是給日文・中文以外的語言用的（英・西・印尼・韓・泰・越・俄）。
+     這裡不能用 Kosugi Maru：它的西里爾字母 advance 是 1.0em（字形本身只有
+     0.43〜0.59em，等於被塞進全形格子置中），俄語會整排散開；拉丁字母則一律
+     0.5em 的半形等寬。M PLUS Rounded 1c 兩者都是正常比例，且同為圓體，
+     與日文・中文字幕的調性一致。 */
+  font-family: "M PLUS Rounded 1c", "Huninn", Arial, sans-serif;
+  font-size: var(--text-font-size);
+  line-height: 1.3em;
+    
+  -webkit-text-stroke: calc(var(--stroke-width)) var(--stroke-color);
+  paint-order: stroke fill;
+  /* ----------------------- */
+
+  background-color: transparent;
+  position: relative; /* 雖不再需要給偽元素定位，但保留作為其他可能的定位基準 */
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+#source-text:lang(ja),
+#target-text-1:lang(ja),
+#target-text-2:lang(ja),
+#target-text-3:lang(ja) {
+  font-family: "M PLUS Rounded 1c", "Huninn", Arial, sans-serif;
+}
+
+#source-text:lang(zh-TW),
+#source-text:lang(zh-Hant),
+#source-text:lang(zh-HK),
+#source-text:lang(yue-Hant-HK),
+#target-text-1:lang(zh-TW),
+#target-text-1:lang(zh-Hant),
+#target-text-1:lang(zh-HK),
+#target-text-1:lang(yue-Hant-HK),
+#target-text-2:lang(zh-TW),
+#target-text-2:lang(zh-Hant),
+#target-text-2:lang(zh-HK),
+#target-text-2:lang(yue-Hant-HK),
+#target-text-3:lang(zh-TW),
+#target-text-3:lang(zh-Hant),
+#target-text-3:lang(zh-HK),
+#target-text-3:lang(yue-Hant-HK) {
+  font-family: "Huninn", "M PLUS Rounded 1c", Arial, sans-serif;
+}
+
+/* =========================================
+   3. 翻訳字幕：完整表示 (撐開・自然換行)
+   ========================================= */
+#target-text-1, #target-text-2, #target-text-3 { overflow: visible; }
+
+/* =========================================
+   4. 介面框架佈局 (UI Framework)
+   ========================================= */
+#status-panel {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  height: 5%;
+  min-height: 30px;
+  background-color: var(--theme-panel);
+  padding: 0 20px;
+  gap: 10px;
+  z-index: 2;
+}
+
+.status-info {
+  display: flex;
+  height: 90%;
+  text-align: left;
+  align-items: center;
+  color: var(--theme-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 底部狀態列左側：マイク選択（ラベル＋膠囊形の select、micSelector.js） */
+.status-mic {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.status-mic-label {
+  white-space: nowrap;
+  color: var(--theme-ink);
+}
+/* 2つ目の窓では「タブの音声」の右（1つ目で「＋2つ目の窓」がある位置）に出す目印（secondWindow.js） */
+.status-ch-label {
+  white-space: nowrap;
+  color: var(--theme-ink);
+  font-weight: bold;
+}
+/* 半透明黑底の膠囊で底色と區隔し、設定値を強調。過長は省略（全名は title） */
+.status-mic-select {
+  width: 170px;
+  font-size: 11px;
+  font-family: inherit;
+  color: rgba(255, 242, 222, 0.92);
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  border-radius: 999px;
+  padding: 3px 10px;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.status-mic-select:hover { background: rgba(0, 0, 0, 0.62); }
+.status-mic-select:focus-visible { outline: 2px solid var(--theme-ink); outline-offset: 1px; }
+/* ドロップダウンの中は黒地に白だと OS によって読めないので、通常の配色に戻す */
+.status-mic-select option { color: #222; background: #fff; }
+/* 選択したマイクが未接続（既定のマイクで認識中） */
+.status-mic-select.is-missing { background: rgba(140, 60, 0, 0.75); }
+/* タブ共有中は選べない（聞いているのはタブ） */
+.status-mic-select:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* マイク選択の右：タブ・ウィンドウの音声の共有ボタン（micSelector.js / tabAudio.js）。
+   select と同じ膠囊で並べ、共有中は赤い点と色で「いま共有している」と分かるようにする */
+.status-tab-btn {
+  font-size: 11px;
+  font-family: inherit;
+  white-space: nowrap;
+  color: rgba(255, 242, 222, 0.92);
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.status-tab-btn:hover { background: rgba(0, 0, 0, 0.62); }
+.status-tab-btn:focus-visible { outline: 2px solid var(--theme-ink); outline-offset: 1px; }
+.status-tab-btn:disabled { opacity: 0.6; cursor: progress; }
+.status-tab-btn[aria-pressed="true"] { background: rgba(140, 20, 20, 0.8); }
+.status-tab-btn[aria-pressed="true"]:hover { background: rgba(160, 30, 30, 0.9); }
+.status-tab-btn[aria-pressed="true"]::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: #ff6b6b;
+  vertical-align: 1px;
+}
+
+/* 底部狀態列右側：版本／使い方ガイド連結 */
+#version-display {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  /* 半透明黑底の膠囊で底色と區隔し、設定値を強調 */
+  color: rgba(255, 242, 222, 0.92);
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+#control-panel {
+  height: 40%;
+  background-color: var(--theme-panel);
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  gap: 10px;
+  margin: 0 auto;
+  width: 100%;
+  min-width: 1200px;
+  min-height: 280px;
+  z-index: 2;
+  position: relative;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+
+/* control-panel 下端の破線。左右に余白を残すため border ではなく疑似要素で描画 */
+#control-panel::after {
+  content: "";
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 0;
+  border-bottom: 2px dashed var(--theme-ink);
+  pointer-events: none;
+}
+
+/* =========================================
+   5. 錄音控制區 (Recorder)
+   ========================================= */
+#recorder-panel {
+  position: relative;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  border-radius: 10px;
+  background-color: var(--theme-recorder);
+}
+
+/* ロゴ＝一時停止ボタン。録音中のみ押せる（待機中・一時停止中は disabled）。
+   ロゴは背景が透明な PNG なので、暗い矩形を被せると「粉色パネルに灰色の板」に見えてしまう。
+   そのためロゴ自体を減光し、中央にカプセル型のバッジだけを出す作りにしている。 */
+.logo-pause-btn {
+  position: relative;
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.logo-pause-btn:disabled { cursor: default; }
+
+#logo {
+  height: 130px;
+  object-fit: contain;
+  transition: filter 160ms var(--ease-out);
+}
+
+.logo-pause-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms var(--ease-out);
+}
+
+.logo-pause-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background-color: var(--ui-label-color);
+  color: var(--theme-on-label);
+  font-size: 13px;
+  line-height: 1.25;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.logo-pause-time { font-size: 16px; font-weight: bold; }
+/* 録音中（残り時間なし）はカプセルを1行に保つ */
+.logo-pause-time:empty { display: none; }
+
+/* 一時停止中にホバーしたときだけ出す説明。押すと残り時間が設定値に戻ることを伝える。 */
+.logo-pause-hint { display: none; font-size: 11px; opacity: 0.9; }
+
+/* 録音中のみホバー／キーボードフォーカスでバッジを出す（一時停止中は下の is-paused 側で扱う） */
+.logo-pause-btn:not(:disabled):focus-visible .logo-pause-overlay { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .logo-pause-btn:not(:disabled):hover .logo-pause-overlay { opacity: 1; }
+  .logo-pause-btn:not(:disabled):not(.is-paused):hover #logo { filter: brightness(0.92) opacity(0.55); }
+}
+/* ホバーできない環境では、録音中は出しっぱなしにしないと存在に気付けない */
+@media (hover: none), (pointer: coarse) {
+  .logo-pause-btn:not(:disabled) .logo-pause-overlay { opacity: 1; }
+  .logo-pause-btn:not(:disabled):not(.is-paused) #logo { filter: brightness(0.92) opacity(0.55); }
+}
+
+/* 一時停止中：停止状態が分かるようロゴをグレーアウトし、残り時間を出し続ける */
+.logo-pause-btn.is-paused .logo-pause-overlay { opacity: 1; }
+.logo-pause-btn.is-paused #logo { filter: grayscale(0.6) opacity(0.45); }
+@media (hover: hover) and (pointer: fine) {
+  /* 押せることを示すため、ホバー中だけ少し明るくして説明を差し替える */
+  .logo-pause-btn.is-paused:hover #logo { filter: grayscale(0.6) opacity(0.6); }
+  .logo-pause-btn.is-paused:hover .logo-pause-hint { display: block; }
+}
+
+.record-button {
+  width: 150px;
+  padding: 10px 30px;
+  border-radius: 999px;
+  border: none;
+  background-color: var(--theme-panel);
+  color: #2B2B2B;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.18s ease, transform 160ms var(--ease-out);
+  font-family: "Kosugi Maru", "Huninn", Arial, sans-serif;
+}
+@media (hover: hover) and (pointer: fine) {
+  .record-button:hover:not(:disabled) { background-color: var(--theme-panel-hover); }
+}
+.record-button:active:not(:disabled) { transform: scale(0.97); }
+/* disabled は透明度のみで表現（ピンク面での灰色は「汚れ」に見えるため） */
+.record-button:disabled { cursor: not-allowed; opacity: 0.5; }
+
+/* 開始＝主ボタン。押せる時だけ濃い茶色で強調（disabled 時は通常の見た目に戻る） */
+#start-recording:not(:disabled) {
+  background-color: var(--ui-label-color);
+  color: var(--theme-on-label);
+}
+@media (hover: hover) and (pointer: fine) {
+  #start-recording:hover:not(:disabled) { background-color: var(--theme-border); }
+}
+
+/* 録音中（停止が押せる状態）は停止ボタンに静的な赤ドットを表示。点滅はさせない */
+#stop-recording:not(:disabled)::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background-color: #D93025;
+  vertical-align: 1px;
+}

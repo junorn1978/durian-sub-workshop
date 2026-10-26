@@ -1,0 +1,571 @@
+/* =========================================
+   OBS連携 設定モーダル
+   ========================================= */
+.obs-modal-overlay {
+  position: fixed;
+  inset: 0;
+  /* 疊在其他對話框上方時，modals.js 會設定 --modal-depth。 */
+  z-index: calc(1000 + var(--modal-depth, 0));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(60, 20, 30, 0.45);
+  backdrop-filter: blur(2px);
+  padding: 20px;
+  box-sizing: border-box;
+  opacity: 1;
+  transition: opacity 200ms var(--ease-out);
+}
+
+.obs-modal {
+  width: 100%;
+  /* 左右2列（接続／シーン連動）。1列あたり以前の幅（460px）に近くなるようにする。 */
+  max-width: 880px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #FFF;
+  border: 1px solid var(--theme-button);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  /* モーダルは中央出現なので transform-origin は既定（center）のまま */
+  transform: scale(1);
+  transition: transform 200ms var(--ease-out);
+}
+
+/* display: none → flex 切替時の入場アニメーション（Esc/✕ での退場は即時のまま） */
+@starting-style {
+  .obs-modal-overlay { opacity: 0; }
+  .obs-modal { transform: scale(0.97); }
+}
+
+.obs-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  background-color: var(--theme-view);
+  border-bottom: 1px solid var(--theme-button);
+}
+
+.obs-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: bold;
+  color: var(--ui-label-color);
+}
+
+.obs-modal-close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ui-label-color);
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .obs-modal-close:hover { background-color: color-mix(in srgb, var(--theme-border) 12%, transparent); }
+}
+
+.obs-modal-body {
+  padding: 8px 16px 16px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+/* 窓が狭いときは以前どおり縦に並べる。 */
+@media (max-width: 760px) {
+  .obs-modal-body { grid-template-columns: 1fr; }
+}
+.obs-modal-body .settings-section {
+  box-shadow: none;
+  padding: 0;
+}
+
+/* OBS連携 の設定窓（obs_settings.html）。主視窗の対話框と同じ見た目（.obs-modal）を、
+   窓いっぱいに広げて使う。主視窗の body の最小幅・はみ出し隠しはここでは要らない。 */
+body.obs-settings-page {
+  min-width: 0;
+  background-color: var(--theme-panel);
+}
+.obs-window {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+.obs-window .obs-modal {
+  max-width: none;
+  max-height: none;
+  flex: 1 1 auto;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  /* 入場アニメーション（@starting-style の縮小）は対話框用。窓では要らない。 */
+  transform: none;
+  transition: none;
+}
+.obs-window .obs-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 16px;
+  gap: 16px;
+  background-color: var(--theme-panel);
+}
+/* 窓では2列をそれぞれ白いカードにする（対話框のときは枠なしだった）。 */
+.obs-window .obs-modal-body .settings-section {
+  padding: 8px 16px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--theme-button) 35%, transparent);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--theme-border) 10%, transparent);
+}
+/* 左のカードは右（シーン一覧）と同じ高さまで伸びるので、「字幕ソースを追加」を下端に寄せる。 */
+.obs-window .obs-modal-body > .settings-section:first-child {
+  display: flex;
+  flex-direction: column;
+}
+.obs-window .obs-modal-body > .settings-section:first-child > .settings-row-wide:last-child {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+/* 標題横の接続状態。 */
+.obs-conn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: bold;
+  background-color: color-mix(in srgb, #888 15%, #FFF);
+  color: #666;
+}
+.obs-conn-badge::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+.obs-conn-badge[data-state="on"]    { background-color: #E8F5E9; color: #2E7D32; }
+.obs-conn-badge[data-state="retry"] { background-color: #FFEBEE; color: #C62828; }
+
+/* 2つ目の窓から開いたとき：表示だけの欄はグレーにし、上に説明を出す。 */
+.obs-ch2-note {
+  margin: 0;
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--ui-label-color);
+  background-color: color-mix(in srgb, var(--theme-panel) 70%, #FFF);
+}
+.obs-window .card-select:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* シーン連動が無効のときの説明。 */
+.obs-scene-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ui-label-color);
+  background-color: color-mix(in srgb, var(--theme-panel) 70%, #FFF);
+}
+#obs-scene-link-opt { width: 190px; }
+
+/* シーンごとの動作を左端の色で示す（開始＝緑、停止＝赤、何もしない＝なし）。 */
+.obs-scene-row {
+  padding-left: 10px;
+  border-left: 3px solid transparent;
+}
+.obs-scene-row[data-action="start"] { border-left-color: #43A047; }
+.obs-scene-row[data-action="stop"]  { border-left-color: #E53935; }
+
+.obs-test-status {
+  font-size: 13px;
+  font-weight: bold;
+}
+.obs-test-status.testing { color: var(--ui-label-color); }
+.obs-test-status.ok      { color: #2e7d32; }
+.obs-test-status.fail    { color: #c62828; }
+
+/* シーン連動の一覧。シーンが多いときは一覧の中だけスクロールする。 */
+.obs-scene-status {
+  font-size: 12px;
+  color: var(--ui-label-color);
+}
+/* 右列の高さは左列（接続）で決まり、シーン一覧はその残りを埋めて中だけスクロールする。
+   flex-basis 0 にしておくと、シーンが多くても一覧が列の高さを押し広げない。 */
+.obs-scene-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.obs-scene-link-body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.obs-scene-list {
+  flex: 1 1 0;
+  min-height: 160px;
+  overflow-y: auto;
+}
+.obs-scene-row { min-height: 40px; }
+.obs-scene-name {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+.settings-section .obs-scene-row > select.card-select {
+  width: 120px;
+  flex-shrink: 0;
+}
+/* 行は space-between なので、選択欄が2つ（動作と配色）だと1つ目が真ん中に浮く。
+   名前が残りを取り、選択欄2つは右端に並べる。 */
+.obs-scene-row > .obs-scene-name { margin-right: auto; }
+/* シーン一覧の選択欄はクリックしたときの枠を出さない（行が多く、枠がちらついて見える）。 */
+.settings-section .obs-scene-row > select.card-select:focus-visible { outline: none; }
+
+/* =========================================
+   字幕テーマ（javascript/subtitlePresets.js）。右側の情報欄のボタンから開く
+   ========================================= */
+/* 開いている間はボタンを押した色のままにする。 */
+#subtitle-preset-btn:has(+ .subtitle-preset-menu:popover-open) {
+  background-color: var(--theme-button-hover);
+}
+
+/* 上に開く：下は画面の端で、上は字幕の表示欄なので、選んだ結果がそのまま見える。
+   右側の欄から出るので、左へ広げる。 */
+#subtitle-preset-btn { anchor-name: --subtitle-preset-btn; }
+.subtitle-preset-menu {
+  position-anchor: --subtitle-preset-btn;
+  position-area: top span-left;
+  position-try-fallbacks: flip-block;
+  inset: auto;
+  margin: 0 0 8px;
+  padding: 10px;
+  display: none;
+  border: 1px solid var(--theme-button);
+  border-radius: 10px;
+  background: #FFFDF8;
+  box-shadow: 0 8px 24px rgba(70, 40, 20, 0.22);
+  color: #2B2B2B;
+}
+.subtitle-preset-menu:popover-open {
+  display: grid;
+  gap: 8px;
+}
+.subtitle-preset-head {
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--ui-label-color);
+}
+.subtitle-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+/* 各項目は自分の配色で名前を描く（--p-color／--p-stroke は JS がインラインで設定）。
+   選択肢そのものがプレビューになる。縁取りは配信より細い：この大きさで実際の幅だと字が潰れる。
+   背景は灰色系：白い縁取りの配色（料理配信）も、暗い縁取りの配色も読めるように。 */
+.subtitle-preset-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: #E9E4EE;
+  cursor: pointer;
+  text-align: left;
+}
+.subtitle-preset-item:hover { background: #DCD3E6; }
+.subtitle-preset-item.is-empty {
+  cursor: default;
+  background: transparent;
+  outline: 1px dashed var(--theme-button);
+  outline-offset: -1px;
+}
+.subtitle-preset-item.is-empty .subtitle-preset-name {
+  color: var(--ui-label-color);
+  -webkit-text-stroke: 0;
+  font-weight: normal;
+  font-size: 13px;
+}
+
+/* マイテーマ：上の一覧と区切り、各格は「適用」のボタンの下に小さな「保存」。 */
+.subtitle-preset-mine {
+  padding-top: 8px;
+  border-top: 1px dashed var(--theme-button);
+}
+.subtitle-preset-slot {
+  display: grid;
+  gap: 3px;
+}
+.subtitle-preset-save {
+  justify-self: end;
+  padding: 1px 10px;
+  border: 1px solid var(--theme-button);
+  border-radius: 6px;
+  background: var(--theme-panel);
+  color: var(--ui-label-color);
+  font-size: 11px;
+  cursor: pointer;
+}
+.subtitle-preset-save:hover { background: var(--theme-button-hover); }
+.subtitle-preset-item[aria-checked="true"] {
+  box-shadow: inset 0 0 0 2px var(--theme-accent);
+}
+.subtitle-preset-name {
+  font-family: "M PLUS Rounded 1c", "Huninn", Arial, sans-serif;
+  font-size: 15px;
+  font-weight: bold;
+  white-space: nowrap;
+  color: var(--p-color);
+  -webkit-text-stroke: 3px var(--p-stroke);
+  paint-order: stroke fill;
+}
+.subtitle-preset-dots {
+  display: flex;
+  gap: 5px;
+}
+.subtitle-preset-dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  /* 外圈＝縁取り色（--dot-stroke は JS がインラインで設定）。 */
+  box-shadow: 0 0 0 2px var(--dot-stroke, rgba(0, 0, 0, 0.35));
+}
+
+/* =========================================
+   設定齒輪（底部狀態列の右端、版本の右）。めったに押さないので小さめ
+   ========================================= */
+.settings-gear-btn {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.65);
+  color: var(--ui-label-color);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: background-color 0.2s, transform 0.2s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .settings-gear-btn:hover { background-color: rgba(255, 255, 255, 0.95); transform: rotate(45deg); }
+}
+.settings-gear-btn svg { pointer-events: none; }
+
+/* =========================================
+   その他設定モーダル（OBS モーダルと同等の見た目）
+   ========================================= */
+.settings-modal-overlay {
+  position: fixed;
+  inset: 0;
+  /* 疊在其他對話框上方時，modals.js 會設定 --modal-depth。 */
+  z-index: calc(1000 + var(--modal-depth, 0));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(60, 20, 30, 0.45);
+  backdrop-filter: blur(2px);
+  padding: 20px;
+  box-sizing: border-box;
+  opacity: 1;
+  transition: opacity 200ms var(--ease-out);
+}
+.settings-modal {
+  width: 100%;
+  max-width: 460px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #FFF;
+  border: 1px solid var(--theme-button);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  transform: scale(1);
+  transition: transform 200ms var(--ease-out);
+}
+@starting-style {
+  .settings-modal-overlay { opacity: 0; }
+  .settings-modal { transform: scale(0.97); }
+}
+.settings-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  background-color: var(--theme-view);
+  border-bottom: 1px solid var(--theme-button);
+}
+.settings-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: bold;
+  color: var(--ui-label-color);
+}
+.settings-modal-close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ui-label-color);
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .settings-modal-close:hover { background-color: color-mix(in srgb, var(--theme-border) 12%, transparent); }
+}
+.settings-modal-body {
+  padding: 12px 16px 16px;
+  overflow-y: auto;
+  /* 項目の増減でスクロールバーが出入りしても、本文の幅が変わらないよう領域を確保する。 */
+  scrollbar-gutter: stable;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background-color: var(--theme-soft);
+}
+
+/* flex 子要素の既定 (flex-shrink: 1) だと、行が増えて max-height を超えたときに
+   セクション自体が縦に潰れる。潰さずに本文をスクロールさせる。 */
+.settings-modal-body > .settings-section {
+  flex: 0 0 auto;
+}
+
+/* 詳細設定モーダルのみ高さを固定する。
+   .settings-modal は説明用モーダルとも共用のため、そちらは内容なりの高さを保つ。
+   エンジン切り替えで行数が変わってもモーダルが伸縮せず、本文側がスクロールする。
+   行を増減したときは :root の --settings-modal-height を調整する。 */
+#settings-modal-overlay .settings-modal {
+  height: min(85vh, var(--settings-modal-height));
+}
+#settings-modal-overlay .settings-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* テキスト翻訳ページ：設定移設後はテスト領域のみのため全幅に */
+.options-test-area { flex: 1 1 auto; }
+
+/* =========================================
+   翻訳クラウド接続（カスタム URL）ヘルプモーダル
+   ========================================= */
+.link-help-modal { max-width: 620px; }
+.link-help-body { background-color: #FFF; display: block; }
+
+.link-help-subtitle {
+  margin: 4px 0 6px;
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--ui-label-color);
+}
+.link-help-list, .link-help-steps {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #2B2B2B;
+  line-height: 1.7;
+}
+.link-help-list code, .link-help-steps code {
+  background-color: #F1F1F1;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+  font-family: Consolas, "Courier New", monospace;
+}
+.link-help-warning {
+  background-color: #FFF3CD;
+  border: 1px solid #FFE08A;
+  border-left: 4px solid #E0A800;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6d4c00;
+}
+.link-help-warning strong { color: #b00020; }
+
+.link-help-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.link-help-code-head .link-help-subtitle { margin: 0; }
+.link-help-code-head .menu3-button { width: auto; min-width: 0; padding: 0 12px; }
+
+.link-help-code {
+  margin: 0 0 14px;
+  max-height: 320px;
+  overflow: auto;
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  font-family: Consolas, "Courier New", monospace;
+  white-space: pre;
+}
+.link-help-code code { font-family: inherit; color: inherit; }
+
+/* =========================================
+   モーション低減設定（フェードは残し、拡大縮小・回転のみ止める）
+   ========================================= */
+@media (prefers-reduced-motion: reduce) {
+  .obs-modal, .settings-modal, .color-picker-popover {
+    transition-property: opacity;
+  }
+  .settings-gear-btn:hover { transform: none; }
+  .color-picker-preset,
+  .color-picker-preset:hover,
+  .color-picker-preset:active { transition: none; transform: none; }
+}
+
+/* Soniox 説明モーダル */
+.soniox-help-intro {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #2B2B2B;
+}
+.soniox-help-intro code {
+  background-color: #F1F1F1;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+  font-family: Consolas, "Courier New", monospace;
+}
