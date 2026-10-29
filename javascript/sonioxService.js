@@ -46,7 +46,7 @@ let displayCarryText = "";
 // 存原始時間戳而不是預先算好的間隔，是因為間隔、發聲長度、語速、段落時長全都能從
 // 這一份推導出來，反過來不行。軟性斷句要把資料拆成兩半時，也只要用 atChar 篩選，
 // 不必分別維護好幾個累計值。
-let finalTokens = [];          // { atChar, startMs, endMs }，atChar 是 finalizedText 內的位置
+let finalTokens = [];          // { atChar, startMs, endMs, spk }，atChar 是 finalizedText 內的位置，spk 是語者標籤
 
 // 這一段的已確認文字是分幾則 WebSocket 訊息湊齊的。
 //
@@ -298,6 +298,7 @@ function resetLevelTimeline(sampleRate) {
   levelAccSum = 0;
   levelAccN = 0;
   prevSegmentEndMs = null;
+  prevSegmentSpeaker = null;
   levelSlotSamples = Math.max(1, Math.round(sampleRate * LEVEL_SLOT_MS / 1000));
 }
 
@@ -350,6 +351,8 @@ function levelDb(fromMs, toMs, q) {
 const SPEECH_REF_MS = 3000;
 const QUIET_DROPS_DB = [10, 20];
 let prevSegmentEndMs = null;       // 同一條連線上，上一段最後一個字的結束時間（段與段之間的間隔用）
+// 同一條連線上，上一段最後一個字的語者。語者標籤是一條連線內才有意義的編號，重連後不能拿來比。
+let prevSegmentSpeaker = null;
 
 /** [fromMs, toMs) 之間，音量連續低於 thDb 最長幾 ms。沒有資料回傳 null。 */
 function quietRunMs(fromMs, toMs, thDb) {
@@ -435,6 +438,21 @@ function buildSegmentDiag(cut, chars, ctxChars, tokens, msgs) {
   //   比相對大小（分位數）仍然有效，但不能拿絕對毫秒數去對照換氣時間。
   diag.gaps = gaps;                                   // [atChar, gapMs, gapDb, quiet−10dB, quiet−20dB]
 
+  // 語者分離（enable_speaker_diarization）。純紀錄，還不影響斷句與顯示。
+  // 只在換人的地方記一筆 [atChar, 語者]，第一筆是這一段開頭的語者——同一個人講完整段
+  // 就只有一筆。只看已確認的 token：即時模式的標籤在暫定階段會暫時跳到別人身上。
+  const spk = [];
+  for (const t of tokens) {
+    if (t.spk == null) continue;
+    if (spk.length === 0 || spk[spk.length - 1][1] !== t.spk) spk.push([t.atChar, t.spk]);
+  }
+  if (spk.length > 0) {
+    diag.spk = spk;
+    // 上一段最後是誰在講。跟 spk 第一筆不同，表示 endpoint 剛好切在換人的地方。
+    if (prevSegmentSpeaker != null) diag.spkPre = prevSegmentSpeaker;
+    prevSegmentSpeaker = spk[spk.length - 1][1];
+  }
+
   // 跟上一段之間的間隔，格式同 gaps 去掉字位置。換行點在 Soniox 切的地方，段內的 gaps 看不到這一段。
   const lastEnd = tokens[tokens.length - 1].endMs;
   if (prevSegmentEndMs != null && diag.t0 >= prevSegmentEndMs) {
@@ -474,6 +492,10 @@ function logSegmentDiag(reason, diag) {
     間隔數: gaps.length,
     音量: `vol=${diag.vol ?? '-'} peak=${diag.peak ?? '-'} floor=${diag.floor ?? '-'}dB`,
     endpoint待ち: diag.tailMs != null ? `${diag.tailMs}ms/${diag.tailDb ?? '-'}dB` : '-',
+    語者: diag.spk
+      ? `${diag.spkPre != null ? `(前段${diag.spkPre}) ` : ''}${diag.spk.map(s => `${s[1]}@${s[0]}字`).join(' → ')}`
+      : '-',
+    段內換人: diag.spk ? diag.spk.length - 1 : '-',
     前段間隔: diag.pre ? `${diag.pre[0]}ms/${diag.pre[1] ?? '-'}dB 安靜${diag.pre[2] ?? '-'}/${diag.pre[3] ?? '-'}ms` : '-',
     明細: gaps.map(g => `${g[0]}字/${g[1]}ms/${g[2] ?? '-'}dB/安靜${g[3] ?? '-'}/${g[4] ?? '-'}ms`).join(' ') || '（無時間戳或全程無停頓）'
   });
@@ -545,7 +567,7 @@ function flushBySoftSplit(onTranscriptUpdate) {
   const sentTokens = finalTokens.filter(t => t.atChar < cutAt);
   finalTokens = finalTokens
     .filter(t => t.atChar >= cutAt)
-    .map(t => ({ atChar: t.atChar - cutAt, startMs: t.startMs, endMs: t.endMs }));
+    .map(t => ({ ...t, atChar: t.atChar - cutAt }));
 
   finalizedText = finalizedText.slice(cutIndex + 1);
 
@@ -803,7 +825,9 @@ function buildConfig(sampleRate) {
     enable_endpoint_detection: true,
     endpoint_latency_adjustment_level: endpoint.latencyLevel,
     endpoint_sensitivity: endpoint.sensitivity,
-    max_endpoint_delay_ms: endpoint.maxDelayMs
+    max_endpoint_delay_ms: endpoint.maxDelayMs,
+    // 每個 token 多帶一個 speaker 欄位，文字本身不變。目前只用在斷句診斷（見 buildSegmentDiag）。
+    enable_speaker_diarization: true
   };
 
   // 實際送出的端點偵測值。這三項來自 localStorage，未必等於 config.js 的預設，
@@ -957,7 +981,8 @@ function handleSonioxMessage(message, onTranscriptUpdate) {
           finalTokens.push({
             atChar: finalizedText.length,
             startMs: token.start_ms,
-            endMs: token.end_ms
+            endMs: token.end_ms,
+            spk: token.speaker ?? null
           });
         }
         if (!countedThisMessage) {
