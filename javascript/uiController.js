@@ -19,6 +19,7 @@ import { mountSubtitlePresets, applyPreset } from './subtitlePresets.js';
 import { translateTestText } from './translationController.js';
 import { setupColorPickers } from './colorPicker.js';
 import { setupModal } from './modals.js';
+import { installCloudFilters, syncCloudFromInputs, SUBTITLE_OUTLINE_EVENT } from './subtitleCloud.js';
 
 const log = createLogger('UI');
 
@@ -113,13 +114,48 @@ const setupDisplayPanelInteraction = () => {
 };
 
 /** 全部重設按鈕的處理。 */
-const setupResetButton = (resetAll, syncColorPickers, syncPresets) => {
+const setupResetButton = (resetAll, ...syncs) => {
   document.getElementById('reset-settings')?.addEventListener('click', (event) => {
     event.stopPropagation();
     resetAll();
-    syncColorPickers();
-    syncPresets();
+    syncs.forEach(sync => sync());
   });
+};
+
+/**
+ * 字幕の各行のスライダーの横に、いまの値を出す（<output class="slider-value">）。
+ * 字幕テーマの適用も input 事件を出すので同じ道で追従する。全部リセットは事件を出さないので sync を呼ぶ。
+ */
+const setupSliderValues = () => {
+  const pairs = [...document.querySelectorAll('.setting-row .slider-group')]
+    .map(group => [group.querySelector('input[type="range"]'), group.querySelector('.slider-value')])
+    .filter(([input, output]) => input && output);
+  /* 単位は data-unit（文字サイズ・縁取りは px）。雲の大きさは文字サイズに比例する 0〜15 の段階で、
+     決まった長さがないので数字だけ。 */
+  const render = (input, output) => { output.textContent = input.value + (output.dataset.unit || ''); };
+  for (const [input, output] of pairs) {
+    render(input, output);
+    input.addEventListener('input', () => render(input, output));
+  }
+  return { sync: () => pairs.forEach(([input, output]) => render(input, output)) };
+};
+
+/* 雲の filter の数値を決める input：文字サイズ、雲の色・外枠の色・雲の大きさ、外枠の幅。 */
+const CLOUD_INPUT_ID = /^(source|target[123])-(font-size|cloud-(color|rim-color|size))$|^cloud-rim-width-opt$/;
+
+/**
+ * 雲の縁取り（subtitleCloud.js）。filter は SVG の属性なので CSS 変数では追従できず、
+ * 関係する input が変わるたびにここで数値を入れ直す。字幕テーマの適用も input 事件を出すので同じ道を通る。
+ * 縁取りの種類を変えたら OBS の overlay にもすぐ送る（次の字幕を待たない）。
+ */
+const setupCloudOutline = () => {
+  installCloudFilters();
+  syncCloudFromInputs();
+  document.addEventListener('input', (event) => {
+    if (CLOUD_INPUT_ID.test(event.target?.id || '')) syncCloudFromInputs();
+  });
+  document.addEventListener(SUBTITLE_OUTLINE_EVENT, () => republishSubtitlesToObs());
+  return { sync: () => syncCloudFromInputs() };
 };
 
 /**
@@ -329,12 +365,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const { resetAll } = bindSettings();
   const colorPickers = setupColorPickers();
+  const cloudOutline = setupCloudOutline();
+  const sliderValues = setupSliderValues();
   // 換了配色馬上推給 OBS 的 overlay，不等下一句字幕。シーン連動 的換色也走這裡。
   const subtitlePresets = mountSubtitlePresets({ onApplied: republishSubtitlesToObs });
   setScenePresetHandler(applyPreset);
 
   setupPanelSwitching({ 'Subtitle': 'source-styles-panel', 'options': 'options-panel' });
-  setupResetButton(resetAll, colorPickers.sync, subtitlePresets.sync);
+  setupResetButton(resetAll, colorPickers.sync, subtitlePresets.sync, cloudOutline.sync, sliderValues.sync);
   await setupLanguagePackButton('source-language', updateStatusDisplay);
   setupDisplayPanelInteraction();
   setupTranslationModeHandler();

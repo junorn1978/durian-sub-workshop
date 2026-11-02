@@ -6,6 +6,12 @@
   --text-color: #FFFFFF;
   --stroke-color: #000000;
   --stroke-width: 5px;
+  /* 雲の縁取り（バブル／もこもこ）の既定値。一般の縁取りとは別に保存する（javascript/subtitleCloud.js）。
+     雲の大きさは 0〜15 の段階で、px は設定の保存形式に合わせているだけ。 */
+  --cloud-text-color: #FFFFFF;
+  --cloud-color: #000000;
+  --rim-color: #FFFFFF;
+  --cloud-size: 6px;
   --text-align: center;
   --body-background: #00FF00;
   --display-panel-height: 55%;

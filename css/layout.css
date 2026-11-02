@@ -70,6 +70,46 @@
   font-family: "Huninn", "M PLUS Rounded 1c", Arial, sans-serif;
 }
 
+/* 雲の縁取り（javascript/subtitleCloud.js）：一般の縁取りをやめ、各行の SVG filter が
+   縁取り色の雲と外枠を描く。文字色も雲用に別に保存した値を使う。
+
+   雲は字形の上下にはみ出すので行間を広げる（既定の大きさで隣の行の雲がちょうど接する）。
+   音声字幕の最大2行と1行表示の高さも同じ行間で計算し直す。
+
+   丸ゴシックは 400 しかなく、細い字を雲で囲むと潰れて見えるので、雲のときだけ
+   各行の言語の Noto Sans を 900 で使う。地域版どうしは太さ・字幅・英字・仮名が同じで、
+   共通の漢字の字形（辶・言・今・直など）と「。、，」の位置だけが違う。
+   ラテン文字・キリル文字の言語は Noto Sans。 */
+:root:is([data-sub-outline="bubble"], [data-sub-outline="gooey"]) {
+  #source-text, #target-text-1, #target-text-2, #target-text-3 {
+    color: var(--cloud-text-color);
+    -webkit-text-stroke: 0;
+    line-height: 1.55em;
+    font-family: var(--cloud-font, "Noto Sans"), "Noto Sans", "Noto Sans JP", "Noto Sans TC", sans-serif;
+    font-weight: 900;
+  }
+  #source-text { max-block-size: 3.1em; }
+  #source-text.visual-single-line { height: calc(var(--text-font-size) * 1.55) !important; }
+
+  :is(#source-text, #target-text-1, #target-text-2, #target-text-3):lang(ja) { --cloud-font: "Noto Sans JP"; }
+  /* 広東語（香港）は選択肢から外してあるので Noto Sans HK は読まず、繁体字の TC で代用する。 */
+  :is(#source-text, #target-text-1, #target-text-2, #target-text-3):is(:lang(zh-TW), :lang(zh-Hant), :lang(zh-HK), :lang(yue-Hant-HK)) { --cloud-font: "Noto Sans TC"; }
+  :is(#source-text, #target-text-1, #target-text-2, #target-text-3):lang(ko) { --cloud-font: "Noto Sans KR"; }
+  :is(#source-text, #target-text-1, #target-text-2, #target-text-3):lang(th) { --cloud-font: "Noto Sans Thai"; }
+}
+:root[data-sub-outline="bubble"] {
+  #source-text   { filter: url(#sub-bubble-source); }
+  #target-text-1 { filter: url(#sub-bubble-target1); }
+  #target-text-2 { filter: url(#sub-bubble-target2); }
+  #target-text-3 { filter: url(#sub-bubble-target3); }
+}
+:root[data-sub-outline="gooey"] {
+  #source-text   { filter: url(#sub-gooey-source); }
+  #target-text-1 { filter: url(#sub-gooey-target1); }
+  #target-text-2 { filter: url(#sub-gooey-target2); }
+  #target-text-3 { filter: url(#sub-gooey-target3); }
+}
+
 /* =========================================
    3. 翻訳字幕：完整表示 (撐開・自然換行)
    ========================================= */

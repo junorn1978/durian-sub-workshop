@@ -353,6 +353,66 @@ body.obs-settings-page {
   /* 外圈＝縁取り色（--dot-stroke は JS がインラインで設定）。 */
   box-shadow: 0 0 0 2px var(--dot-stroke, rgba(0, 0, 0, 0.35));
 }
+/* 雲のテーマ：内側の輪が雲の色、その外にもう一輪の外枠色（--dot-rim）。輪が太いぶん点の間を空ける。 */
+.subtitle-preset-item.is-cloud .subtitle-preset-dots { gap: 8px; }
+.subtitle-preset-item.is-cloud .subtitle-preset-dots i {
+  box-shadow: 0 0 0 2px var(--dot-stroke), 0 0 0 3.5px var(--dot-rim, transparent);
+}
+
+/* メニュー先頭：縁取りの種類の切り替えと、雲のときだけ外枠の幅。
+   種類を切り替えると、下のテーマ一覧もその種類のものに入れ替わる（subtitlePresets.js）。 */
+.subtitle-outline-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 4px 8px;
+  border-bottom: 1px dashed var(--theme-button);
+}
+.subtitle-outline-switch {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 8px;
+  background: #E9E4EE;
+}
+.subtitle-outline-switch label {
+  position: relative;
+  cursor: pointer;
+}
+.subtitle-outline-switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.subtitle-outline-switch span {
+  display: block;
+  padding: 3px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ui-label-color);
+  transition: background-color 0.15s var(--ease-out), color 0.15s var(--ease-out);
+}
+.subtitle-outline-switch input:checked + span {
+  background: var(--theme-accent);
+  color: #FFF;
+  font-weight: bold;
+}
+.subtitle-outline-switch input:focus-visible + span {
+  outline: 2px solid var(--theme-border);
+  outline-offset: 1px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .subtitle-outline-switch input:not(:checked) + span:hover { background: #DCD3E6; }
+}
+.subtitle-rim-width {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ui-label-color);
+}
+.subtitle-rim-width input[type="range"] { flex: 1; min-width: 60px; }
+.subtitle-rim-width-value { min-width: 2ch; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* =========================================
    設定齒輪（底部狀態列の右端、版本の右）。めったに押さないので小さめ

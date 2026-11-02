@@ -7,6 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&family=Kosugi+Maru&family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+  <!-- 雲の縁取りのときだけ使う、各言語の Noto Sans の 900（index.html と同じ）。 -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@900&family=Noto+Sans+JP:wght@900&family=Noto+Sans+TC:wght@900&family=Noto+Sans+KR:wght@900&family=Noto+Sans+Thai:wght@900&display=swap" rel="stylesheet">
   <style>
     :root {
       --text-align: center;
@@ -72,13 +74,41 @@
       scroll-behavior: smooth;
     }
 
+    /* 雲の縁取り（javascript/subtitleCloud.js）。主視窗の css/layout.css と同じ考え方。
+       ここの行は文字の幅まで縮み、filter の範囲は箱の割合なので、左右に余白を取って雲を収める。
+       影は付けない：影も雲の形に含まれて、雲が右下に膨らむ。 */
+    body:is([data-outline="bubble"], [data-outline="gooey"]) .text-line {
+      padding-inline: 0.7em;
+      line-height: 1.55em;
+      font-family: var(--cloud-font, "Noto Sans"), "Noto Sans", "Noto Sans JP", "Noto Sans TC", sans-serif;
+      font-weight: 900;
+      text-shadow: none;
+    }
+    body:is([data-outline="bubble"], [data-outline="gooey"]) .visual-single-line { height: 1.55em !important; }
+    .text-line:lang(ja) { --cloud-font: "Noto Sans JP"; }
+    .text-line:is(:lang(zh-TW), :lang(zh-Hant), :lang(zh-HK), :lang(yue-Hant-HK)) { --cloud-font: "Noto Sans TC"; }
+    .text-line:lang(ko) { --cloud-font: "Noto Sans KR"; }
+    .text-line:lang(th) { --cloud-font: "Noto Sans Thai"; }
+    body[data-outline="bubble"] {
+      #source-text   { filter: url(#sub-bubble-source); }
+      #target-text-1 { filter: url(#sub-bubble-target1); }
+      #target-text-2 { filter: url(#sub-bubble-target2); }
+      #target-text-3 { filter: url(#sub-bubble-target3); }
+    }
+    body[data-outline="gooey"] {
+      #source-text   { filter: url(#sub-gooey-source); }
+      #target-text-1 { filter: url(#sub-gooey-target1); }
+      #target-text-2 { filter: url(#sub-gooey-target2); }
+      #target-text-3 { filter: url(#sub-gooey-target3); }
+    }
+
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(5px); }
       to { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
-<body>
+<body data-outline="stroke">
   <div class="subtitle-container" id="subtitle-container">
     <div id="source-text" class="text-line source-text"></div>
     <div id="target-text-1" class="text-line"></div>
@@ -86,7 +116,12 @@
     <div id="target-text-3" class="text-line"></div>
   </div>
 
-  <script>
+  <!-- module にしたのは雲の filter（javascript/subtitleCloud.js）を主視窗と共用するため。 -->
+  <script type="module">
+    import { installCloudFilters, updateCloudFilters, isCloudOutline } from './javascript/subtitleCloud.js';
+
+    installCloudFilters();
+
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     const urlParams = new URLSearchParams(window.location.search);
     const wsUrl = hashParams.get('url') || urlParams.get('url') || 'ws://127.0.0.1:4455';
@@ -177,10 +212,21 @@
     let socket = null;
     let initialConnectionDone = false;
 
-    function applyStyle(el, styleObj) {
+    /* cloud（{ line, rimWidth }）があるときは雲の filter が縁取りを描くので、
+       縁取りを外して filter にこの行の数値を入れる。 */
+    function applyStyle(el, styleObj, cloud) {
       if (!styleObj) return;
       if (styleObj.color) el.style.color = styleObj.color;
-      if (styleObj.strokeSize !== undefined && styleObj.strokeColor) {
+      if (cloud) {
+        el.style.webkitTextStroke = '0';
+        updateCloudFilters(cloud.line, {
+          size: parseFloat(styleObj.fontSize),
+          width: Number(styleObj.bubbleSize),
+          rimWidth: Number(cloud.rimWidth),
+          cloud: styleObj.strokeColor,
+          rim: styleObj.rimColor,
+        });
+      } else if (styleObj.strokeSize !== undefined && styleObj.strokeColor) {
         el.style.webkitTextStroke = `${styleObj.strokeSize} ${styleObj.strokeColor}`;
       }
       if (styleObj.fontSize) el.style.fontSize = styleObj.fontSize;
@@ -271,18 +317,22 @@
             }
           };
 
-          const updateText = (el, newText, styleData, lang) => {
+          /* 雲の縁取り。outline を送らない古い主視窗からのものは一般の縁取り。 */
+          const cloudOutline = isCloudOutline(data.outline);
+          document.body.dataset.outline = cloudOutline ? data.outline : 'stroke';
+
+          const updateText = (el, newText, styleData, lang, line) => {
             applyLang(el, lang);
             if (el.textContent !== newText) {
               el.textContent = newText || '';
             }
-            if (styleData) applyStyle(el, styleData);
+            if (styleData) applyStyle(el, styleData, cloudOutline ? { line, rimWidth: data.rimWidth } : null);
           };
 
-          updateText(sourceEl, data.source, data.styles?.source, data.langs?.source);
-          updateText(target1El, data.target1, data.styles?.target1, data.langs?.target1);
-          updateText(target2El, data.target2, data.styles?.target2, data.langs?.target2);
-          updateText(target3El, data.target3, data.styles?.target3, data.langs?.target3);
+          updateText(sourceEl, data.source, data.styles?.source, data.langs?.source, 'source');
+          updateText(target1El, data.target1, data.styles?.target1, data.langs?.target1, 'target1');
+          updateText(target2El, data.target2, data.styles?.target2, data.langs?.target2, 'target2');
+          updateText(target3El, data.target3, data.styles?.target3, data.langs?.target3, 'target3');
         }
       };
 

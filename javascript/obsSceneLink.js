@@ -38,7 +38,7 @@ import {
 } from './obsBridge.js';
 import { getSetting, getSettingBool, setSetting, onExternalSettingChange } from './settingsStore.js';
 import { setPauseAvailable } from './uiState.js';
-import { PRESETS, CUSTOM_SLOTS, CUSTOM_THEMES_KEY, hasCustomTheme } from './subtitlePresets.js';
+import { PRESETS, CUSTOM_SLOTS, CUSTOM_THEMES_KEY, OUTLINE_NAMES, hasCustomTheme, outlineOf } from './subtitlePresets.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('ObsSceneLink');
@@ -117,8 +117,15 @@ function buildSceneRow(sceneName, action, presetId) {
   colours.className = 'card-select';
   colours.title = `${sceneName} に切り替えたときの字幕テーマ`;
   colours.add(new Option('テーマそのまま', '', false, !presetId));
-  for (const preset of PRESETS) {
-    colours.add(new Option(preset.name, preset.id, false, preset.id === presetId));
+  /* 縁取りの種類ごとに分ける。種類が違えば同じ名前のテーマもある（ラベンダー）。
+     雲のテーマを選んだ場景では、切り替えたときに縁取りの種類も変わる。 */
+  for (const [outline, label] of Object.entries(OUTLINE_NAMES)) {
+    const group = document.createElement('optgroup');
+    group.label = label;
+    for (const preset of PRESETS.filter(p => outlineOf(p) === outline)) {
+      group.append(new Option(preset.name, preset.id, false, preset.id === presetId));
+    }
+    if (group.children.length) colours.append(group);
   }
   /* マイテーマ 也列出來。空的格子也能選（之後存了就會生效），選了空的格子時顏色不變。 */
   for (const slot of CUSTOM_SLOTS) {

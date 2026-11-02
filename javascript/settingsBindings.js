@@ -16,6 +16,7 @@ import { getSetting, getSettingBool, setSetting, SETTING_DEFAULTS, onExternalSet
 import { createLogger, setLogLevel } from './logger.js';
 import { handleObsBridgeSettingsChanged } from './obsBridge.js';
 import { applySceneLinkEnabled } from './obsSceneLink.js';
+import { CLOUD_LINES, isCloudOutline, SUBTITLE_OUTLINE_EVENT } from './subtitleCloud.js';
 
 const log = createLogger('SettingsBindings');
 
@@ -30,6 +31,16 @@ const OBS_APPLY_DEBOUNCE_MS = 300;
  */
 const setHidden = (element, hidden) => {
   if (element) element.hidden = hidden;
+};
+
+/**
+ * 縁取りの種類を画面に反映する。:root の data-sub-outline を見て、CSS が字幕の描き方
+ * （css/layout.css）と設定画面で出す欄（css/settings.css）を切り替える。
+ * 知らない値は一般の縁取りとして扱う。
+ */
+const applySubtitleOutline = (value) => {
+  document.documentElement.dataset.subOutline = isCloudOutline(value) ? value : 'stroke';
+  document.dispatchEvent(new CustomEvent(SUBTITLE_OUTLINE_EVENT));
 };
 
 const debounce = (fn, waitMs) => {
@@ -69,7 +80,18 @@ export const CONFIG = {
     { id: 'source-font-stroke-size', target: 'source-text', css: '--stroke-width', type: 'range' },
     { id: 'target1-font-stroke-size', target: 'target-text-1', css: '--stroke-width', type: 'range' },
     { id: 'target2-font-stroke-size', target: 'target-text-2', css: '--stroke-width', type: 'range' },
-    { id: 'target3-font-stroke-size', target: 'target-text-3', css: '--stroke-width', type: 'range' }
+    { id: 'target3-font-stroke-size', target: 'target-text-3', css: '--stroke-width', type: 'range' },
+    // 雲の縁取り（subtitleCloud.js）用。一般の縁取りとは別に保存するので、種類を切り替えても互いの値を壊さない。
+    // 文字色だけが CSS で使われ（--cloud-text-color）、雲・外枠の色と雲の大きさは SVG filter が input から読む。
+    ...CLOUD_LINES.flatMap((line, index) => {
+      const target = index === 0 ? 'source-text' : `target-text-${index}`;
+      return [
+        { id: `${line}-cloud-text-color`, target, css: '--cloud-text-color', type: 'color' },
+        { id: `${line}-cloud-color`, target, css: '--cloud-color', type: 'color' },
+        { id: `${line}-cloud-rim-color`, target, css: '--rim-color', type: 'color' },
+        { id: `${line}-cloud-size`, target, css: '--cloud-size', type: 'range' }
+      ];
+    })
   ],
   languages: [
     { id: 'source-language', type: 'select', langTarget: 'source-text', onApply: () => applyObsSettings() },
@@ -83,11 +105,15 @@ export const CONFIG = {
       targets: ['source-text', 'target-text-1', 'target-text-2', 'target-text-3'],
       css: '--text-align',
       onApply: (val) => setAlignment(val)
-    }
+    },
+    // 縁取りの種類。字幕テーマのメニューの先頭にある（index.html）。
+    { name: 'subtitle-outline', key: 'subtitle-outline', onApply: (val) => applySubtitleOutline(val) }
   ],
   special: [
     { id: 'display-panel-color', type: 'body-color', css: '--body-background' },
     { id: 'translation-link', type: 'text' },
+    // 雲の外枠の幅（4行共通）。filter への反映は uiController.js の input 監視が受け持つ。
+    { id: 'cloud-rim-width-opt', type: 'range-value', key: 'cloud-rim-width', valueId: 'cloud-rim-width-value' },
     { id: 'click-minimize-opt', type: 'select', key: 'click-minimize-enabled' },
     {
       id: 'force-single-line-opt', type: 'select', key: 'force-single-line-enabled',

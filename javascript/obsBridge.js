@@ -33,6 +33,7 @@
 
 import { getSetting, getSettingBool, CHANNEL } from './settingsStore.js';
 import { createLogger } from './logger.js';
+import { isCloudOutline, cloudStyleFromInputs, rimWidthFromInputs } from './subtitleCloud.js';
 
 const log = createLogger('OBSBridge');
 
@@ -406,17 +407,30 @@ function pushTranslationsToObs() {
   broadcastSubtitleUpdate();
 }
 
+/** いまの縁取りの種類（:root の data-sub-outline、settingsBindings.js が付ける）。 */
+function currentOutline() {
+  const outline = document.documentElement.dataset.subOutline;
+  return isCloudOutline(outline) ? outline : 'stroke';
+}
+
+/**
+ * 1行の見た目。雲の縁取りのときは、雲用に別に保存した文字色を color に、雲の色を strokeColor に入れ、
+ * 外枠の色と雲の大きさを足す。overlay は outline を見て、縁取りで描くか雲の filter で描くかを決める。
+ */
 function getStyleFor(prefix) {
   const colorEl = document.getElementById(`${prefix}-font-color`);
   const strokeColorEl = document.getElementById(`${prefix}-font-stroke-color`);
   const sizeEl = document.getElementById(`${prefix}-font-size`);
   const strokeSizeEl = document.getElementById(`${prefix}-font-stroke-size`);
-  return {
+  const style = {
     color: colorEl ? colorEl.value : '#FFFFFF',
     strokeColor: strokeColorEl ? strokeColorEl.value : '#000000',
     fontSize: sizeEl ? `${sizeEl.value}px` : '20px',
     strokeSize: strokeSizeEl ? `${strokeSizeEl.value}px` : '4px'
   };
+  if (currentOutline() === 'stroke') return style;
+  const cloud = cloudStyleFromInputs(prefix);
+  return { ...style, color: cloud.textColor, strokeColor: cloud.cloud, rimColor: cloud.rim, bubbleSize: cloud.width };
 }
 
 function getLanguageFor(prefix) {
@@ -465,6 +479,8 @@ function broadcastSubtitleUpdate() {
           target2: latestTranslations[1] || '',
           target3: latestTranslations[2] || '',
           alignment: alignment,
+          outline: currentOutline(),
+          rimWidth: rimWidthFromInputs(),
           langs: {
             source: getLanguageFor('source'),
             target1: getLanguageFor('target1'),

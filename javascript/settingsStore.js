@@ -40,9 +40,11 @@ const PER_CHANNEL_KEYS = new Set([
   'soniox-latency-level', 'soniox-sensitivity', 'soniox-max-delay-ms',
   'subtitle-clear-idle-sec',
   'text-alignment', 'force-single-line-enabled', 'display-panel-color',
-  'obs-scene-presets', 'subtitle-custom-themes'
+  'obs-scene-presets', 'subtitle-custom-themes',
+  'subtitle-outline', 'cloud-rim-width'
 ]);
-const PER_CHANNEL_STYLE = /^(source|target[123])-font-(color|stroke-color|size|stroke-size)$/;
+/* 一般縁取り用的 *-font-*，和雲的縁取り用的 *-cloud-*（兩組分開存，切換縁取りの種類 時互不覆蓋）。 */
+const PER_CHANNEL_STYLE = /^(source|target[123])-(font-(color|stroke-color|size|stroke-size)|cloud-(text-color|color|rim-color|size))$/;
 
 /* 第二個視窗第一次打開時不複製的設定：裝置的選擇沒有理由沿用。 */
 const NOT_COPIED = new Set(['mic-device-id', 'mic-device-label']);
@@ -58,8 +60,10 @@ function storageKey(key) {
 
 /* 第二個視窗第一次打開：複製第一個視窗當時的值。 */
 if (CHANNEL === 2 && localStorage.getItem(CH2_INITIALIZED_KEY) === null) {
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
+  /* key の一覧を先に取ってから書く。localStorage.key(i) の順番は書き込むと変わりうる（仕様上も
+     「key の数が変わらない間だけ一定」）ので、読みながら 'ch2:…' を足すと写らない key が出る。 */
+  const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i));
+  for (const key of keys) {
     if (!key || key.startsWith(CH2_PREFIX) || !isPerChannel(key) || NOT_COPIED.has(key)) continue;
     localStorage.setItem(CH2_PREFIX + key, localStorage.getItem(key));
   }
@@ -94,6 +98,10 @@ export const SETTING_DEFAULTS = Object.freeze({
 
   // 表示・システム
   'subtitle-custom-themes': '[]', // マイテーマ 三格（見 subtitlePresets.js），每個視窗各一份
+  // 縁取りの種類：'stroke'（一般）| 'bubble' | 'gooey'（雲，見 subtitleCloud.js）。
+  // 雲的顏色與大小存在 *-cloud-* 另一組，切回 'stroke' 時一般縁取り的設定原封不動。
+  'subtitle-outline': 'stroke',
+  'cloud-rim-width': '3',         // 雲的外枠寬，0〜15、四行共用
   'text-alignment': 'center',
   'click-minimize-enabled': 'true',
   'force-single-line-enabled': 'true',
