@@ -383,3 +383,15 @@
   background-color: #D93025;
   vertical-align: 1px;
 }
+
+/* 字幕の飾り（javascript/cornerDeco.js）：原文の最初の字の左上／最後の字の右上に、字の後ろから掛ける絵。
+   z-index: -1 で #Subtitle-style（isolation: isolate）の中のいちばん後ろ。字幕の行どうしの重なり順は変えない。
+   位置・大きさ・傾きは JS が入れる。 */
+.corner-deco {
+  position: absolute;
+  z-index: -1;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+}
+.corner-deco[hidden] { display: none; }

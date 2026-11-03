@@ -29,6 +29,8 @@
     }
 
     .subtitle-container {
+      position: relative; /* 字幕の飾り（javascript/cornerDeco.js）の位置の基準 */
+      isolation: isolate; /* 飾りの z-index: -1 をこの中に閉じ込める */
       display: flex;
       flex-direction: column;
       align-items: var(--text-align);
@@ -102,6 +104,15 @@
       #target-text-3 { filter: url(#sub-gooey-target3); }
     }
 
+    /* 字幕の飾り（主視窗の css/layout.css と同じ）。すべての行の後ろ。 */
+    .corner-deco {
+      position: absolute;
+      z-index: -1;
+      height: auto;
+      pointer-events: none;
+    }
+    .corner-deco[hidden] { display: none; }
+
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(5px); }
       to { opacity: 1; transform: translateY(0); }
@@ -119,6 +130,7 @@
   <!-- module にしたのは雲の filter（javascript/subtitleCloud.js）を主視窗と共用するため。 -->
   <script type="module">
     import { installCloudFilters, updateCloudFilters, isCloudOutline } from './javascript/subtitleCloud.js';
+    import { mountCornerDeco } from './javascript/cornerDeco.js';
 
     installCloudFilters();
 
@@ -208,6 +220,9 @@
     };
 
     setupSourceScrollBehavior(sourceEl);
+
+    /* 字幕の飾り。設定は主視窗から字幕と一緒に届く（cornerDeco）。届くまでは出さない。 */
+    const cornerDeco = mountCornerDeco({ textEl: sourceEl, host: document.getElementById('subtitle-container') });
 
     let socket = null;
     let initialConnectionDone = false;
@@ -320,6 +335,9 @@
           /* 雲の縁取り。outline を送らない古い主視窗からのものは一般の縁取り。 */
           const cloudOutline = isCloudOutline(data.outline);
           document.body.dataset.outline = cloudOutline ? data.outline : 'stroke';
+          /* 字幕の飾り。cornerDeco を送らない古い主視窗からのものは出さない。 */
+          cornerDeco.setMode(data.cornerDeco);
+
           /* 雲のときの行間。lineHeight を送らない古い主視窗からのものは既定の 1.55。 */
           const lineHeight = Number(data.lineHeight);
           document.body.style.setProperty('--cloud-line-height', lineHeight > 0 ? String(lineHeight) : '1.55');

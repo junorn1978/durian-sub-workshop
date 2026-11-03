@@ -728,6 +728,8 @@
    13. 字幕顯示的方式（背景全透明字幕）
    ========================================= */
 #Subtitle-style {
+  position: relative; /* 字幕の飾り（javascript/cornerDeco.js）の位置の基準 */
+  isolation: isolate; /* 飾りの z-index: -1 をこの中に閉じ込める */
   display: flex;
   flex-direction: column;
   margin: 0 0;

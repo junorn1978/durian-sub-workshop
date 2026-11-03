@@ -41,7 +41,7 @@ const PER_CHANNEL_KEYS = new Set([
   'subtitle-clear-idle-sec',
   'text-alignment', 'force-single-line-enabled', 'display-panel-color',
   'obs-scene-presets', 'subtitle-custom-themes',
-  'subtitle-outline', 'cloud-rim-width', 'cloud-line-height'
+  'subtitle-outline', 'cloud-rim-width', 'cloud-line-height', 'corner-deco'
 ]);
 /* 一般縁取り用的 *-font-*，和雲的縁取り用的 *-cloud-*（兩組分開存，切換縁取りの種類 時互不覆蓋）。 */
 const PER_CHANNEL_STYLE = /^(source|target[123])-(font-(color|stroke-color|size|stroke-size)|cloud-(text-color|color|rim-color|size))$/;
@@ -103,6 +103,7 @@ export const SETTING_DEFAULTS = Object.freeze({
   'subtitle-outline': 'stroke',
   'cloud-rim-width': '3',         // 雲的外枠寬，0〜15、四行共用
   'cloud-line-height': '1.55',    // 雲的行間（字大小的倍數），1.1〜2、四行共用
+  'corner-deco': 'off',           // 字幕の飾り：'off' | 'left'（最初の字の左上）| 'right'（最後の字の右上），見 cornerDeco.js
   'text-alignment': 'center',
   'click-minimize-enabled': 'true',
   'force-single-line-enabled': 'true',

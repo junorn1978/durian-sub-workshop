@@ -34,6 +34,7 @@
 import { getSetting, getSettingBool, CHANNEL } from './settingsStore.js';
 import { createLogger } from './logger.js';
 import { isCloudOutline, cloudStyleFromInputs, rimWidthFromInputs, lineHeightFromInputs } from './subtitleCloud.js';
+import { cornerDecoFromRoot } from './cornerDeco.js';
 
 const log = createLogger('OBSBridge');
 
@@ -482,6 +483,7 @@ function broadcastSubtitleUpdate() {
           outline: currentOutline(),
           rimWidth: rimWidthFromInputs(),
           lineHeight: lineHeightFromInputs(),
+          cornerDeco: cornerDecoFromRoot(),
           langs: {
             source: getLanguageFor('source'),
             target1: getLanguageFor('target1'),

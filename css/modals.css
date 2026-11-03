@@ -636,3 +636,5 @@ body.obs-settings-page {
   font-size: 12px;
   font-family: Consolas, "Courier New", monospace;
 }
+/* 字幕の飾りの行（javascript/cornerDeco.js）。切り替えは縁取りの種類と同じ見た目。 */
+.subtitle-deco-label { font-size: 12px; color: var(--ui-label-color); }

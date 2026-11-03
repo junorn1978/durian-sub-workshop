@@ -17,6 +17,7 @@ import { createLogger, setLogLevel } from './logger.js';
 import { handleObsBridgeSettingsChanged, republishSubtitlesToObs } from './obsBridge.js';
 import { applySceneLinkEnabled } from './obsSceneLink.js';
 import { CLOUD_LINES, isCloudOutline, SUBTITLE_OUTLINE_EVENT } from './subtitleCloud.js';
+import { normalizeCornerDeco, CORNER_DECO_EVENT } from './cornerDeco.js';
 
 const log = createLogger('SettingsBindings');
 
@@ -107,7 +108,16 @@ export const CONFIG = {
       onApply: (val) => setAlignment(val)
     },
     // 縁取りの種類。字幕テーマのメニューの先頭にある（index.html）。
-    { name: 'subtitle-outline', key: 'subtitle-outline', onApply: (val) => applySubtitleOutline(val) }
+    { name: 'subtitle-outline', key: 'subtitle-outline', onApply: (val) => applySubtitleOutline(val) },
+    // 字幕の飾り（なし／左上／右上）。:root の data-corner-deco に入れ、uiController.js の飾りと OBS が読む。
+    {
+      name: 'corner-deco', key: 'corner-deco',
+      onApply: (val) => {
+        document.documentElement.dataset.cornerDeco = normalizeCornerDeco(val);
+        document.dispatchEvent(new CustomEvent(CORNER_DECO_EVENT));
+        republishSubtitlesToObs();
+      }
+    }
   ],
   special: [
     { id: 'display-panel-color', type: 'body-color', css: '--body-background' },

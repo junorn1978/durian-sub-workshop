@@ -20,6 +20,7 @@ import { translateTestText } from './translationController.js';
 import { setupColorPickers } from './colorPicker.js';
 import { setupModal } from './modals.js';
 import { installCloudFilters, syncCloudFromInputs, SUBTITLE_OUTLINE_EVENT } from './subtitleCloud.js';
+import { mountCornerDeco, cornerDecoFromRoot, CORNER_DECO_EVENT } from './cornerDeco.js';
 
 const log = createLogger('UI');
 
@@ -156,6 +157,17 @@ const setupCloudOutline = () => {
   });
   document.addEventListener(SUBTITLE_OUTLINE_EVENT, () => republishSubtitlesToObs());
   return { sync: () => syncCloudFromInputs() };
+};
+
+/** 字幕の飾り（cornerDeco.js）。設定は bindSettings() のあとなので、:root にはもう入っている。 */
+const setupCornerDeco = () => {
+  const textEl = document.getElementById('source-text');
+  const host = document.getElementById('Subtitle-style');
+  if (!textEl || !host) return;
+  const deco = mountCornerDeco({ textEl, host });
+  const sync = () => deco.setMode(cornerDecoFromRoot());
+  document.addEventListener(CORNER_DECO_EVENT, sync);
+  sync();
 };
 
 /**
@@ -366,6 +378,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const { resetAll } = bindSettings();
   const colorPickers = setupColorPickers();
   const cloudOutline = setupCloudOutline();
+  setupCornerDeco();
   const sliderValues = setupSliderValues();
   // 換了配色馬上推給 OBS 的 overlay，不等下一句字幕。シーン連動 的換色也走這裡。
   const subtitlePresets = mountSubtitlePresets({ onApplied: republishSubtitlesToObs });
