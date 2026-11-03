@@ -403,6 +403,13 @@ body.obs-settings-page {
 @media (hover: hover) and (pointer: fine) {
   .subtitle-outline-switch input:not(:checked) + span:hover { background: #DCD3E6; }
 }
+.subtitle-outline-bar { flex-wrap: wrap; row-gap: 8px; }
+/* 外枠と行間の2本は切り替えの下の段に置く（1段に3つは窮屈）。 */
+.subtitle-cloud-sliders {
+  display: flex;
+  flex: 1 0 100%;
+  gap: 16px;
+}
 .subtitle-rim-width {
   display: flex;
   flex: 1;
@@ -412,7 +419,7 @@ body.obs-settings-page {
   color: var(--ui-label-color);
 }
 .subtitle-rim-width input[type="range"] { flex: 1; min-width: 60px; }
-.subtitle-rim-width-value { min-width: 2ch; text-align: right; font-variant-numeric: tabular-nums; }
+.subtitle-rim-width-value { min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* =========================================
    設定齒輪（底部狀態列の右端、版本の右）。めったに押さないので小さめ

@@ -14,7 +14,7 @@ import {
 } from './config.js';
 import { getSetting, getSettingBool, setSetting, SETTING_DEFAULTS, onExternalSettingChange } from './settingsStore.js';
 import { createLogger, setLogLevel } from './logger.js';
-import { handleObsBridgeSettingsChanged } from './obsBridge.js';
+import { handleObsBridgeSettingsChanged, republishSubtitlesToObs } from './obsBridge.js';
 import { applySceneLinkEnabled } from './obsSceneLink.js';
 import { CLOUD_LINES, isCloudOutline, SUBTITLE_OUTLINE_EVENT } from './subtitleCloud.js';
 
@@ -114,6 +114,15 @@ export const CONFIG = {
     { id: 'translation-link', type: 'text' },
     // 雲の外枠の幅（4行共通）。filter への反映は uiController.js の input 監視が受け持つ。
     { id: 'cloud-rim-width-opt', type: 'range-value', key: 'cloud-rim-width', valueId: 'cloud-rim-width-value' },
+    // 雲のときの行間（4行共通）。CSS 変数に入れて css/layout.css が使い、OBS の overlay にもすぐ送る。
+    {
+      id: 'cloud-line-height-opt', type: 'range-value', key: 'cloud-line-height', valueId: 'cloud-line-height-value',
+      format: (v) => Number(v).toFixed(2),
+      onApply: (val) => {
+        document.documentElement.style.setProperty('--cloud-line-height', String(Number(val) || 1.55));
+        republishSubtitlesToObs();
+      }
+    },
     { id: 'click-minimize-opt', type: 'select', key: 'click-minimize-enabled' },
     {
       id: 'force-single-line-opt', type: 'select', key: 'force-single-line-enabled',

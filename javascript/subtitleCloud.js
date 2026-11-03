@@ -87,11 +87,11 @@ const SHAPES = {
 };
 
 /* filter 的範圍按元素大小的比例往外延。雲和外枠都開到最大（15 與 15）時會超出字形 0.68em，
-   一行的高度是 1.55em，它的 60% 是 0.93em，上下不會被切掉。
+   一行的高度是行間（1.1〜2em，見 css/layout.css），最窄 1.1em 的 65% 是 0.72em，上下不會被切掉。
    主視窗的字幕行橫跨整個面板，左右 5% 就夠；overlay 的行會縮到文字寬，由它自己加左右 padding 容納雲。
    形狀之後的部分都共用：從雲長出外枠、兩種顏色、最上面疊原本的字。 */
 const filterMarkup = (outline, line) => `
-  <filter id="${cloudFilterId(outline, line)}" x="-5%" y="-60%" width="110%" height="220%" color-interpolation-filters="sRGB">
+  <filter id="${cloudFilterId(outline, line)}" x="-5%" y="-65%" width="110%" height="230%" color-interpolation-filters="sRGB">
     ${SHAPES[outline].markup}
     <feMorphology in="cloud" operator="dilate" data-rim="" result="ru"/>
     <feGaussianBlur in="ru" data-blur="rim" result="rb"/>
@@ -157,6 +157,9 @@ export function cloudStyleFromInputs(line, doc = document) {
 
 /** 主視窗：外枠寬（四行共用）。 */
 export const rimWidthFromInputs = (doc = document) => Number(doc.getElementById('cloud-rim-width-opt')?.value ?? 3);
+
+/** 主視窗：雲的行間（字大小的倍數，四行共用）。 */
+export const lineHeightFromInputs = (doc = document) => Number(doc.getElementById('cloud-line-height-opt')?.value) || 1.55;
 
 /** 主視窗：依設定畫面的 input 更新四行的 filter。字的大小、雲的設定、外枠寬任何一個改了都要呼叫。 */
 export function syncCloudFromInputs(doc = document) {

@@ -18,6 +18,8 @@
  *    姊妹專案的配色連縁取り寬度一起換，這邊拿掉了——換主題時大小不該跟著跳。
  * 雲的主題則照姊妹專案，連雲的大小與外枠寬一起換：雲的外觀大半靠這兩個值，
  * 而且它們存在雲自己那一組，不會影響一般縁取り。文字サイズ 兩種都不動。
+ * 雲的主題也帶行間（lh，字大小的倍數）：雲胖的主題上下兩行容易黏在一起，要的行間每組不同。
+ * 沒有 lh 的（加入行間以前存的マイテーマ）當成預設的 1.55。
  * 背景色兩種都不動：ウィンドウキャプチャ時是クロマキー的顏色，動了會抜けなくなる。
  *
  * 不用偏綠的顏色：背景預設是 #00FF00，類似度調高時薄荷綠、草綠會被一起抜掉。
@@ -25,7 +27,7 @@
  * 名稱刻意用一般詞。有些配色參考了知名角色的配色，但不寫出角色名稱與商標。
  *
  * 【マイテーマ】另外有三格讓使用者存自己目前的配色。存的是存檔當下那個縁取りの種類 的值
- * （一般縁取り：文字色與縁取り色；雲：再加上外枠色、雲的大小與外枠寬，以及是哪一種雲），
+ * （一般縁取り：文字色與縁取り色；雲：再加上外枠色、雲的大小、外枠寬、行間，以及是哪一種雲），
  * 兩種種類下都列出來，套用時順便切到那格的種類。
  * 存在 'subtitle-custom-themes'，和字幕外觀一樣每個視窗各一份。
  * シーン連動 也能選這三格；選了空的格子，切場景時就維持原本的顏色。
@@ -41,7 +43,7 @@ import { isCloudOutline, SUBTITLE_OUTLINE_EVENT } from './subtitleCloud.js';
 const LINES = [['source', 'src'], ['target1', 't1'], ['target2', 't2'], ['target3', 't3']];
 
 const line = (color, stroke) => ({ color, stroke });
-/* 雲的一行：stroke 是雲的顏色、w 是雲的大小（0〜15）、rim 是外枠色。外枠寬 rimW 是整組共用的。 */
+/* 雲的一行：stroke 是雲的顏色、w 是雲的大小（0〜15）、rim 是外枠色。外枠寬 rimW 與行間 lh 是整組共用的。 */
 const cloud = (color, stroke, w, rim) => ({ color, stroke, w, rim });
 
 /** 縁取りの種類 的名稱（主題選單、シーン連動 的選單分組用）。 */
@@ -85,32 +87,32 @@ export const PRESETS = [
 
   /* ここから雲の縁取りのテーマ（姊妹專案 v1.35.0 のまま。翻訳 3 はこちらで足した）。
      id の頭に種類を付けるのは姊妹專案と同じで、一般のテーマと id がぶつからない。 */
-  { id: 'bubbleSticker',  name: 'ステッカー', outline: 'bubble', rimW: 4,
+  { id: 'bubbleSticker',  name: 'ステッカー', outline: 'bubble', rimW: 4, lh: 1.55,
     src: cloud('#FF4FA3', '#FFFFFF', 1, '#FA5151'), t1: cloud('#38BDF8', '#FFFFFF', 1, '#28C1DF'),
     t2: cloud('#CD9AFD', '#FFFFFF', 1, '#CD9AFD'), t3: cloud('#FF9F1C', '#FFFFFF', 1, '#FF9F1C') },
-  { id: 'bubbleLavender', name: 'ラベンダー', outline: 'bubble', rimW: 7,
+  { id: 'bubbleLavender', name: 'ラベンダー', outline: 'bubble', rimW: 7, lh: 1.55,
     src: cloud('#1A1A1A', '#C1B6FF', 11, '#C8337A'), t1: cloud('#1A1A1A', '#B4CBFF', 11, '#C8337A'),
     t2: cloud('#1A1A1A', '#F2A7C9', 11, '#C8337A'), t3: cloud('#1A1A1A', '#FFD3A8', 11, '#C8337A') },
-  { id: 'bubbleCandy',    name: 'キャンディ', outline: 'bubble', rimW: 3,
+  { id: 'bubbleCandy',    name: 'キャンディ', outline: 'bubble', rimW: 3, lh: 1.55,
     src: cloud('#FFFFFF', '#FF7FB0', 6, '#FFFFFF'), t1: cloud('#FFFFFF', '#B58CFF', 6, '#FFFFFF'),
     t2: cloud('#FFFFFF', '#FF9E6B', 6, '#FFFFFF'), t3: cloud('#FFFFFF', '#6EB6FF', 6, '#FFFFFF') },
-  { id: 'bubbleSoda',     name: 'ソーダ', outline: 'bubble', rimW: 8,
+  { id: 'bubbleSoda',     name: 'ソーダ', outline: 'bubble', rimW: 8, lh: 1.55,
     src: cloud('#0B2545', '#8FD3FF', 6, '#FFFFFF'), t1: cloud('#0B2545', '#BFE6FF', 6, '#FFFFFF'),
     t2: cloud('#0B2545', '#FFD6E8', 6, '#FFFFFF'), t3: cloud('#0B2545', '#E3D4FF', 6, '#FFFFFF') },
-  { id: 'bubbleLemon',    name: 'レモン', outline: 'bubble', rimW: 6,
+  { id: 'bubbleLemon',    name: 'レモン', outline: 'bubble', rimW: 6, lh: 1.55,
     src: cloud('#3B2414', '#FFE27A', 6, '#E07A2E'), t1: cloud('#3B2414', '#FFF3B0', 6, '#E07A2E'),
     t2: cloud('#3B2414', '#FFC9A3', 6, '#E07A2E'), t3: cloud('#3B2414', '#FFD8E4', 6, '#E07A2E') },
-  { id: 'bubbleNight',    name: '夜空', outline: 'bubble', rimW: 4,
+  { id: 'bubbleNight',    name: '夜空', outline: 'bubble', rimW: 4, lh: 1.55,
     src: cloud('#FFFFFF', '#2A2350', 6, '#B79CFF'), t1: cloud('#FFE873', '#2A2350', 6, '#B79CFF'),
     t2: cloud('#9FD4FF', '#2A2350', 6, '#B79CFF'), t3: cloud('#FF9EC8', '#2A2350', 6, '#B79CFF') },
 
-  { id: 'gooeyPeach', name: 'ピーチ', outline: 'gooey', rimW: 8,
+  { id: 'gooeyPeach', name: 'ピーチ', outline: 'gooey', rimW: 8, lh: 1.55,
     src: cloud('#4A1F12', '#FFB38A', 6, '#FFFFFF'), t1: cloud('#4A1F12', '#FFD0A8', 6, '#FFFFFF'),
     t2: cloud('#4A1F12', '#FFC2D4', 6, '#FFFFFF'), t3: cloud('#4A1F12', '#FFE0A3', 6, '#FFFFFF') },
-  { id: 'gooeyGrape', name: 'グレープ', outline: 'gooey', rimW: 6,
+  { id: 'gooeyGrape', name: 'グレープ', outline: 'gooey', rimW: 6, lh: 1.55,
     src: cloud('#FFFFFF', '#7B4FC9', 6, '#F5D0FF'), t1: cloud('#FFFFFF', '#9A6BE0', 6, '#F5D0FF'),
     t2: cloud('#FFFFFF', '#C25AA8', 6, '#F5D0FF'), t3: cloud('#FFFFFF', '#5A5FD0', 6, '#F5D0FF') },
-  { id: 'gooeyInk',   name: '墨', outline: 'gooey', rimW: 8,
+  { id: 'gooeyInk',   name: '墨', outline: 'gooey', rimW: 8, lh: 1.55,
     src: cloud('#FFFFFF', '#1C1C24', 4, '#FFD400'), t1: cloud('#FFE873', '#1C1C24', 4, '#FFD400'),
     t2: cloud('#9FD4FF', '#1C1C24', 4, '#FFD400'), t3: cloud('#FF9EC8', '#1C1C24', 4, '#FFD400') },
 ];
@@ -187,6 +189,14 @@ const inputsOf = (prefix, cloudMode) => {
     : { color: el('font-color'), stroke: el('font-stroke-color') };
 };
 const rimWidthInput = () => document.getElementById('cloud-rim-width-opt');
+const lineHeightInput = () => document.getElementById('cloud-line-height-opt');
+
+/** 雲的主題的行間。沒有 lh 的舊マイテーマ是預設值。比較時取到小數兩位（滑桿一格 0.05）。 */
+const DEFAULT_LINE_HEIGHT = 1.55;
+const lineHeightOf = (preset) => {
+  const lh = Number(preset?.lh);
+  return Math.round((lh > 0 ? lh : DEFAULT_LINE_HEIGHT) * 100) / 100;
+};
 const outlineRadios = () => [...document.querySelectorAll('input[name="subtitle-outline"]')];
 
 /** 目前的縁取りの種類（設定畫面的單選鈕）。 */
@@ -213,7 +223,10 @@ function setOutline(outline) {
 function apply(preset) {
   const cloudTheme = isCloud(preset);
   setOutline(outlineOf(preset));
-  if (cloudTheme) setInput(rimWidthInput(), preset.rimW);
+  if (cloudTheme) {
+    setInput(rimWidthInput(), preset.rimW);
+    setInput(lineHeightInput(), lineHeightOf(preset));
+  }
   for (const [prefix, slot] of LINES) {
     const inputs = inputsOf(prefix, cloudTheme);
     setInput(inputs.color, preset[slot].color);
@@ -240,14 +253,16 @@ function currentTheme() {
       ? cloud(color, stroke, Number(inputs.w?.value), inputs.rim?.value.toUpperCase() || '#FFFFFF')
       : line(color, stroke)];
   }));
-  return cloudMode ? { outline, rimW: Number(rimWidthInput()?.value), ...lines } : lines;
+  return cloudMode
+    ? { outline, rimW: Number(rimWidthInput()?.value), lh: lineHeightOf({ lh: lineHeightInput()?.value }), ...lines }
+    : lines;
 }
 
 function matches(preset) {
   const now = currentTheme();
   if (outlineOf(now) !== outlineOf(preset)) return false;
   const cloudTheme = isCloud(preset);
-  if (cloudTheme && now.rimW !== preset.rimW) return false;
+  if (cloudTheme && (now.rimW !== preset.rimW || now.lh !== lineHeightOf(preset))) return false;
   return LINES.every(([, slot]) => now[slot].color === preset[slot].color && now[slot].stroke === preset[slot].stroke
     && (!cloudTheme || (now[slot].rim === preset[slot].rim && now[slot].w === preset[slot].w)));
 }
@@ -393,7 +408,7 @@ export function mountSubtitlePresets({ onApplied = () => {} } = {}) {
   }
 
   /* 手動改了配色或縁取りの種類，打勾就跟著變。 */
-  const watched = [rimWidthInput(), ...LINES.flatMap(([prefix]) =>
+  const watched = [rimWidthInput(), lineHeightInput(), ...LINES.flatMap(([prefix]) =>
     [...Object.values(inputsOf(prefix, false)), ...Object.values(inputsOf(prefix, true))])];
   for (const el of watched) el?.addEventListener('input', () => syncMenu());
   document.addEventListener(SUBTITLE_OUTLINE_EVENT, () => {

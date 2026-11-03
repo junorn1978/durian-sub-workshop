@@ -73,7 +73,8 @@
 /* 雲の縁取り（javascript/subtitleCloud.js）：一般の縁取りをやめ、各行の SVG filter が
    縁取り色の雲と外枠を描く。文字色も雲用に別に保存した値を使う。
 
-   雲は字形の上下にはみ出すので行間を広げる（既定の大きさで隣の行の雲がちょうど接する）。
+   雲は字形の上下にはみ出すので行間を広げる（既定の 1.55 で隣の行の雲がちょうど接する）。
+   行間は字幕テーマの「行間」で 1.1〜2 に変えられ、--cloud-line-height に入る（settingsBindings.js）。
    音声字幕の最大2行と1行表示の高さも同じ行間で計算し直す。
 
    丸ゴシックは 400 しかなく、細い字を雲で囲むと潰れて見えるので、雲のときだけ
@@ -84,12 +85,12 @@
   #source-text, #target-text-1, #target-text-2, #target-text-3 {
     color: var(--cloud-text-color);
     -webkit-text-stroke: 0;
-    line-height: 1.55em;
+    line-height: calc(var(--cloud-line-height) * 1em);
     font-family: var(--cloud-font, "Noto Sans"), "Noto Sans", "Noto Sans JP", "Noto Sans TC", sans-serif;
     font-weight: 900;
   }
-  #source-text { max-block-size: 3.1em; }
-  #source-text.visual-single-line { height: calc(var(--text-font-size) * 1.55) !important; }
+  #source-text { max-block-size: calc(var(--cloud-line-height) * 2em); }
+  #source-text.visual-single-line { height: calc(var(--text-font-size) * var(--cloud-line-height)) !important; }
 
   :is(#source-text, #target-text-1, #target-text-2, #target-text-3):lang(ja) { --cloud-font: "Noto Sans JP"; }
   /* 広東語（香港）は選択肢から外してあるので Noto Sans HK は読まず、繁体字の TC で代用する。 */
