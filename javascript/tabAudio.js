@@ -80,6 +80,10 @@ export async function openTabShare() {
        這類程式可以只聽它，不混進其他聲音。不支援的瀏覽器會忽略。
        即時翻譯 用媒體播放器在 Chrome 155・Edge（Windows）測過，2026-10-09。 */
     windowAudio:        'window',
+    /* 視窗與整個畫面的頁籤，音訊的勾選預設是沒勾的（分頁本來就勾著），這裡讓它一開始就勾上：
+       在這裡共用卻不帶聲音，從來不是想要的。只是提示（規格上可以忽略）；
+       Chrome 152 以後的選擇對話框會照做，其他瀏覽器忽略。即時翻譯 的 audio-input.js 也用同一個。 */
+    audioSelection:     'preferred',
   });
   /* 不然瀏覽器會把共用的分頁切到前面；使用者要看的是字幕。必須在拿到之後馬上呼叫。 */
   try { controller?.setFocusBehavior('no-focus-change'); } catch { /* 沒有焦點可言的共用類型 */ }
