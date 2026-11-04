@@ -89,7 +89,7 @@ const PENDING_CHUNK_LIMIT = 200;
 
 // #region [設定與配置]
 const SONIOX_WS_URL = "wss://stt-rt.soniox.com/transcribe-websocket";
-const SONIOX_MODEL = "stt-rt-v5";
+const SONIOX_MODEL = "stt-rt-v6";
 // 因無聲而自動中斷連線的門檻。
 // 計算的不是「麥克風無聲」的時間，而是「Soniox 未傳回任何文字」的時間。背景音樂或鍵盤聲
 // 不會使其更新，因此閱讀留言、專心玩遊戲等長時間不說話的情況也會持續計時。
