@@ -19,6 +19,7 @@ import { hasTabShare, cloneTabStream, onTabShareChange } from './tabAudio.js';
 import { mountSecondWindow } from './secondWindow.js';
 import { mountObsSceneLink } from './obsSceneLink.js';
 import { onLanguagePackInstalled } from './languagePackManager.js';
+import { cornerDecoFromRoot } from './cornerDeco.js';
 
 const log = createLogger('SpeechRecognition');
 
@@ -538,9 +539,15 @@ function wrapWithNoteByAlignment(baseText, symbolType) {
                                                 : '​🐭';
   const symbolTextB = '🐹';
 
-  return alignment === 'center' ? `${symbolTextA}${baseText}${symbolTextB}`
-       : alignment === 'right'  ? `${symbolTextA}${baseText}`
-                                : `${baseText}${symbolTextA}`;
+  let [head, tail] = alignment === 'center' ? [symbolTextA, symbolTextB]
+                   : alignment === 'right'  ? [symbolTextA, '']
+                                            : ['', symbolTextA];
+  /* 字幕飾り（cornerDeco.js）開著的那一側不加符號（左上→左側，右上→右側），關閉時兩側照舊。 */
+  const deco = cornerDecoFromRoot();
+  if (deco === 'left') head = '';
+  if (deco === 'right') tail = '';
+
+  return `${head}${baseText}${tail}`;
 }
 
 // #endregion
