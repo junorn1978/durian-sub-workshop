@@ -152,6 +152,7 @@
   { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "敦盛", "target": "(あつ森)" },
   { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "漢字", "target": "かんじ" },
   { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "感じ", "target": "かんじ" },
+  { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "結構", "target": "けっこう" },
   { "lang": "ja-JP", "note": "【雜項/語氣修正】", "source": "ヒトラ", "target": "しとら" },
 
   { "lang": "ja-JP", "note": "【敏感術語遮蔽】", "source": "トランプ", "target": "***" },
@@ -177,7 +178,9 @@
   { "lang": "zh-TW", "source": "玲花", "target": "reika" },
   { "lang": "zh-TW", "source": "玲香", "target": "reika" },
   { "lang": "zh-TW", "source": "麗華", "target": "reika" },
-
+  { "lang": "zh-TW", "source": "零華", "target": "reika" },
+  { "lang": "zh-TW", "source": "れい", "target": "鈴" },
+  
   { "lang": "en-US", "source": "\\bTrump\\b", "target": "***" },
   { "lang": "en-US", "source": "\\bHitler\\b", "target": "***" },
   { "lang": "en-US", "source": "\\bMAGA\\b", "target": "***" },
