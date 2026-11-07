@@ -531,8 +531,12 @@
 /* =========================================
    9. 麥克風資訊與隱私遮罩 (Mic Info & Privacy)
    ========================================= */
+/* 左の欄（65%）の残りを全部使う。以前は 34% 固定だったが、左の欄は中身（行名・言語・色・スライダー2本）より
+   狭くならないので、1200px 未満では 65% を超えて広がり、34% のままの右の欄が画面の外にはみ出していた。
+   1200px 以上では残りがちょうど 34% ぶんなので、見た目は以前と同じ。 */
 .info-right-col {
-  flex: 0 0 34%;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   background-color: var(--theme-soft);
@@ -709,19 +713,26 @@
   .top-control-bar { flex-wrap: wrap; height: auto; padding-bottom: 5px; }
   .menu-panel { margin-left: 0px; width: auto; flex: 1; }
   .link-wrapper { min-width: 200px; }
+
+  /* ロゴと開始・停止の区画を細くして、右の欄に幅を回す（右の欄は 1 行に収まるのに 300px ほど要る）。 */
+  .record-button { width: auto; min-width: 100px; }
+  #logo { height: 100px; object-fit: contain; }
+  #recorder-panel { width: 120px; }
 }
 
-@media screen and (max-width: 950px) {
+/* 字幕設定の左の欄は中身（行名・言語・色・スライダー2本）の約 610px より狭くならないので、
+   これより狭いと右の欄に 300px が残らない。右の欄を左の欄の下に回し、区画の中を縦にスクロールする。 */
+@media screen and (max-width: 1100px) {
   .unified-settings-view { flex-direction: column; overflow-y: auto; }
   .settings-left-col { flex: none; width: 100%; padding-right: 0; overflow-y: visible; }
   .info-right-col { flex: none; width: 100%; height: auto; min-height: 150px; margin-top: 10px; }
+}
+
+@media screen and (max-width: 950px) {
   .unified-options-view { flex-direction: column; }
-  .record-button { width: auto; min-width: 100px; }
   .options-column { width: 100%; }
 
   #options-panel { overflow-y: auto; }
-  #logo { height: 100px; object-fit: contain; }
-  #recorder-panel { width: 120px; }
 }
 
 /* =========================================

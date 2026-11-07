@@ -97,20 +97,20 @@ const setupTranslationModeHandler = () => {
   }
 };
 
-/** 點擊字幕面板時收合操作面板，擴大字幕區域。 */
+/**
+ * 點擊字幕面板時收合操作卡片（操作パネル＋状態列），擴大字幕區域。
+ * 字幕區域是 flex: 1，收合後自動填滿（見 css/layout.css）。用 hidden 收合整張卡片，
+ * 只藏裡面兩塊的話，卡片的邊框和下方的間隔會留在畫面上。
+ */
 const setupDisplayPanelInteraction = () => {
   const displayPanel = document.getElementById('display-panel');
-  const controlPanel = document.getElementById('control-panel');
-  const statusPanel = document.getElementById('status-panel');
+  const controlCard = document.getElementById('control-card');
   const minimizeOpt = document.getElementById('click-minimize-opt');
-  if (!displayPanel || !controlPanel || !statusPanel) return;
+  if (!displayPanel || !controlCard) return;
 
   displayPanel.addEventListener('click', () => {
     if (minimizeOpt?.value === 'false') return;
-    const isHidden = controlPanel.style.display === 'none';
-    controlPanel.style.display = isHidden ? 'flex' : 'none';
-    statusPanel.style.display = isHidden ? 'flex' : 'none';
-    displayPanel.style.setProperty('--display-panel-height', isHidden ? '55%' : '95%');
+    controlCard.hidden = !controlCard.hidden;
   });
 };
 

@@ -15,7 +15,15 @@
   --cloud-line-height: 1.55;
   --text-align: center;
   --body-background: #00FF00;
-  --display-panel-height: 55%;
+  /* 操作カード（操作パネル＋状態列、css/layout.css の #control-card）。ウィンドウを広げても大きくしない：
+     広いウィンドウではカードが中央に浮き、まわりは全部字幕の背景色、字幕の欄だけが残りの空間を使う。
+     大きさは 1280×720 で作ったときに合わせてある：中身の幅は最大 1240px（カード 1264px − 左右の内側の余白 12px ずつ）、
+     操作パネルの中身の高さ 248px（上下の余白 12px ずつで 272px）、状態列 36px。 */
+  --card-inset: 10px;            /* カードとウィンドウの端のあいだ（左右と下） */
+  --card-padding-x: 12px;        /* カードの内側の左右の余白 */
+  --card-max: 1264px;
+  --control-panel-height: 272px;
+  --status-panel-height: 36px;
   /* 詳細設定モーダルの固定高さ。行を増減したらここだけ調整する。 */
   --settings-modal-height: 808px;
   /* UI アニメーション共通イージング（標準の ease-out より立ち上がりが強い） */

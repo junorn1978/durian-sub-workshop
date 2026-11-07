@@ -1,8 +1,10 @@
 /* =========================================
    2. 字幕顯示主區域 (Display Panel)
    ========================================= */
+/* 操作パネルと状態列の高さは固定なので、字幕の欄は残りを全部使う。
+   操作パネルを隠したとき（クリックで最小化、uiController.js）も、そのぶん自然に広がる。 */
 #display-panel {
-  height: var(--display-panel-height);
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   padding: 20px;
@@ -119,17 +121,33 @@
 /* =========================================
    4. 介面框架佈局 (UI Framework)
    ========================================= */
+/* 操作パネルと状態列をまとめた一枚のカード。幅と高さはウィンドウに合わせて伸ばさず、
+   広いウィンドウでは中央に置く。カードの外は字幕の背景色（クロマキーの色）がそのまま続く。
+   以前は全幅の帯で、広げると帯の端と中身の端がずれ、左右に中身のない紫だけが広がっていた。
+   左右と下に --card-inset だけ字幕の背景色を残し、四隅とも角丸の浮いたカードにする
+   （下をウィンドウの底に付けると、カードではなく途中で切れた板に見えた）。
+   影は付けない：緑の背景に影の濃い緑が残り、OBS のカラーキーで抜けなくなる（姉妹專案で実測）。枠線だけ。 */
+#control-card {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  width: min(100% - var(--card-inset) * 2, var(--card-max));
+  margin: 0 auto var(--card-inset);
+  background-color: var(--theme-panel);
+  border: 1px solid var(--theme-button);
+  border-radius: 12px;
+  position: relative;
+  z-index: 2;
+}
+
+/* カードの最下段。地の色はカードのもの。 */
 #status-panel {
   display: flex;
   flex-direction: row;
   align-items: center;
-  width: 100%;
-  height: 5%;
-  min-height: 30px;
-  background-color: var(--theme-panel);
-  padding: 0 20px;
+  flex: 0 0 var(--status-panel-height);
+  padding: 0 var(--card-padding-x);
   gap: 10px;
-  z-index: 2;
 }
 
 .status-info {
@@ -227,29 +245,25 @@
   padding: 2px 10px;
 }
 
+/* カードの上段。高さは固定（--control-panel-height、base.css）。以前は高さ 40% で、
+   ウィンドウを縦に広げると中の控制項はそのままに余白だけが伸びていた。 */
 #control-panel {
-  height: 40%;
-  background-color: var(--theme-panel);
-  padding: 20px;
-  box-sizing: border-box;
+  flex: 0 0 var(--control-panel-height);
+  /* flex の子は既定で中身より低くならない。狭いウィンドウで右の欄を下に回したとき（css/settings.css）、
+     これがないとカードごと伸びて状態列が画面の下に押し出される。中の区画を縦にスクロールさせる。 */
+  min-height: 0;
+  padding: 12px var(--card-padding-x);
   display: flex;
   gap: 10px;
-  margin: 0 auto;
-  width: 100%;
-  min-width: 1200px;
-  min-height: 280px;
-  z-index: 2;
   position: relative;
-  border-top-left-radius: 10px;
-  border-top-right-radius: 10px;
 }
 
-/* control-panel 下端の破線。左右に余白を残すため border ではなく疑似要素で描画 */
+/* control-panel 下端の破線（状態列との区切り）。左右に余白を残すため border ではなく疑似要素で描画 */
 #control-panel::after {
   content: "";
   position: absolute;
-  left: 20px;
-  right: 20px;
+  left: var(--card-padding-x);
+  right: var(--card-padding-x);
   bottom: 0;
   border-bottom: 2px dashed var(--theme-ink);
   pointer-events: none;
