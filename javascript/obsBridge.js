@@ -215,6 +215,11 @@ async function executeAutoSetup() {
     catch { /* 已經存在 */ }
 
     const overlayCss = 'body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }';
+    /* 新建來源的大小。和 OBS 標準的畫布一樣大，放進去時就蓋滿整個畫面
+       （以前的 1280×200 在 1920 寬的直播裡字幕欄太窄，要自己拉大）。
+       overlay 的字幕是靠上端畫的（obs_overlay.html），所以高度變大，字的位置也不會變。 */
+    const OVERLAY_WIDTH = 1920;
+    const OVERLAY_HEIGHT = 1080;
     const sourcesToCreate = [
       { name: `${SOURCE_PREFIX}-全体表示`, mode: 'all', visible: true },
       { name: `${SOURCE_PREFIX}-音声`, mode: 'source', visible: false },
@@ -230,17 +235,19 @@ async function executeAutoSetup() {
           sceneName: NEST_SCENE,
           inputName: source.name,
           inputKind: 'browser_source',
-          inputSettings: { url, width: 1280, height: 200, reroute_audio: false, css: overlayCss },
+          inputSettings: { url, width: OVERLAY_WIDTH, height: OVERLAY_HEIGHT, reroute_audio: false, css: overlayCss },
           sceneItemEnabled: source.visible
         });
         log.debug(`已建立來源: ${source.name}`);
       } catch (e) {
-        /* 來源已經存在（OBS 裡任何地方）：更新設定（網址、密碼可能變了），沒在字幕場景裡才放進去。 */
+        /* 來源已經存在（OBS 裡任何地方）：更新設定（網址、密碼可能變了），沒在字幕場景裡才放進去。
+           大小不動：既有的來源是使用者已經排好位置的（舊版建立的是 1280×200），改大小的話，
+           置中的字幕會跟著左右移動，直播畫面上的字幕位置就跑掉了。 */
         log.debug(`來源 ${source.name} 已存在，改為更新。原因:`, e.message);
         try {
           await sendSingleRequest('SetInputSettings', {
             inputName: source.name,
-            inputSettings: { url, width: 1280, height: 200, css: overlayCss }
+            inputSettings: { url, css: overlayCss }
           });
           const sceneItemId = await ensureSceneItem(NEST_SCENE, source.name);
           await sendSingleRequest('SetSceneItemEnabled', {
