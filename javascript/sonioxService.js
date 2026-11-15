@@ -109,6 +109,9 @@ const FINISHED_TOKEN = "<fin>";
 // 再往下降沒有意義：實測 55 和 50 的結果與 60 完全相同，因為卡住的是「這段話裡
 // 有沒有標點可切」，不是門檻。
 const SOFT_SPLIT_LENGTH = 60;
+
+// 送給 Soniox 的 endpoint_sensitivity。暫時蓋過使用者的設定，理由見 buildConfig。
+const FIXED_ENDPOINT_SENSITIVITY = -0.2;
 const MAX_BUFFER_LENGTH = 250;
 const CONTEXT_MAX_LENGTH = 100;
 const SENTENCE_END_PATTERN = /[。！？!?]/g;
@@ -811,7 +814,11 @@ async function buildAudioPipeline(stream, sessionId) {
 }
 
 function buildConfig(sampleRate) {
-  const endpoint = getSonioxEndpointSettings();
+  // sensitivity 暫時寫死，不看使用者的設定（滑桿和 localStorage 的值先留著不動）。
+  // 2026-11-07～11-13 的後端紀錄（9260 段）：撞到 max delay 上限的只有 4%，
+  // 大多是 Soniox 在 tail 約 600ms 就用語意判定講完，切出「ありがとう。｜ございます。」這種段。
+  // 先試 -0.2，看 [SEGMENT] 的 tail、段長和撞上限比例怎麼變，再決定要不要調、要不要收掉滑桿。
+  const endpoint = { ...getSonioxEndpointSettings(), sensitivity: FIXED_ENDPOINT_SENSITIVITY };
   sentEndpointSettings = endpoint;
   const langObj = sessionLangObj;
 

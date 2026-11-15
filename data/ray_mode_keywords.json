@@ -180,6 +180,9 @@
   { "lang": "zh-TW", "source": "麗華", "target": "reika" },
   { "lang": "zh-TW", "source": "零華", "target": "reika" },
   { "lang": "zh-TW", "source": "れい", "target": "鈴" },
+  { "lang": "zh-TW", "source": "rei桑", "target": "鈴桑" },
+  { "lang": "zh-TW", "source": "和馬", "target": "和真" },
+  { "lang": "zh-TW", "source": "kazume", "target": "和真" },
   
   { "lang": "en-US", "source": "\\bTrump\\b", "target": "***" },
   { "lang": "en-US", "source": "\\bHitler\\b", "target": "***" },
