@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>タブの音声 - ハムハム字幕アトリエ</title>
+  <!-- 主視窗「タブの音声」ボタンで開く窓（javascript/tabPicker.js）。
+       ブラウザの「共有するタブを選ぶ」画面は呼び出した窓の上に出る。主視窗で呼ぶと、ほかのタブの題名や
+       ウィンドウの縮図が OBS のウィンドウキャプチャに映ってしまうため、この窓で呼ぶ。
+       共有はこの窓に結びついているので、共有中は閉じない（最小化はかまわない）。 -->
+  <script>
+    if (new URLSearchParams(location.search).get('ch') === '2') {
+      document.documentElement.dataset.ch = '2';
+      document.title += '（2）';
+    }
+  </script>
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+
+  <!-- 順序がそのまま優先順位になる（後ろほど強い）ので入れ替えない -->
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/settings.css">
+  <link rel="stylesheet" href="css/modals.css">
+  <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Huninn&family=Kosugi+Maru&family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="obs-settings-page tab-picker-page">
+  <div class="obs-window">
+    <div class="obs-modal">
+      <div class="obs-modal-header">
+        <h3 class="obs-modal-title"><span>タブの音声</span></h3>
+        <button type="button" id="tab-picker-close" class="obs-modal-close" title="この窓を閉じる（共有中なら共有も終了します）" aria-label="閉じる">✕</button>
+      </div>
+      <div class="tab-picker-body">
+        <p class="tab-picker-lead">コラボ相手の声など、ブラウザのタブやアプリのウィンドウの音声を字幕にします。</p>
+        <div class="tab-picker-action">
+          <button type="button" id="tab-picker-btn" class="menu3-button">共有するタブを選ぶ</button>
+        </div>
+        <p id="tab-picker-status" class="tab-picker-status" aria-live="polite"></p>
+        <ul class="tab-picker-notes">
+          <li>選ぶ画面はこの窓の上に開くので、OBS で映しているメインの窓には出ません。<b>この窓は OBS で映さないでください。</b></li>
+          <li>ウィンドウを選ぶときは、「アプリの音声も共有する」をオンにしてください。</li>
+          <li>共有中はこの窓を閉じないでください（最小化はできます）。閉じると共有が終わります。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="javascript/tabPicker.js"></script>
+</body>
+</html>

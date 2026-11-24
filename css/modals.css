@@ -170,6 +170,35 @@ body.obs-settings-page {
 }
 .obs-window .card-select:disabled { opacity: 0.6; cursor: not-allowed; }
 
+/* 「タブの音声」の窓（tab_picker.html）。OBS連携 の窓と同じ枠（.obs-window .obs-modal）に、
+   説明・ボタン・状態を縦に並べる。窓の大きさは開いたときのまま（共有の前後で変えない）。 */
+.tab-picker-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background-color: var(--theme-panel);
+  color: var(--ui-label-color);
+  font-size: 14px;
+}
+.tab-picker-lead { margin: 0; }
+.tab-picker-action .menu3-button { width: auto; height: 34px; padding: 0 20px; font-size: 14px; }
+.tab-picker-action .menu3-button.is-sharing { background-color: #FFF; border-color: #C62828; color: #C62828; }
+.tab-picker-status { margin: 0; min-height: 1.4em; font-size: 13px; font-weight: bold; }
+.tab-picker-status.is-error { color: #C62828; }
+.tab-picker-notes {
+  margin: 0;
+  padding: 10px 12px 10px 28px;
+  border-radius: 10px;
+  background-color: #FFF;
+  border: 1px solid color-mix(in srgb, var(--theme-button) 35%, transparent);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
 /* シーン連動が無効のときの説明。 */
 .obs-scene-note {
   margin: 12px 0 0;

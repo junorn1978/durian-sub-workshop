@@ -14,14 +14,16 @@
  *   - deviceId 是每個網站各自的，清除網站資料就會換掉；名稱不會，所以先用名稱找回來。
  *
  * 右邊的「タブの音声」按鈕開關分頁（或視窗）的共用（見 tabAudio.js）。共用中辨識聽分頁，
- * 麥克風選單停用。不放進清單裡：選了它就要立刻跳出列著所有分頁的對話框，跟「選一支
+ * 麥克風選單停用。不放進清單裡：選了它就要另開選擇窓、在那裡選分頁，跟「選一支
  * 麥克風」是不同性質的操作；做成按鈕，共用中也一眼看得出來。
+ * 按鈕本身不跳瀏覽器的選擇對話框：對話框會疊在主視窗上，被 OBS 拍進直播。改成打開
+ * 「タブの音声」窓（tab_picker.html），在那裡選；拿到的聲音交回這裡（見 tabAudio.js）。
  */
 
-import { getSetting, setSetting } from './settingsStore.js';
+import { getSetting, setSetting, CHANNEL } from './settingsStore.js';
 import { createLogger } from './logger.js';
 import { updateStatusDisplay } from './uiState.js';
-import { openTabShare, closeTabShare, hasTabShare, getTabShareLabel, onTabShareChange, NoTabAudioError } from './tabAudio.js';
+import { openTabPicker, closeTabShare, hasTabShare, getTabShareLabel, onTabShareChange, installTabShareHooks } from './tabAudio.js';
 
 const log = createLogger('MicSelector');
 
@@ -150,16 +152,7 @@ function renderTabButton() {
   tabButton.textContent = sharing ? 'タブの音声：共有中' : 'タブの音声';
   tabButton.title = sharing
     ? `「${getTabShareLabel() || 'タブ'}」の音声を聞いています。クリックで共有を終了します（認識中なら認識も停止します）。`
-    : 'コラボ相手の声など、ブラウザのタブやアプリのウィンドウの音声を字幕にします。クリックすると、共有するタブを選ぶ画面が開きます。';
-}
-
-/** 共用開不了時，在狀態列說明原因。對話框按取消是使用者自己的決定，不說什麼。 */
-function reportShareFailed(err) {
-  if (err?.name === 'NotAllowedError') return;
-  log.warn('タブを共有できませんでした:', err);
-  updateStatusDisplay(err instanceof NoTabAudioError
-    ? 'タブの音声が共有されていません。共有するときに「タブの音声も共有する」（ウィンドウなら「アプリの音声も共有する」）をオンにしてください。'
-    : 'タブを共有できませんでした。もう一度「タブの音声」ボタンを押してください。');
+    : 'コラボ相手の声など、ブラウザのタブやアプリのウィンドウの音声を字幕にします。クリックすると「タブの音声」の窓が開き、そこで共有するタブを選びます（選ぶ画面はメインの窓に出ないので、配信に映りません）。';
 }
 
 /** 頁面載入時呼叫一次。瀏覽器不支援共用就不顯示按鈕。 */
@@ -168,15 +161,13 @@ export function mountTabShareButton() {
   if (!tabButton) return;
   if (!navigator.mediaDevices?.getDisplayMedia) { tabButton.hidden = true; return; }
 
-  tabButton.addEventListener('click', async () => {
+  installTabShareHooks();
+  /* 選擇窓的對話框按取消、沒勾音訊等，都在那個窓裡說明，這裡不用管。 */
+  tabButton.addEventListener('click', () => {
     if (hasTabShare()) { closeTabShare(); return; }
-    tabButton.disabled = true;   // 對話框開著時不要再開一個
-    try {
-      await openTabShare();
-    } catch (err) {
-      reportShareFailed(err);
-    } finally {
-      tabButton.disabled = false;
+    if (!openTabPicker(CHANNEL)) {
+      log.warn('「タブの音声」の窓を開けませんでした（ポップアップのブロック）');
+      updateStatusDisplay('「タブの音声」の窓を開けませんでした。ブラウザのポップアップのブロックを解除してください。');
     }
   });
   onTabShareChange(() => {
