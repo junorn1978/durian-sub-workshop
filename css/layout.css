@@ -258,14 +258,15 @@
   position: relative;
 }
 
-/* control-panel 下端の破線（状態列との区切り）。左右に余白を残すため border ではなく疑似要素で描画 */
+/* control-panel 下端の区切り線（状態列との区切り）。左右に余白を残すため border ではなく疑似要素で描画。
+   以前は濃い色の 2px 破線で目立ちすぎたので、薄い 1px の実線にする。 */
 #control-panel::after {
   content: "";
   position: absolute;
   left: var(--card-padding-x);
   right: var(--card-padding-x);
   bottom: 0;
-  border-bottom: 2px dashed var(--theme-ink);
+  border-bottom: 1px solid color-mix(in srgb, var(--theme-ink) 18%, transparent);
   pointer-events: none;
 }
 

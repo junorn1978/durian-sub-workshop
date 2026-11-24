@@ -52,6 +52,7 @@
   position: relative;
   flex: 1;
   height: 30px;
+  margin-right: 5px;
   display: block;
 }
 
@@ -126,24 +127,29 @@
 /* =========================================
    7. 頁籤選單與按鈕 (Menu & Tabs)
    ========================================= */
+/* 頁籤の帯は、下の右の欄（.info-right-col）と左右の端をそろえる。
+   右の欄の幅は (V − 10px) × 35% − 10px（V＝帯と同じ #settings-panel の幅。字幕設定の区画の左右の余白 5px ずつを引き、
+   左の欄 65% と間の 10px を除いた残り）。flex-basis の % は帯の padding-left 5px を除いた幅に対してなので
+   (100% − 5px) が V − 10px になる。右端は区画の余白に合わせて 5px 内側。
+   左の URL 欄（.link-wrapper）は margin-right 5px で、帯との間を字幕設定の行と右の欄の間と同じ 15px にする。 */
 .menu-panel {
   display: flex;
   flex-direction: row;
   align-items: center;
-  border-radius: 5px;
-  width: auto;
+  flex: 0 0 calc((100% - 5px) * 0.35 - 10px);
   height: 30px;
-  background-color: var(--theme-menu);
   margin-left: auto;
+  margin-right: 5px;
+  border-radius: 5px;
+  background-color: var(--theme-menu);
 }
 
 #menu {
+  flex: 1;
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 10px;
-  border-radius: 10px;
-  background-color: var(--theme-menu);
+  justify-content: space-between;
   padding: 0 5px;
 }
 
@@ -274,12 +280,15 @@
   align-items: center;
   background-color: #FFF;
   border-radius: 8px;
-  padding: 5px 10px;
+  padding: 5px 20px 5px 10px; /* 右は行の右端に寄せたスライダーとの間 */
   gap: 10px;
-  height: 43px;
+  /* 4行で左の欄の高さを等分し、最後の行の下端を右の欄の下端にそろえる（以前は 43px 固定で下に 9px 余っていた）。 */
+  flex: 1 1 0;
+  min-height: 43px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
-.source-row { background-color: #FFF9E6; border: 1px solid #FFD700; }
+/* 枠 1px のぶん左右の余白を 1px 減らし、中身の位置をほかの行とそろえる。 */
+.source-row { background-color: #FFF9E6; border: 1px solid #FFD700; padding-left: 9px; padding-right: 19px; }
 
 .row-label {
   width: 60px;
@@ -290,10 +299,10 @@
   margin-right: 5px;
 }
 /* 言語名は最長でも「インドネシア語」「中国語（台湾）」の7字なので、幅はそこに合わせて固定する。
-   このアプリは日本語の UI だけなので訳語で伸びることはなく、空いた分は色と雲の設定に回す。 */
+   このアプリは日本語の UI だけなので訳語で伸びることはない。窮屈に見えないよう余裕を持たせて 170px。 */
 .setting-row select {
-  flex: 0 0 128px;
-  width: 128px;
+  flex: 0 0 170px;
+  width: 170px;
   height: 30px;
   border: 1px solid #ccc;
   border-radius: 5px;
@@ -301,6 +310,9 @@
 }
 
 .control-group { display: flex; gap: 5px; align-items: center; }
+/* 色の後ろの余りを全部ここで取り、スライダーを行の右端に寄せる。雲（色が3つ）に切り替えても
+   増えた色はこの余白に収まり、スライダーの位置は動かない。 */
+.setting-row .control-group { margin-right: auto; }
 .setting-row input[type="color"] { width: 30px; height: 30px; border: none; cursor: pointer; background: none; }
 .native-color-input {
   position: absolute !important;
@@ -500,22 +512,24 @@
 .color-picker-preset:active { transform: scale(0.95); }
 .color-picker-preset.is-selected { box-shadow: 0 0 0 2px #FFF, 0 0 0 4px var(--theme-border); }
 .color-picker-preset:focus-visible { outline: 2px solid var(--theme-border); outline-offset: 1px; }
-/* 見出しの下に、長さを固定したスライダーと数値（姊妹專案と同じ 100px。数値は単位 px が付くぶん 36px）。
+/* 上の段に見出し（左）と数値（右）、下の段に長さを固定したスライダー（110px）。
+   以前は見出しがスライダーの真上の中央、数値がスライダーの右で、目が上と右を行き来した。
    正確な値は数値で見えるので、スライダーは掴みやすい長さがあれば足り、窓の幅で伸び縮みさせない。 */
 .slider-group {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: 100px 36px;
-  column-gap: 6px;
+  grid-template-columns: 1fr auto;
+  width: 110px;
+  row-gap: 6px;
   align-items: center;
 }
-/* 見出しはスライダーの真上（数値の列には掛けない）。 */
-.slider-group .tiny-label { grid-column: 1; justify-self: center; }
-.slider-group input[type="range"] { grid-column: 1; }
+.slider-group .tiny-label { grid-column: 1; grid-row: 1; justify-self: start; margin-bottom: 0; }
+.slider-group .slider-value { grid-column: 2; grid-row: 1; }
+.slider-group input[type="range"] { grid-column: 1 / -1; grid-row: 2; }
 .slider-value {
-  font-size: 12px;
-  color: #4A4A4A;
-  text-align: center;
+  font-size: 11px;
+  color: #2B2B2B;
+  text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
